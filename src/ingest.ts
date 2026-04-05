@@ -5,6 +5,7 @@ import type { ChunkFrontmatter } from "./types.js";
 import { contentHash } from "./hasher.js";
 import { serializeFrontmatter } from "./frontmatter.js";
 import { BrainPath } from "./brain-path.js";
+import { visionIngest, VISION_EXTENSIONS } from "./vision-ingest.js";
 
 export interface IngestResult {
   source_name: string;
@@ -63,6 +64,13 @@ function extractKeywords(text: string): string[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([w]) => w);
+}
+
+export const TEXT_EXTENSIONS = new Set(["md", "markdown", "txt", "csv", "html", "htm", "json"]);
+
+/** Returns true if the file requires vision-based LLM extraction */
+export function needsVisionIngest(ext: string): boolean {
+  return VISION_EXTENSIONS.has(ext.toLowerCase());
 }
 
 const MAX_WORDS = 800;
@@ -146,6 +154,14 @@ export async function ingestFile(
   rawRelativePath: string
 ): Promise<IngestResult> {
   const filename = path.basename(rawRelativePath);
+  const ext = path.extname(filename).slice(1).toLowerCase();
+
+  // Route binary formats to vision-based LLM extraction
+  if (needsVisionIngest(ext)) {
+    const result = await visionIngest(brain, rawRelativePath, ext);
+    return { source_name: result.source_name, chunks_created: result.chunks_created };
+  }
+
   const safeName = safeSourceName(rawRelativePath);
   const sourceType = detectSourceType(filename);
   const manifestKey = `_meta/manifest:${rawRelativePath}`;
