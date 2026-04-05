@@ -1,0 +1,133 @@
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const serverBin = join(__dirname, "..", "bin", "fs-brain-server.mjs");
+
+const port = Math.floor(4200 + Math.random() * 800);
+let serverProcess;
+let brainDir;
+
+async function api(port, action, params = {}) {
+  const res = await fetch(`http://localhost:${port}/api`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, params }),
+  });
+  return res.json();
+}
+
+before(async () => {
+  // Create a temp brain directory
+  brainDir = mkdtempSync(join(tmpdir(), "fs-brain-test-"));
+  mkdirSync(join(brainDir, "_meta"), { recursive: true });
+  writeFileSync(
+    join(brainDir, "brain.json"),
+    JSON.stringify({ id: "test-brain-server" })
+  );
+
+  // Spawn the server
+  serverProcess = spawn(process.execPath, [serverBin, "--brain", brainDir, "--port", String(port)], {
+    stdio: "pipe",
+  });
+
+  serverProcess.stderr.on("data", (d) => {
+    // suppress or log warnings
+  });
+
+  // Wait ~1.5s for server to start
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+});
+
+after(() => {
+  if (serverProcess) {
+    serverProcess.kill("SIGTERM");
+  }
+});
+
+test("health check returns ok with brain_id", async () => {
+  const result = await api(port, "health");
+  assert.equal(result.status, "ok");
+  assert.equal(result.brain_id, "test-brain-server");
+  assert.ok(typeof result.uptime === "number");
+});
+
+test("indexes and searches a document", async () => {
+  await api(port, "index", {
+    id: "doc1",
+    path: "notes/hello.md",
+    content: "Hello world this is a test document",
+  });
+
+  const result = await api(port, "search", { query: "hello" });
+  assert.ok(result.results.length >= 1);
+  const found = result.results.find((r) => r.id === "doc1");
+  assert.ok(found, "doc1 should appear in search results");
+});
+
+test("returns backlinks after indexing a doc with [[link]]", async () => {
+  await api(port, "index", {
+    id: "doc2",
+    path: "notes/linker.md",
+    content: "This links to [[target-note]] in the brain",
+  });
+
+  const result = await api(port, "backlinks", { id: "target-note" });
+  assert.ok(Array.isArray(result.links));
+  assert.ok(result.links.length >= 1);
+  const link = result.links.find((l) => l.source_id === "doc2");
+  assert.ok(link, "doc2 should appear as a backlink source");
+});
+
+test("returns forward links", async () => {
+  await api(port, "index", {
+    id: "doc3",
+    path: "notes/forward.md",
+    content: "Links to [[page-a]] and [[page-b]]",
+  });
+
+  const result = await api(port, "forward_links", { id: "doc3" });
+  assert.ok(Array.isArray(result.links));
+  assert.ok(result.links.includes("page-a"), "should include page-a");
+  assert.ok(result.links.includes("page-b"), "should include page-b");
+});
+
+test("returns stats", async () => {
+  const result = await api(port, "stats");
+  assert.ok(typeof result.total === "number");
+  assert.ok(result.total >= 1, "at least one doc indexed");
+  assert.ok(typeof result.chunks === "number");
+  assert.ok(typeof result.wiki === "number");
+});
+
+test("removes a document", async () => {
+  await api(port, "index", {
+    id: "doc-to-remove",
+    path: "notes/remove-me.md",
+    content: "This document will be removed soon",
+  });
+
+  // Verify it's indexed
+  const before = await api(port, "search", { query: "removed soon" });
+  const found = before.results.find((r) => r.id === "doc-to-remove");
+  assert.ok(found, "doc-to-remove should be indexed");
+
+  // Remove it
+  await api(port, "remove", { id: "doc-to-remove" });
+
+  // Verify it's gone
+  const afterResult = await api(port, "search", { query: "removed soon" });
+  const stillFound = afterResult.results.find((r) => r.id === "doc-to-remove");
+  assert.equal(stillFound, undefined, "doc-to-remove should be gone after removal");
+});
+
+test("returns error for unknown action", async () => {
+  const result = await api(port, "nonexistent_action");
+  assert.ok(result.error, "should return an error");
+  assert.ok(result.error.includes("nonexistent_action"), "error should mention the action name");
+});
