@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from "
 import { join, resolve } from "node:path";
 import { argv, pid, exit } from "node:process";
 import { fileURLToPath } from "node:url";
+import { FileWatcher } from "../lib/file-watcher.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -41,6 +42,7 @@ writeFileSync(pidPath, String(pid));
 function shutdown() {
   console.log("Shutting down...");
   try { unlinkSync(pidPath); } catch {}
+  watcher.stop();
   db.close();
   exit(0);
 }
@@ -88,6 +90,9 @@ const server = createServer((req, res) => {
   });
 });
 
+const watcher = new FileWatcher(brainPath, db, brainId);
+
 server.listen(port, () => {
   console.log(`fs-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
+  watcher.start();
 });
