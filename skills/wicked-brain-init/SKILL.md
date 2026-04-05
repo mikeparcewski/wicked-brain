@@ -12,6 +12,16 @@ description: |
 
 You initialize a new digital brain on the filesystem.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## When to use
 
 - User explicitly asks to create/initialize a brain
@@ -23,21 +33,32 @@ You initialize a new digital brain on the filesystem.
 
 Ask these questions (provide defaults):
 
-1. "Where should your brain live?" — Default: `~/.fs-brain`
+1. "Where should your brain live?"
+   - Default (macOS/Linux): `~/.fs-brain`
+   - Default (Windows): `%USERPROFILE%\.fs-brain`
 2. "What should this brain be called?" — Default: directory name
 
 ### Step 2: Create directory structure
 
-Use the Write tool to create these directories and files:
+Use your native Write/mkdir tools to create these directories and files.
 
-Directories to create (use Bash `mkdir -p`):
+Directories to create (create each with its parent directories):
+- `{brain_path}/raw`
+- `{brain_path}/chunks/extracted`
+- `{brain_path}/chunks/inferred`
+- `{brain_path}/wiki/concepts`
+- `{brain_path}/wiki/topics`
+- `{brain_path}/_meta`
+
+Shell equivalents if needed:
 ```bash
-mkdir -p {brain_path}/raw
-mkdir -p {brain_path}/chunks/extracted
-mkdir -p {brain_path}/chunks/inferred
-mkdir -p {brain_path}/wiki/concepts
-mkdir -p {brain_path}/wiki/topics
-mkdir -p {brain_path}/_meta
+# macOS/Linux
+mkdir -p {brain_path}/raw {brain_path}/chunks/extracted {brain_path}/chunks/inferred \
+  {brain_path}/wiki/concepts {brain_path}/wiki/topics {brain_path}/_meta
+```
+```powershell
+# Windows PowerShell
+New-Item -ItemType Directory -Force -Path "{brain_path}\raw","{brain_path}\chunks\extracted","{brain_path}\chunks\inferred","{brain_path}\wiki\concepts","{brain_path}\wiki\topics","{brain_path}\_meta"
 ```
 
 ### Step 3: Write brain.json
@@ -68,9 +89,16 @@ Write to `{brain_path}/_meta/config.json`:
 
 ### Step 5: Initialize the event log
 
-Write an empty line to create the log file:
+Use your Write tool to create an empty file at `{brain_path}/_meta/log.jsonl`.
+
+Shell equivalents if needed:
 ```bash
+# macOS/Linux
 touch {brain_path}/_meta/log.jsonl
+```
+```powershell
+# Windows PowerShell
+New-Item -ItemType File -Force -Path "{brain_path}\_meta\log.jsonl"
 ```
 
 ### Step 6: Confirm

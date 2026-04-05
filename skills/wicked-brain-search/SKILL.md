@@ -14,6 +14,16 @@ description: |
 You search the digital brain by dispatching parallel subagents — one per brain
 in the network (local + parents + links).
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## Config
 
 Read `_meta/config.json` for brain path and server port.
@@ -29,11 +39,8 @@ If it doesn't exist, trigger wicked-brain:init.
 
 ### Step 1: Discover brains to search
 
-Read `{brain_path}/brain.json` to get parents and links.
-For each parent/link, check if it's accessible:
-```bash
-cat {brain_path}/{relative_path}/brain.json 2>/dev/null
-```
+Use the Read tool on `{brain_path}/brain.json` to get parents and links.
+For each parent/link, check if it's accessible by reading `{brain_path}/{relative_path}/brain.json`.
 
 Build a list of accessible brains with their absolute paths.
 
@@ -68,12 +75,12 @@ curl -s -X POST http://localhost:{port}/api \
 
 Parse the JSON response to get results.
 
-## Step 2: Grep search (catches what FTS might miss)
+## Step 2: File search (catches what FTS might miss)
 
-Search for exact phrases or patterns that FTS tokenization might split:
-```bash
-grep -rl "{query}" {brain_path}/chunks/ {brain_path}/wiki/ 2>/dev/null | head -20
-```
+Search for exact phrases or patterns that FTS tokenization might split.
+Use your Grep tool (preferred) or shell fallback:
+- macOS/Linux: `grep -rl "{query}" {brain_path}/chunks/ {brain_path}/wiki/ 2>/dev/null | head -20`
+- Windows: `findstr /s /m "{query}" {brain_path}\chunks\*.md {brain_path}\wiki\*.md 2>nul`
 
 ## Step 3: Merge and return
 

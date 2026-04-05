@@ -12,6 +12,16 @@ description: |
 
 You check for and install updates to the wicked-brain skills and server.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## When to use
 
 - User asks to update or check for updates
@@ -55,16 +65,25 @@ npm install -g fs-brain-server@latest
 
 #### Update skills
 
-Find where wicked-brain skills are installed and update them:
-
+Find where wicked-brain skills are installed and update them.
+Check each CLI's skills directory. On macOS/Linux:
 ```bash
-# Check each CLI's skills directory
 for dir in ~/.claude/skills ~/.gemini/skills ~/.github/skills ~/.codex/skills ~/.cursor/skills; do
   if [ -d "$dir/wicked-brain-init" ]; then
     echo "Updating skills in $dir..."
     npx wicked-brain --cli=$(basename $(dirname $dir))
   fi
 done
+```
+
+On Windows (PowerShell):
+```powershell
+@("$env:USERPROFILE\.claude\skills","$env:USERPROFILE\.gemini\skills","$env:USERPROFILE\.github\skills","$env:USERPROFILE\.codex\skills","$env:USERPROFILE\.cursor\skills") | ForEach-Object {
+  if (Test-Path "$_\wicked-brain-init") {
+    $cli = Split-Path (Split-Path $_) -Leaf
+    npx wicked-brain "--cli=$cli"
+  }
+}
 ```
 
 Or run the installer directly which handles detection:
@@ -74,23 +93,32 @@ npx wicked-brain@latest
 
 ### Step 5: Restart server if running
 
-Check if a brain server is running and restart it to pick up changes:
+Check if a brain server is running and restart it to pick up changes.
 
+Find running server PIDs by searching for `server.pid` files under `_meta/` directories
+in the home directory. Use your Glob tool if available.
+
+On macOS/Linux:
 ```bash
-# Find running server PIDs
-for pid_file in $(find ~ -name "server.pid" -path "*/_meta/*" 2>/dev/null); do
-  brain_dir=$(dirname $(dirname "$pid_file"))
-  pid=$(cat "$pid_file" 2>/dev/null)
-  if kill -0 "$pid" 2>/dev/null; then
-    echo "Restarting server for brain at $brain_dir..."
-    kill "$pid"
-    sleep 1
-    config=$(cat "$brain_dir/_meta/config.json" 2>/dev/null)
-    port=$(echo "$config" | grep -o '"server_port":[0-9]*' | grep -o '[0-9]*')
-    fs-brain-server --brain "$brain_dir" --port "${port:-4242}" &
-  fi
-done
+find ~ -name "server.pid" -path "*/_meta/*" 2>/dev/null
 ```
+On Windows (PowerShell):
+```powershell
+Get-ChildItem -Recurse -Filter "server.pid" -Path $env:USERPROFILE -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -match "_meta" }
+```
+
+For each pid file found:
+1. Read the file to get the PID.
+2. Check if the process is alive:
+   - macOS/Linux: `kill -0 {pid} 2>/dev/null`
+   - Windows: `tasklist /FI "PID eq {pid}" 2>nul | findstr {pid}`
+   - Or Python: `python3 -c "import os; os.kill({pid}, 0)" 2>/dev/null || python -c "import os; os.kill({pid}, 0)"`
+3. If alive, stop it:
+   - macOS/Linux: `kill {pid}`
+   - Windows: `Stop-Process -Id {pid}`
+4. Read `{brain_dir}/_meta/config.json` to get the port.
+5. Restart: `npx fs-brain-server --brain "{brain_dir}" --port {port}`
+   On Windows: `Start-Process npx -ArgumentList "fs-brain-server","--brain","{brain_dir}","--port","{port}" -NoNewWindow`
 
 ### Step 6: Report
 

@@ -12,6 +12,16 @@ description: |
 
 You enhance the brain by dispatching a subagent that fills knowledge gaps.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## Config
 
 Read `_meta/config.json` for brain path and server port.
@@ -27,10 +37,10 @@ Server: http://localhost:{port}/api
 
 ## Step 1: Find gaps
 
-Read the recent event log to understand what's in the brain:
-```bash
-tail -100 {brain_path}/_meta/log.jsonl
-```
+Read the recent event log using your Read tool on `{brain_path}/_meta/log.jsonl`
+(read the last 100 lines). Shell fallback:
+- macOS/Linux: `tail -100 {brain_path}/_meta/log.jsonl`
+- Windows: `Get-Content "{brain_path}\_meta\log.jsonl" -Tail 100`
 
 Get stats:
 ```bash
@@ -39,10 +49,11 @@ curl -s -X POST http://localhost:{port}/api \
   -d '{"action":"stats","params":{}}'
 ```
 
-Search for thin areas — topics mentioned in existing chunks but with few entries:
-```bash
-grep -roh 'contains:' {brain_path}/chunks/ -A 5 2>/dev/null | grep '  - ' | sort | uniq -c | sort -n
-```
+Search for thin areas — topics mentioned in existing chunks but with few entries.
+Use your Grep tool on `{brain_path}/chunks/` to find all `contains:` fields and
+count occurrences. Shell fallback:
+- macOS/Linux: `grep -roh 'contains:' {brain_path}/chunks/ -A 5 2>/dev/null | grep '  - ' | sort | uniq -c | sort -n`
+- Windows: `Select-String -Recurse -Pattern "  - " "{brain_path}\chunks\*.md" 2>nul | Select-Object -ExpandProperty Line | Sort-Object | Group-Object | Sort-Object Count`
 
 ## Step 2: Identify what's missing
 

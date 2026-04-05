@@ -12,6 +12,16 @@ description: |
 
 You report the brain's current state using progressive loading.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## Config
 
 Read `_meta/config.json` for brain path and server port.
@@ -48,14 +58,15 @@ Last indexed: {last_indexed}
 Linked brains: {list of parents and links with accessible/inaccessible status}
 ```
 
-Check parent/link accessibility by checking if `brain.json` exists at each relative path:
-```bash
-cat {brain_path}/{relative_link_path}/brain.json 2>/dev/null
-```
+Check parent/link accessibility by using the Read tool on
+`{brain_path}/{relative_link_path}/brain.json`. Shell fallback:
+- macOS/Linux: `cat {brain_path}/{relative_link_path}/brain.json 2>/dev/null`
+- Windows: `Get-Content "{brain_path}\{relative_link_path}\brain.json" 2>nul`
 
 **Depth 1:**
 Depth 0 plus:
-- Read `_meta/log.jsonl` (last 50 lines) to identify topic distribution from recent tag events
+- Use the Read tool on `_meta/log.jsonl` (last 50 lines) to identify topic distribution from recent tag events.
+  Shell fallback: `tail -50 {brain_path}/_meta/log.jsonl` (macOS/Linux) or `Get-Content "{brain_path}\_meta\log.jsonl" -Tail 50` (Windows PowerShell)
 - List the top 10 most common tags
 - Flag any staleness warnings (sources modified after last ingest)
 

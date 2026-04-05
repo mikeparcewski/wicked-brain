@@ -13,6 +13,16 @@ description: |
 
 You compile wiki articles from the brain's chunks by dispatching a compile subagent.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## Config
 
 Read `_meta/config.json` for brain path and server port.
@@ -39,23 +49,23 @@ curl -s -X POST http://localhost:{port}/api \
   -d '{"action":"stats","params":{}}'
 ```
 
-List existing wiki articles:
-```bash
-find {brain_path}/wiki -name "*.md" -type f 2>/dev/null
-```
+List existing wiki articles using your Glob tool on `{brain_path}/wiki/**/*.md`.
+Shell fallback:
+- macOS/Linux: `find {brain_path}/wiki -name "*.md" -type f 2>/dev/null`
+- Windows: `Get-ChildItem -Recurse -Filter "*.md" "{brain_path}\wiki" 2>nul`
 
-List chunks:
-```bash
-find {brain_path}/chunks/extracted -name "*.md" -type f 2>/dev/null
-```
+List chunks using your Glob tool on `{brain_path}/chunks/extracted/**/*.md`.
+Shell fallback:
+- macOS/Linux: `find {brain_path}/chunks/extracted -name "*.md" -type f 2>/dev/null`
+- Windows: `Get-ChildItem -Recurse -Filter "*.md" "{brain_path}\chunks\extracted" 2>nul`
 
 ## Step 2: Find uncovered chunks
 
 For each chunk directory, check if a wiki article references those chunks.
-Use grep to find which chunks are already cited in wiki articles:
-```bash
-grep -rl "chunk-" {brain_path}/wiki/ 2>/dev/null
-```
+Use your Grep tool to find which chunks are already cited in wiki articles.
+Shell fallback:
+- macOS/Linux: `grep -rl "chunk-" {brain_path}/wiki/ 2>/dev/null`
+- Windows: `findstr /s /m "chunk-" "{brain_path}\wiki\*.md" 2>nul`
 
 Focus on chunks NOT referenced by any wiki article.
 

@@ -11,6 +11,16 @@ description: |
 You manage the fs-brain background server. This skill is triggered automatically
 when another brain skill cannot reach the server.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## When to use
 
 - When a brain skill reports "connection refused" or similar error from curl
@@ -18,10 +28,7 @@ when another brain skill cannot reach the server.
 
 ## Server check and start
 
-1. Read `_meta/config.json` from the brain directory to get the port and brain path:
-   ```bash
-   cat {brain_path}/_meta/config.json
-   ```
+1. Read the file at `{brain_path}/_meta/config.json` to get the port and brain path.
 
 2. Try a health check:
    ```bash
@@ -33,18 +40,23 @@ when another brain skill cannot reach the server.
 3. If the health check succeeds, the server is running. Report the status.
 
 4. If connection refused:
-   a. Check if a PID file exists and the process is alive:
-      ```bash
-      cat {brain_path}/_meta/server.pid 2>/dev/null && kill -0 $(cat {brain_path}/_meta/server.pid) 2>/dev/null
-      ```
-   b. If the process is dead or no PID file, start the server:
+   a. Read the file at `{brain_path}/_meta/server.pid` to get the PID.
+
+   b. Check if the process is running:
+      - macOS/Linux: `kill -0 {pid} 2>/dev/null`
+      - Windows: `tasklist /FI "PID eq {pid}" 2>nul | findstr {pid}`
+      - Or use Python: `python3 -c "import os; os.kill({pid}, 0)" 2>/dev/null || python -c "import os; os.kill({pid}, 0)"`
+
+   c. If the process is dead or no PID file, start the server:
       ```bash
       npx fs-brain-server --brain {brain_path} --port {port} &
       ```
-   c. Wait 2 seconds, then retry the health check.
-   d. If still failing, tell the user:
+      On Windows (PowerShell): `Start-Process npx -ArgumentList "fs-brain-server","--brain","{brain_path}","--port","{port}" -NoNewWindow`
+
+   d. Wait 2 seconds, then retry the health check.
+   e. If still failing, tell the user:
       "The brain server couldn't start automatically. Please run:
-       `! npx fs-brain-server --brain {brain_path} --port {port}`"
+       `npx fs-brain-server --brain {brain_path} --port {port}`"
 
 ## API pattern for other skills
 
@@ -56,4 +68,5 @@ curl -s -X POST http://localhost:{port}/api \
   -d '{"action":"{action}","params":{params_json}}'
 ```
 
-If the curl fails with connection refused, trigger this wicked-brain:server skill.
+`curl` works on macOS, Linux, and Windows 10+ (ships by default). If curl fails
+with connection refused, trigger this wicked-brain:server skill.

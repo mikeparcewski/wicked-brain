@@ -13,6 +13,16 @@ description: |
 
 You ingest source files into the brain by dispatching an ingest subagent.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## Config
 
 Read `_meta/config.json` for brain path and server port.
@@ -26,11 +36,14 @@ If it doesn't exist, trigger wicked-brain:init.
 
 ### Step 1: Copy source to raw/ (if not already there)
 
-If the source file is outside the brain directory, copy or symlink it into `{brain_path}/raw/`.
+If the source file is outside the brain directory, copy it into `{brain_path}/raw/`.
+Use your native Write tool to copy the file, or:
+- macOS/Linux: `cp "{source}" "{brain_path}/raw/"`
+- Windows: `copy "{source}" "{brain_path}\raw\"`
 
 ### Step 2: Check for re-ingestion
 
-Read `_meta/log.jsonl` and search for previous ingest entries for this source name.
+Use the Read tool on `_meta/log.jsonl` and search for previous ingest entries for this source name.
 If found, the subagent should archive old chunks before re-extracting.
 
 ### Step 3: Dispatch ingest subagent
@@ -117,10 +130,10 @@ State how many chunks were created and from what file.
 
 ### Step 4: Archive on re-ingest
 
-If step 2 found previous chunks, tell the subagent to first:
-```bash
-mv {brain_path}/chunks/extracted/{safe_name} {brain_path}/chunks/extracted/{safe_name}.archived-$(date +%s)
-```
+If step 2 found previous chunks, tell the subagent to first move the old directory.
+Use the agent's native move/rename capability, or shell equivalents:
+- macOS/Linux: `mv "{brain_path}/chunks/extracted/{safe_name}" "{brain_path}/chunks/extracted/{safe_name}.archived-$(date +%s)"`
+- Windows: `Rename-Item "{brain_path}\chunks\extracted\{safe_name}" "{safe_name}.archived-{timestamp}"` (use a timestamp from `[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()`)
 
 Then proceed with fresh extraction.
 

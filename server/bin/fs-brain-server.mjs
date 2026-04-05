@@ -3,10 +3,8 @@ import { createServer } from "node:http";
 import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { argv, pid, exit } from "node:process";
-import { fileURLToPath } from "node:url";
 import { FileWatcher } from "../lib/file-watcher.mjs";
-
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
+import { SqliteSearch } from "../lib/sqlite-search.mjs";
 
 // Parse args
 const args = argv.slice(2);
@@ -29,7 +27,6 @@ try {
 }
 
 // Initialize SQLite
-const { SqliteSearch } = await import(join(__dirname, "..", "lib", "sqlite-search.mjs"));
 const dbPath = join(brainPath, ".brain.db");
 mkdirSync(join(brainPath, "_meta"), { recursive: true });
 const db = new SqliteSearch(dbPath, brainId);

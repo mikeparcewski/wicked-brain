@@ -2,6 +2,10 @@ import { watch, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
 
+function normalizePath(p) {
+  return p.replace(/\\/g, "/");
+}
+
 export class FileWatcher {
   #brainPath;
   #db;
@@ -9,6 +13,7 @@ export class FileWatcher {
   #hashes = new Map(); // path -> content hash
   #watchers = [];
   #debounceTimers = new Map();
+  #pollInterval = null;
 
   constructor(brainPath, db, brainId) {
     this.#brainPath = brainPath;
@@ -29,16 +34,21 @@ export class FileWatcher {
       try {
         const watcher = watch(absDir, { recursive: true }, (eventType, filename) => {
           if (!filename || !filename.endsWith(".md")) return;
-          const relPath = `${dir}/${filename}`;
+          const relPath = normalizePath(`${dir}/${filename}`);
           this.#debounce(relPath, () => this.#handleChange(relPath));
         });
         this.#watchers.push(watcher);
       } catch {
-        // recursive watch not supported on this platform — skip
+        // recursive watch not supported on this platform (Linux) — fall back to polling
       }
     }
 
-    console.log(`File watcher active on chunks/ and wiki/`);
+    // If no watchers were set up (Linux), use polling fallback
+    if (this.#watchers.length === 0) {
+      this.#startPolling();
+    } else {
+      console.log(`File watcher active on chunks/ and wiki/`);
+    }
   }
 
   stop() {
@@ -46,6 +56,7 @@ export class FileWatcher {
     this.#watchers = [];
     for (const t of this.#debounceTimers.values()) clearTimeout(t);
     this.#debounceTimers.clear();
+    if (this.#pollInterval) { clearInterval(this.#pollInterval); this.#pollInterval = null; }
   }
 
   // Scan a directory, hash all .md files, index any not yet in the DB
@@ -54,7 +65,7 @@ export class FileWatcher {
     if (!existsSync(absDir)) return;
     this.#walkDir(absDir, (absPath) => {
       if (!absPath.endsWith(".md")) return;
-      const relPath = relative(this.#brainPath, absPath);
+      const relPath = normalizePath(relative(this.#brainPath, absPath));
       const content = readFileSync(absPath, "utf-8");
       const hash = this.#hash(content);
       this.#hashes.set(relPath, hash);
@@ -100,6 +111,38 @@ export class FileWatcher {
     } catch {
       // File might be mid-write, ignore
     }
+  }
+
+  #startPolling() {
+    console.log("File watcher using polling mode (recursive watch not available)");
+    this.#pollInterval = setInterval(() => {
+      for (const dir of ["chunks", "wiki"]) {
+        const absDir = join(this.#brainPath, dir);
+        if (!existsSync(absDir)) continue;
+        this.#walkDir(absDir, (absPath) => {
+          if (!absPath.endsWith(".md")) return;
+          const relPath = normalizePath(relative(this.#brainPath, absPath));
+          try {
+            const content = readFileSync(absPath, "utf-8");
+            const newHash = this.#hash(content);
+            const oldHash = this.#hashes.get(relPath);
+            if (newHash !== oldHash) {
+              this.#hashes.set(relPath, newHash);
+              this.#db.index({ id: relPath, path: relPath, content, brain_id: this.#brainId });
+              console.log(`[watcher] Reindexed: ${relPath}`);
+            }
+          } catch {}
+        });
+      }
+      // Check for deletions
+      for (const [relPath] of this.#hashes) {
+        if (!existsSync(join(this.#brainPath, relPath))) {
+          this.#hashes.delete(relPath);
+          this.#db.remove(relPath);
+          console.log(`[watcher] Removed from index: ${relPath}`);
+        }
+      }
+    }, 3000);
   }
 
   #debounce(key, fn) {

@@ -13,6 +13,16 @@ description: |
 
 You check brain quality by dispatching a lint subagent.
 
+## Cross-Platform Notes
+
+Commands in this skill work on macOS, Linux, and Windows. When a command has
+platform differences, alternatives are shown. Your native tools (Read, Write,
+Grep, Glob) work everywhere — prefer them over shell commands when possible.
+
+For the brain path default:
+- macOS/Linux: ~/.wicked-brain
+- Windows: %USERPROFILE%\.wicked-brain
+
 ## Config
 
 Read `_meta/config.json` for brain path and server port.
@@ -29,20 +39,32 @@ Server: http://localhost:{port}/api
 ## Pass 1: Deterministic checks
 
 ### Broken wikilinks
-Find all [[wikilinks]] in wiki and chunk files, check if targets exist:
-```bash
-grep -roh '\[\[[^]]*\]\]' {brain_path}/wiki/ {brain_path}/chunks/ 2>/dev/null | sort -u
-```
-For each link, check if the target file exists.
+Find all [[wikilinks]] in wiki and chunk files, check if targets exist.
+Use your Grep tool (preferred):
+- Pattern: `\[\[[^\]]*\]\]`
+- Search in: `{brain_path}/wiki/` and `{brain_path}/chunks/`
+
+Shell fallback:
+- macOS/Linux: `grep -roh '\[\[[^]]*\]\]' {brain_path}/wiki/ {brain_path}/chunks/ 2>/dev/null | sort -u`
+- Windows: `findstr /s /r "\[\[" "{brain_path}\wiki\*.md" "{brain_path}\chunks\*.md" 2>nul`
+
+For each link, use the Read tool to check if the target file exists.
 
 ### Orphan chunks
-Find chunks not referenced by any wiki article:
-```bash
-# Get all chunk IDs
-find {brain_path}/chunks -name "chunk-*.md" -type f
-# Check which are referenced in wiki
-grep -rl "chunk-" {brain_path}/wiki/ 2>/dev/null
-```
+Use your Glob tool to find all chunk files in `{brain_path}/chunks/**/*.md`.
+Then use your Grep tool to check which chunk IDs appear in wiki files.
+
+Shell fallback:
+- macOS/Linux:
+  ```bash
+  find {brain_path}/chunks -name "chunk-*.md" -type f
+  grep -rl "chunk-" {brain_path}/wiki/ 2>/dev/null
+  ```
+- Windows:
+  ```powershell
+  Get-ChildItem -Recurse -Filter "chunk-*.md" "{brain_path}\chunks"
+  findstr /s /m "chunk-" "{brain_path}\wiki\*.md" 2>nul
+  ```
 
 ### Stale entries
 Compare source file modification times with chunk creation times.
