@@ -1,0 +1,15 @@
+{
+  "name": "fs-brain-server",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "fs-brain-server": "./bin/fs-brain-server.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "node bin/fs-brain-server.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.0.0"
+  }
+}
