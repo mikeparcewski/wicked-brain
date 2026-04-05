@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const serverBin = join(__dirname, "..", "bin", "fs-brain-server.mjs");
+const serverBin = join(__dirname, "..", "bin", "wicked-brain-server.mjs");
 
 const port = Math.floor(4200 + Math.random() * 800);
 let serverProcess;

@@ -34,18 +34,18 @@ For the brain path default:
 
 Read the installed server version:
 ```bash
-fs-brain-server --version 2>/dev/null || npx fs-brain-server --version 2>/dev/null || echo "not installed"
+wicked-brain-server --version 2>/dev/null || npx wicked-brain-server --version 2>/dev/null || echo "not installed"
 ```
 
 If that doesn't work, check the package directly:
 ```bash
-npm list -g fs-brain-server --json 2>/dev/null | grep version
+npm list -g wicked-brain-server --json 2>/dev/null | grep version
 ```
 
 ### Step 2: Check latest version on npm
 
 ```bash
-npm view wicked-brain version 2>/dev/null || npm view fs-brain-server version 2>/dev/null
+npm view wicked-brain version 2>/dev/null || npm view wicked-brain-server version 2>/dev/null
 ```
 
 ### Step 3: Compare versions
@@ -60,7 +60,7 @@ If an update is available, ask the user:
 
 #### Update server
 ```bash
-npm install -g fs-brain-server@latest
+npm install -g wicked-brain-server@latest
 ```
 
 #### Update skills
@@ -117,8 +117,8 @@ For each pid file found:
    - macOS/Linux: `kill {pid}`
    - Windows: `Stop-Process -Id {pid}`
 4. Read `{brain_dir}/_meta/config.json` to get the port.
-5. Restart: `npx fs-brain-server --brain "{brain_dir}" --port {port}`
-   On Windows: `Start-Process npx -ArgumentList "fs-brain-server","--brain","{brain_dir}","--port","{port}" -NoNewWindow`
+5. Restart: `npx wicked-brain-server --brain "{brain_dir}" --port {port}`
+   On Windows: `Start-Process npx -ArgumentList "wicked-brain-server","--brain","{brain_dir}","--port","{port}" -NoNewWindow`
 
 ### Step 6: Report
 

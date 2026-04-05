@@ -1,14 +1,14 @@
 ---
 name: wicked-brain:server
 description: |
-  Manages the fs-brain background server. Auto-triggered when any brain skill
+  Manages the wicked-brain background server. Auto-triggered when any brain skill
   gets a connection error. Starts the server, checks health, and reports status.
   Users should never need to invoke this directly.
 ---
 
 # wicked-brain:server
 
-You manage the fs-brain background server. This skill is triggered automatically
+You manage the wicked-brain background server. This skill is triggered automatically
 when another brain skill cannot reach the server.
 
 ## Cross-Platform Notes
@@ -49,14 +49,14 @@ For the brain path default:
 
    c. If the process is dead or no PID file, start the server:
       ```bash
-      npx fs-brain-server --brain {brain_path} --port {port} &
+      npx wicked-brain-server --brain {brain_path} --port {port} &
       ```
-      On Windows (PowerShell): `Start-Process npx -ArgumentList "fs-brain-server","--brain","{brain_path}","--port","{port}" -NoNewWindow`
+      On Windows (PowerShell): `Start-Process npx -ArgumentList "wicked-brain-server","--brain","{brain_path}","--port","{port}" -NoNewWindow`
 
    d. Wait 2 seconds, then retry the health check.
    e. If still failing, tell the user:
       "The brain server couldn't start automatically. Please run:
-       `npx fs-brain-server --brain {brain_path} --port {port}`"
+       `npx wicked-brain-server --brain {brain_path} --port {port}`"
 
 ## API pattern for other skills
 

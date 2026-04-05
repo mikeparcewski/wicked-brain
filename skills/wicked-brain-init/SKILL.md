@@ -34,8 +34,8 @@ For the brain path default:
 Ask these questions (provide defaults):
 
 1. "Where should your brain live?"
-   - Default (macOS/Linux): `~/.fs-brain`
-   - Default (Windows): `%USERPROFILE%\.fs-brain`
+   - Default (macOS/Linux): `~/.wicked-brain`
+   - Default (Windows): `%USERPROFILE%\.wicked-brain`
 2. "What should this brain be called?" — Default: directory name
 
 ### Step 2: Create directory structure

@@ -1,6 +1,9 @@
 node_modules/
-server/.brain.db*
 server/_meta/
 *.db-shm
 *.db-wal
+*.db
 server.pid
+
+docs/
+archive/v1/
