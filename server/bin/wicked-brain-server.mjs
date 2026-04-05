@@ -90,6 +90,6 @@ const server = createServer((req, res) => {
 const watcher = new FileWatcher(brainPath, db, brainId);
 
 server.listen(port, () => {
-  console.log(`fs-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
+  console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
   watcher.start();
 });
