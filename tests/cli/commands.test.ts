@@ -227,25 +227,25 @@ describe("CLI export command", () => {
 });
 
 // ---- stub commands ----
-describe("CLI stub commands (Phase 5)", () => {
-  it("compile prints agent message", () => {
-    const output = runCli(["compile"]);
-    expect(output).toContain("Requires agent operations");
+describe("CLI agent commands (Phase 5)", () => {
+  it("compile --dry-run prints dry-run message", () => {
+    const output = runCli(["compile", "--brain", tmpDir, "--dry-run"]);
+    expect(output).toContain("dry-run");
   }, T);
 
-  it("structure prints agent message", () => {
-    const output = runCli(["structure"]);
-    expect(output).toContain("Requires agent operations");
+  it("structure --dry-run prints dry-run message", () => {
+    const output = runCli(["structure", "--brain", tmpDir, "--dry-run"]);
+    expect(output).toContain("dry-run");
   }, T);
 
-  it("enhance prints agent message", () => {
-    const output = runCli(["enhance"]);
-    expect(output).toContain("Requires agent operations");
+  it("enhance --dry-run prints dry-run message", () => {
+    const output = runCli(["enhance", "--brain", tmpDir, "--dry-run"]);
+    expect(output).toContain("dry-run");
   }, T);
 
-  it("jobs prints agent message", () => {
-    const output = runCli(["jobs"]);
-    expect(output).toContain("Requires agent operations");
+  it("jobs lists no jobs for a fresh brain", () => {
+    const output = runCli(["jobs", "--brain", tmpDir]);
+    expect(output).toContain("No jobs found");
   }, T);
 
   it("schedule prints agent message", () => {
