@@ -1,5 +1,1 @@
 node_modules/
-dist/
-.brain.db
-.brain.lock
-*.tmp
