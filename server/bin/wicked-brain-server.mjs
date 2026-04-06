@@ -94,7 +94,14 @@ const server = createServer((req, res) => {
   });
 });
 
-const watcher = new FileWatcher(brainPath, db, brainId);
+// Read project directories from config
+let projects = [];
+try {
+  const metaConfig = JSON.parse(readFileSync(join(brainPath, "_meta", "config.json"), "utf-8"));
+  projects = metaConfig.projects || [];
+} catch {}
+
+const watcher = new FileWatcher(brainPath, db, brainId, projects);
 
 server.listen(port, () => {
   console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
