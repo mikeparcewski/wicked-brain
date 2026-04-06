@@ -1,6 +1,6 @@
 {
   "name": "wicked-brain-server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "SQLite FTS5 search server for wicked-brain digital knowledge bases",
   "keywords": [
