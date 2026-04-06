@@ -12,7 +12,10 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,12 +34,15 @@ jobs:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
 
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version
+          cd server && npm version "$VERSION" --no-git-tag-version
+
       - name: Install server deps
         run: cd server && npm install --omit=dev
 
-      # Trusted publishing — no NPM_TOKEN needed
-      # Configure at: https://www.npmjs.com/package/wicked-brain/access
-      # Link GitHub Actions as trusted publisher for this package
       - name: Publish to npm (trusted publisher + provenance)
         run: npm publish --access public --provenance
 
@@ -50,6 +56,11 @@ jobs:
           node-version: lts/*
           registry-url: https://npm.pkg.github.com
           scope: '@mikeparcewski'
+
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version
 
       - name: Publish to GitHub Packages
         run: |
