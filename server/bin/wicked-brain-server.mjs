@@ -26,9 +26,12 @@ try {
   console.error(`Warning: Could not read brain.json at ${configPath}`);
 }
 
+// Ensure required directories exist
+mkdirSync(join(brainPath, "_meta"), { recursive: true });
+mkdirSync(join(brainPath, "memory"), { recursive: true });
+
 // Initialize SQLite
 const dbPath = join(brainPath, ".brain.db");
-mkdirSync(join(brainPath, "_meta"), { recursive: true });
 const db = new SqliteSearch(dbPath, brainId);
 
 // PID file

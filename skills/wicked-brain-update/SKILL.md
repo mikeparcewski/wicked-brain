@@ -70,6 +70,10 @@ This re-runs the installer with the latest version, updating all skills across d
 
 ### Step 5: Restart server if running
 
+**IMPORTANT:** After updating, any running brain server must be restarted to pick up
+new server code (schema migrations, new actions, updated search scoring). Failing to
+restart means the old code serves requests even though skills expect new features.
+
 Check if a brain server is running and restart it to pick up changes.
 
 Find running server PIDs by searching for `server.pid` files under `_meta/` directories

@@ -77,6 +77,18 @@ export class SqliteSearch {
       CREATE INDEX IF NOT EXISTS idx_access_doc ON access_log(doc_id);
       CREATE INDEX IF NOT EXISTS idx_access_session ON access_log(session_id);
     `);
+
+    // Migrate existing databases: add columns that may be missing
+    this.#migrate();
+  }
+
+  #migrate() {
+    // Add rel column to links table if missing (added in v2)
+    try {
+      this.#db.prepare(`SELECT rel FROM links LIMIT 0`).get();
+    } catch {
+      this.#db.exec(`ALTER TABLE links ADD COLUMN rel TEXT`);
+    }
   }
 
   index(doc) {
