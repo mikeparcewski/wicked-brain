@@ -57,6 +57,14 @@ export class SqliteSearch {
 
       CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_id);
       CREATE INDEX IF NOT EXISTS idx_links_target ON links(target_path);
+
+      CREATE TABLE IF NOT EXISTS access_log (
+        doc_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        accessed_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_access_doc ON access_log(doc_id);
+      CREATE INDEX IF NOT EXISTS idx_access_session ON access_log(session_id);
     `);
   }
 
@@ -123,7 +131,7 @@ export class SqliteSearch {
     run();
   }
 
-  search({ query, limit = 10, offset = 0, since = null }) {
+  search({ query, limit = 10, offset = 0, since = null, session_id = null }) {
     const escaped = escapeFtsQuery(query);
     if (!escaped) return { results: [], total_matches: 0, showing: 0 };
 
@@ -162,6 +170,20 @@ export class SqliteSearch {
       .get(escaped, ...sinceParams);
 
     const total_matches = countRow ? countRow.cnt : 0;
+
+    // Log access for each returned document if session_id provided
+    if (session_id && rows.length > 0) {
+      const logAccess = this.#db.prepare(
+        `INSERT INTO access_log (doc_id, session_id, accessed_at) VALUES (?, ?, ?)`
+      );
+      const now = Date.now();
+      const logAll = this.#db.transaction(() => {
+        for (const row of rows) {
+          logAccess.run(row.id, session_id, now);
+        }
+      });
+      logAll();
+    }
 
     return {
       results: rows,
@@ -271,6 +293,17 @@ export class SqliteSearch {
       uptime: Date.now() - this.#startTime,
       brain_id: this.#brainId,
     };
+  }
+
+  accessLog(docId) {
+    const row = this.#db.prepare(`
+      SELECT
+        COUNT(*) as access_count,
+        COUNT(DISTINCT session_id) as session_diversity
+      FROM access_log
+      WHERE doc_id = ?
+    `).get(docId);
+    return row;
   }
 
   contradictions() {

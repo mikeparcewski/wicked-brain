@@ -228,3 +228,52 @@ test("health returns ok", () => {
     db.close();
   }
 });
+
+test("search with session_id records access log entries", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "doc1", path: "chunks/a.md", content: "Alpha beta gamma" });
+    db.index({ id: "doc2", path: "chunks/b.md", content: "Alpha delta epsilon" });
+
+    db.search({ query: "alpha", session_id: "session-001" });
+
+    const logs = db.accessLog("doc1");
+    assert.equal(logs.access_count, 1);
+    assert.equal(logs.session_diversity, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("session diversity tracks distinct sessions", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "doc1", path: "chunks/a.md", content: "Alpha content here" });
+
+    // Same session twice
+    db.search({ query: "alpha", session_id: "session-001" });
+    db.search({ query: "alpha", session_id: "session-001" });
+    // Different session
+    db.search({ query: "alpha", session_id: "session-002" });
+
+    const logs = db.accessLog("doc1");
+    assert.equal(logs.access_count, 3);
+    assert.equal(logs.session_diversity, 2);
+  } finally {
+    db.close();
+  }
+});
+
+test("search without session_id does not log access", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "doc1", path: "chunks/a.md", content: "Alpha content" });
+
+    db.search({ query: "alpha" }); // no session_id
+
+    const logs = db.accessLog("doc1");
+    assert.equal(logs.access_count, 0);
+  } finally {
+    db.close();
+  }
+});
