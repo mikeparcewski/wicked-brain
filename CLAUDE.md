@@ -29,6 +29,7 @@ Two components:
 - Tests use `node:test` (stdlib). Run: `cd server && node --test`
 - All paths must use forward slashes (normalize with `.replace(/\\/g, '/')` on Windows).
 - `fs.watch({ recursive: true })` doesn't work on Linux — the file-watcher has a polling fallback.
+- **Schema migrations required:** Any change to SQLite tables (new columns, new tables, renamed fields) MUST include a numbered migration in the `#migrate()` method of `sqlite-search.mjs`. Never assume `CREATE TABLE IF NOT EXISTS` handles schema evolution — it does not add columns to existing tables. Existing databases must upgrade seamlessly on server restart.
 
 ### Skills (Markdown)
 - Each skill is a `SKILL.md` with YAML frontmatter (`name`, `description`).
