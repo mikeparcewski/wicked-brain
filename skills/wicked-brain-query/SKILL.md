@@ -41,6 +41,20 @@ Example:
   Question: "What was the reasoning behind choosing PostgreSQL over SQLite?"
   Key terms: ["PostgreSQL", "SQLite", "database decision", "API layer"]
 
+For each key term, also generate 1-2 synonyms or related terms:
+- "auth" → also search "authentication", "credentials"
+- "DB" → also search "database", "datastore"
+- "K8s" → also search "kubernetes", "container-orchestration"
+
+Run searches for both the original key terms AND the expanded terms.
+Deduplicate results before proceeding to Step 1.
+
+Example:
+  Question: "How does our auth system handle sessions?"
+  Key terms: ["auth", "sessions"]
+  Expanded: ["authentication", "credentials", "session-management", "tokens"]
+  Search queries: ["auth", "sessions", "authentication", "credentials", "session-management", "tokens"]
+
 Use the key terms for FTS search queries (Step 1).
 Use the full original question for synthesis context (Step 4).
 Run multiple searches if key terms suggest different angles.
@@ -51,14 +65,17 @@ Search the brain for relevant content:
 ```bash
 curl -s -X POST http://localhost:{port}/api \
   -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"{question}","limit":10}}'
+  -d '{"action":"search","params":{"query":"{term}","limit":10,"session_id":"{session_id}"}}'
 ```
+
+Pass a session_id with every search call. This enables access tracking for
+consolidation. Use a consistent session_id for the entire conversation.
 
 If the question implies recency ("recently", "this week", "latest"), add a `since` parameter to the search with an ISO 8601 timestamp. For example, for "this week" use the date 7 days ago:
 ```bash
 curl -s -X POST http://localhost:{port}/api \
   -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"{question}","limit":10,"since":"{iso8601_date}"}}'
+  -d '{"action":"search","params":{"query":"{term}","limit":10,"session_id":"{session_id}","since":"{iso8601_date}"}}'
 ```
 
 Also search with grep for exact phrases:
