@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: lts/*
       - run: cd server && npm install
       - run: cd server && npm test
 
@@ -29,13 +29,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: lts/*
           registry-url: https://registry.npmjs.org
 
       - name: Install server deps
         run: cd server && npm install --omit=dev
 
-      - name: Publish wicked-brain to npm
+      - name: Publish to npm with provenance
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -47,11 +47,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: lts/*
           registry-url: https://npm.pkg.github.com
           scope: '@mikeparcewski'
 
-      - name: Publish wicked-brain to GitHub Packages
+      - name: Publish to GitHub Packages
         run: |
           npm pkg set name='@mikeparcewski/wicked-brain'
           npm publish --access public
