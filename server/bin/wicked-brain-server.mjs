@@ -58,6 +58,7 @@ const actions = {
   forward_links: (p) => ({ links: db.forwardLinks(p.id) }),
   stats: () => db.stats(),
   candidates: (p) => ({ candidates: db.candidates(p) }),
+  access_log: (p) => db.accessLog(p.id),
   contradictions: () => ({ links: db.contradictions() }),
 };
 
