@@ -78,16 +78,57 @@ export class SqliteSearch {
       CREATE INDEX IF NOT EXISTS idx_access_session ON access_log(session_id);
     `);
 
-    // Migrate existing databases: add columns that may be missing
     this.#migrate();
   }
 
+  /**
+   * Versioned schema migration system.
+   * Each migration upgrades from version N-1 to N.
+   * Migrations are idempotent — safe to re-run.
+   */
   #migrate() {
-    // Add rel column to links table if missing (added in v2)
+    // Ensure _schema_version table exists
+    this.#db.exec(`
+      CREATE TABLE IF NOT EXISTS _schema_version (
+        version INTEGER NOT NULL
+      )
+    `);
+
+    const row = this.#db.prepare(`SELECT version FROM _schema_version LIMIT 1`).get();
+    let currentVersion = row ? row.version : 0;
+
+    // Migration 1: add rel column to links table + access_log table
+    if (currentVersion < 1) {
+      try { this.#db.prepare(`SELECT rel FROM links LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE links ADD COLUMN rel TEXT`);
+      }
+      // access_log is created by #initSchema's CREATE TABLE IF NOT EXISTS,
+      // but for databases that predate it, ensure it exists
+      this.#db.exec(`
+        CREATE TABLE IF NOT EXISTS access_log (
+          doc_id TEXT NOT NULL, session_id TEXT NOT NULL, accessed_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_access_doc ON access_log(doc_id);
+        CREATE INDEX IF NOT EXISTS idx_access_session ON access_log(session_id);
+      `);
+      currentVersion = 1;
+    }
+
+    // Future migrations go here:
+    // if (currentVersion < 2) { ... currentVersion = 2; }
+
+    // Persist the current version
+    this.#db.exec(`DELETE FROM _schema_version`);
+    this.#db.prepare(`INSERT INTO _schema_version (version) VALUES (?)`).run(currentVersion);
+  }
+
+  /** Returns the current schema version number. */
+  schemaVersion() {
     try {
-      this.#db.prepare(`SELECT rel FROM links LIMIT 0`).get();
+      const row = this.#db.prepare(`SELECT version FROM _schema_version LIMIT 1`).get();
+      return row ? row.version : 0;
     } catch {
-      this.#db.exec(`ALTER TABLE links ADD COLUMN rel TEXT`);
+      return 0;
     }
   }
 

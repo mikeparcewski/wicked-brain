@@ -1,5 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { unlinkSync } from "node:fs";
+import Database from "better-sqlite3";
 import { SqliteSearch } from "../lib/sqlite-search.mjs";
 
 // Use in-memory databases for testing
@@ -357,5 +359,67 @@ test("search without session_id does not log access", () => {
     assert.equal(logs.access_count, 0);
   } finally {
     db.close();
+  }
+});
+
+// --- Migration tests ---
+
+test("schemaVersion returns current version for new database", () => {
+  const db = makeDb();
+  try {
+    const version = db.schemaVersion();
+    assert.ok(version >= 1, `Schema version should be >= 1, got ${version}`);
+  } finally {
+    db.close();
+  }
+});
+
+test("migration upgrades a v0 database to current schema", () => {
+  // Create a file-based v0 database WITHOUT rel column and WITHOUT access_log
+  const tmpPath = `/tmp/wicked-brain-migration-test-${Date.now()}.db`;
+  try {
+    // Create the v0 database
+    const v0 = new Database(tmpPath);
+    v0.exec(`
+      CREATE TABLE documents (
+        id TEXT PRIMARY KEY, path TEXT NOT NULL, content TEXT NOT NULL,
+        frontmatter TEXT, brain_id TEXT NOT NULL, indexed_at INTEGER NOT NULL
+      );
+      CREATE VIRTUAL TABLE documents_fts USING fts5(id, path, content, brain_id, tokenize='porter unicode61');
+      CREATE TABLE links (
+        source_id TEXT NOT NULL, source_brain TEXT NOT NULL,
+        target_path TEXT NOT NULL, target_brain TEXT, link_text TEXT
+      );
+      CREATE INDEX idx_links_source ON links(source_id);
+      CREATE INDEX idx_links_target ON links(target_path);
+    `);
+    v0.close();
+
+    // Open with SqliteSearch — should migrate
+    const db = new SqliteSearch(tmpPath, "test-brain");
+    try {
+      // rel column should exist now
+      db.index({
+        id: "test1", path: "test.md",
+        content: "Testing [[contradicts::old-claim]]"
+      });
+      const contradictions = db.contradictions();
+      assert.ok(Array.isArray(contradictions), "contradictions() should work after migration");
+
+      // access_log should exist
+      db.search({ query: "testing", session_id: "s1" });
+      const logs = db.accessLog("test1");
+      assert.equal(logs.access_count, 1, "access_log should work after migration");
+
+      // schema version should be current
+      const version = db.schemaVersion();
+      assert.ok(version >= 1, "Schema version should be set after migration");
+    } finally {
+      db.close();
+    }
+  } finally {
+    try { unlinkSync(tmpPath); } catch {}
+    try { unlinkSync(tmpPath + "-wal"); } catch {}
+    try { unlinkSync(tmpPath + "-shm"); } catch {}
   }
 });

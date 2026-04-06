@@ -101,12 +101,27 @@ For each pid file found:
 5. Restart: `npx wicked-brain-server --brain "{brain_dir}" --port {port}`
    On Windows: `Start-Process npx -ArgumentList "wicked-brain-server","--brain","{brain_dir}","--port","{port}" -NoNewWindow`
 
-### Step 6: Report
+### Step 6: Verify migration
+
+After server restart, verify the server started successfully and migrations ran:
+
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"health"}'
+```
+
+If health check fails, check server logs for migration errors. The server runs
+numbered schema migrations on startup — each new version may add tables or columns
+to the SQLite database. Migrations are automatic and idempotent.
+
+### Step 7: Report
 
 Tell the user what was updated:
 - Server: v{old} -> v{new}
 - Skills: updated in {N} CLIs
 - Running servers: {N} restarted
+- Schema: migrated to version {N} (check via health endpoint)
 
 ## Version check without updating
 
