@@ -71,8 +71,8 @@ if (tsServerAvailable) {
     const db = new SqliteSearch(":memory:", "test-brain");
     const client = new LspClient(testDir, db);
     try {
-      // Line 12 col 14: "Calculator" in "new Calculator()"
-      const result = await client.definition({ file: join(testDir, "test.ts"), line: 12, col: 14 });
+      // Line 12: "  const calc = new Calculator();" — col 20 hits "Calculator"
+      const result = await client.definition({ file: join(testDir, "test.ts"), line: 12, col: 20 });
       assert.ok(result.locations.length >= 1, "Should find at least one definition");
       assert.equal(result.locations[0].line, 1); // class Calculator is on line 1
     } finally {
@@ -98,8 +98,8 @@ if (tsServerAvailable) {
     const db = new SqliteSearch(":memory:", "test-brain");
     const client = new LspClient(testDir, db);
     try {
-      // Line 12 col 14: "Calculator"
-      const result = await client.hover({ file: join(testDir, "test.ts"), line: 12, col: 14 });
+      // Line 12: "  const calc = new Calculator();" — col 20 hits "Calculator"
+      const result = await client.hover({ file: join(testDir, "test.ts"), line: 12, col: 20 });
       assert.ok(result.content, "Should return hover content");
       assert.ok(result.content.includes("Calculator"), "Hover should mention Calculator");
     } finally {
