@@ -62,8 +62,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           npm version "$VERSION" --no-git-tag-version
 
-      - name: Install deps (needed for prepublishOnly)
-        run: npm install
+      - name: Install deps (needed for prepublishOnly test run)
+        run: npm install --omit=dev
 
       - name: Publish to GitHub Packages
         run: |
