@@ -62,6 +62,9 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           npm version "$VERSION" --no-git-tag-version
 
+      - name: Install deps (needed for prepublishOnly)
+        run: npm install
+
       - name: Publish to GitHub Packages
         run: |
           npm pkg set name='@mikeparcewski/wicked-brain'
@@ -70,7 +73,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   github-release:
-    needs: [publish-npm, publish-github-packages]
+    needs: publish-npm
+    if: always() && needs.publish-npm.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
