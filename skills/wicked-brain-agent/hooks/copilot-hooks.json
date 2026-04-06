@@ -1,0 +1,10 @@
+{
+  "_comment": "wicked-brain context assembly hook for Copilot CLI",
+  "version": 1,
+  "hooks": {
+    "userPromptSubmitted": [{
+      "command": "echo 'Use wicked-brain:context to enrich this prompt with brain knowledge'",
+      "timeout": 30
+    }]
+  }
+}

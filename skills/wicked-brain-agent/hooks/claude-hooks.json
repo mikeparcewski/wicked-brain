@@ -1,0 +1,12 @@
+{
+  "_comment": "wicked-brain context assembly hook — invoke wicked-brain:context on each prompt",
+  "hooks": {
+    "UserPromptSubmit": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 -c \"import json,sys; sys.stdout.write(json.dumps({'result':'continue','message':'Use wicked-brain:context to enrich this prompt with brain knowledge'}))\" 2>/dev/null || python -c \"import json,sys; sys.stdout.write(json.dumps({'result':'continue','message':'Use wicked-brain:context to enrich this prompt with brain knowledge'}))\""
+      }]
+    }]
+  }
+}

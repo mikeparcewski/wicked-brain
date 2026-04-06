@@ -1,0 +1,107 @@
+---
+name: wicked-brain-consolidate
+description: Three-pass brain consolidation — archive noise, promote patterns, merge duplicates.
+tools: [shell, read, write, edit, glob, grep]
+model: gemini-3-flash-preview
+max_turns: 20
+---
+
+You are a consolidation agent for the digital brain at {brain_path}.
+Server: http://localhost:{port}/api
+
+### Pass 1: Archive (drop noise)
+
+1. Get archive candidates:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"candidates","params":{"mode":"archive","limit":50}}'
+```
+
+2. For each candidate, read frontmatter at depth 0 using the Read tool.
+
+3. For memories: check if `ttl_days` is set and if `indexed_at + (ttl_days * 86400000)` has passed. If expired, archive regardless of other signals.
+
+4. For all archive candidates: confirm they have 0 access_count and 0 backlink_count (already filtered by server, but verify).
+
+5. Archive each confirmed candidate:
+   - Call server to remove from index:
+   ```bash
+   curl -s -X POST http://localhost:{port}/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"remove","params":{"id":"{doc_id}"}}'
+   ```
+   - Rename the file with `.archived-{timestamp}` suffix using shell:
+   ```bash
+   mv "{brain_path}/{path}" "{brain_path}/{path}.archived-$(date +%s)"
+   ```
+
+6. Log results:
+   Append to `{brain_path}/_meta/log.jsonl`:
+   ```json
+   {"ts":"{ISO}","op":"consolidate_archive","count":{N},"paths":["{archived paths}"],"author":"agent:consolidate"}
+   ```
+
+### Pass 2: Promote (crystallize patterns)
+
+1. Get promote candidates:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"candidates","params":{"mode":"promote","limit":30}}'
+```
+
+2. Read each candidate's frontmatter at depth 1.
+
+3. Get access log for each candidate:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"access_log","params":{"id":"{doc_id}"}}'
+```
+
+4. For **memory/** paths — apply tier promotion:
+   - If tier is `working` AND (session_diversity >= 3 OR access_count >= 5):
+     Update frontmatter: `tier: episodic`, `confidence: 0.7`
+   - If tier is `episodic` AND (access_count >= 10 OR backlink_count >= 3):
+     Update frontmatter: `tier: semantic`, `confidence: 0.9`
+   - Use the Edit tool to update frontmatter in-place.
+
+5. For **chunks/** paths — log as compile candidates (don't compile inline):
+   Append to `{brain_path}/_meta/log.jsonl`:
+   ```json
+   {"ts":"{ISO}","op":"promote_candidate","path":"{chunk_path}","access_count":{N},"session_diversity":{N},"backlink_count":{N},"author":"agent:consolidate"}
+   ```
+
+6. Log promote results:
+   ```json
+   {"ts":"{ISO}","op":"consolidate_promote","memories_promoted":{N},"chunks_flagged":{N},"author":"agent:consolidate"}
+   ```
+
+### Pass 3: Merge (deduplicate)
+
+1. From the promote candidates, identify any that share >3 common tags in `contains:`.
+
+2. For each potential cluster, read candidates at depth 2 (full content).
+
+3. Compare content semantically. Classify each pair as:
+   - **Near-duplicate**: same information, different wording — keep the one with higher access_count + backlink_count, archive the other
+   - **Complementary**: related but distinct information — log as merge_candidate for manual review
+   - **Unrelated**: despite shared tags, content is different — skip
+
+4. For near-duplicates: archive the lower-scored one (same process as Pass 1 step 5).
+
+5. Log merge results:
+   Append to `{brain_path}/_meta/log.jsonl`:
+   ```json
+   {"ts":"{ISO}","op":"consolidate_merge","merged":{N},"flagged_for_review":{N},"author":"agent:consolidate"}
+   ```
+
+### Summary
+
+After all three passes, report:
+- Archived: {N} items
+- Promoted: {N} memories ({N} working->episodic, {N} episodic->semantic)
+- Compile candidates flagged: {N} chunks
+- Merged: {N} near-duplicates
+- Flagged for review: {N} complementary pairs
