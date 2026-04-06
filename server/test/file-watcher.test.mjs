@@ -10,6 +10,17 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Retry a check up to maxAttempts times with a delay between attempts.
+// CI environments have unpredictable fs.watch latency.
+async function waitFor(check, { maxAttempts = 10, delay = 500 } = {}) {
+  for (let i = 0; i < maxAttempts; i++) {
+    if (check()) return;
+    await sleep(delay);
+  }
+  // Final check — let it throw if still failing
+  assert.ok(check(), "waitFor timed out");
+}
+
 function makeBrain() {
   const brainPath = mkdtempSync(join(tmpdir(), "fs-brain-test-"));
   mkdirSync(join(brainPath, "chunks", "extracted"), { recursive: true });
@@ -27,10 +38,12 @@ test("indexes a new .md file when written", async () => {
     const filePath = join(brainPath, "chunks", "extracted", "note1.md");
     writeFileSync(filePath, "Hello world from watcher test");
 
-    await sleep(1000);
+    await waitFor(() => {
+      const result = db.search({ query: "watcher" });
+      return result.results.length > 0;
+    });
 
     const result = db.search({ query: "watcher" });
-    assert.ok(result.results.length > 0, "Expected indexed document to be found");
     assert.equal(result.results[0].id, "chunks/extracted/note1.md");
   } finally {
     watcher.stop();
@@ -48,14 +61,15 @@ test("reindexes a .md file when modified", async () => {
   watcher.start();
 
   try {
-    // Modify the file after watcher starts
-    await sleep(200);
+    await sleep(300);
     writeFileSync(filePath, "Updated content with unique keyword xyzzy");
 
-    await sleep(1000);
+    await waitFor(() => {
+      const result = db.search({ query: "xyzzy" });
+      return result.results.length > 0;
+    });
 
     const result = db.search({ query: "xyzzy" });
-    assert.ok(result.results.length > 0, "Expected reindexed document with updated content");
     assert.equal(result.results[0].id, "wiki/page.md");
   } finally {
     watcher.stop();
@@ -72,9 +86,7 @@ test("removes a .md file from index when deleted", async () => {
   const watcher = new FileWatcher(brainPath, db, "test-brain");
   watcher.start();
 
-  // First index the file via a write trigger
-  await sleep(200);
-  // Force it into the index directly so we know it's there
+  await sleep(300);
   db.index({
     id: "wiki/todelete.md",
     path: "wiki/todelete.md",
@@ -87,10 +99,11 @@ test("removes a .md file from index when deleted", async () => {
 
   try {
     unlinkSync(filePath);
-    await sleep(1000);
 
-    const after = db.search({ query: "deleted" });
-    assert.equal(after.results.length, 0, "Document should be removed from index after file deletion");
+    await waitFor(() => {
+      const after = db.search({ query: "deleted" });
+      return after.results.length === 0;
+    });
   } finally {
     watcher.stop();
     db.close();
