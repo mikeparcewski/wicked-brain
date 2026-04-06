@@ -4,9 +4,9 @@
 
 ```
 wicked-brain/
-  server/           # SQLite FTS5 HTTP server (plain JavaScript, one dep)
+  server/           # SQLite FTS5 HTTP server with optional LSP client (plain JavaScript)
     bin/             # wicked-brain-server entry point
-    lib/             # sqlite-search, wikilinks, file-watcher modules
+    lib/             # sqlite-search, wikilinks, file-watcher, lsp-client modules
     test/            # node:test tests
   skills/            # SKILL.md files installed into AI CLIs
     wicked-brain-*/  # One directory per skill
@@ -18,14 +18,14 @@ wicked-brain/
 ## Architecture
 
 Two components:
-1. **Server** — Lightweight Node.js HTTP server wrapping SQLite FTS5. Single `POST /api` endpoint with action dispatch. Auto-reindexes on file changes via file watcher.
+1. **Server** — Lightweight Node.js HTTP server wrapping SQLite FTS5. Single `POST /api` endpoint with action dispatch. Auto-reindexes on file changes via file watcher. Optional LSP client layer for universal code intelligence.
 2. **Skills** — Markdown instruction files (SKILL.md) that teach AI agents how to manage a filesystem-based knowledge base. Installed into Claude Code, Gemini CLI, Copilot CLI, Cursor, Codex.
 
 ## Development Rules
 
 ### Server (JavaScript)
 - Plain JavaScript (ESM). No TypeScript, no build step.
-- One runtime dependency: `better-sqlite3`. No others.
+- Minimal runtime dependencies. Core: `better-sqlite3`. LSP layer uses hand-rolled JSON-RPC (zero new deps). Every new dependency needs justification — prefer stdlib and keep the dependency tree shallow.
 - Tests use `node:test` (stdlib). Run: `cd server && node --test`
 - All paths must use forward slashes (normalize with `.replace(/\\/g, '/')` on Windows).
 - `fs.watch({ recursive: true })` doesn't work on Linux — the file-watcher has a polling fallback.
