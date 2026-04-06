@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { argv, pid, exit } from "node:process";
 import { FileWatcher } from "../lib/file-watcher.mjs";
 import { SqliteSearch } from "../lib/sqlite-search.mjs";
+import { LspClient } from "../lib/lsp-client.mjs";
 
 // Parse args
 const args = argv.slice(2);
@@ -38,16 +39,20 @@ const db = new SqliteSearch(dbPath, brainId);
 const pidPath = join(brainPath, "_meta", "server.pid");
 writeFileSync(pidPath, String(pid));
 
+// LSP client
+const lsp = new LspClient(brainPath, db);
+
 // Graceful shutdown
-function shutdown() {
+async function shutdown() {
   console.log("Shutting down...");
   try { unlinkSync(pidPath); } catch {}
   watcher.stop();
+  await lsp.shutdown();
   db.close();
   exit(0);
 }
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on("SIGTERM", () => shutdown());
+process.on("SIGINT", () => shutdown());
 
 // Action dispatch
 const actions = {
@@ -64,6 +69,17 @@ const actions = {
   access_log: (p) => db.accessLog(p.id),
   recent_memories: (p) => ({ memories: db.recentMemories(p) }),
   contradictions: () => ({ links: db.contradictions() }),
+  // LSP actions
+  "lsp-health": () => lsp.health(),
+  "lsp-symbols": (p) => lsp.symbols(p),
+  "lsp-definition": (p) => lsp.definition(p),
+  "lsp-references": (p) => lsp.references(p),
+  "lsp-hover": (p) => lsp.hover(p),
+  "lsp-implementation": (p) => lsp.implementation(p),
+  "lsp-workspace-symbols": (p) => lsp.workspaceSymbols(p),
+  "lsp-call-hierarchy-in": (p) => lsp.callHierarchyIn(p),
+  "lsp-call-hierarchy-out": (p) => lsp.callHierarchyOut(p),
+  "lsp-diagnostics": (p) => lsp.diagnostics(p),
 };
 
 // HTTP server
@@ -84,9 +100,21 @@ const server = createServer((req, res) => {
         res.end(JSON.stringify({ error: `Unknown action: ${action}` }));
         return;
       }
+      // Handle both sync and async results
       const result = handler(params);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(result ?? { ok: true }));
+      Promise.resolve(result)
+        .then(r => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(r ?? { ok: true }));
+        })
+        .catch(err => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            error: err.message,
+            language: err.language,
+            install: err.install,
+          }));
+        });
     } catch (err) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: err.message }));
@@ -102,6 +130,11 @@ try {
 } catch {}
 
 const watcher = new FileWatcher(brainPath, db, brainId, projects);
+
+// Wire file changes to LSP client for didOpen/didChange/didClose
+watcher.onFileChange((relPath, absPath, content, eventType) => {
+  lsp.handleFileChange(relPath, absPath, content, eventType);
+});
 
 server.listen(port, () => {
   console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
