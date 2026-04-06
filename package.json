@@ -2,13 +2,48 @@
   "name": "wicked-brain",
   "version": "0.1.0",
   "type": "module",
-  "description": "Digital brain as skills for AI coding CLIs",
+  "description": "Digital brain as skills for AI coding CLIs — no vector DB, no embeddings, no infrastructure",
+  "keywords": [
+    "ai",
+    "brain",
+    "knowledge-base",
+    "skills",
+    "claude-code",
+    "gemini-cli",
+    "copilot",
+    "cursor",
+    "codex",
+    "markdown",
+    "sqlite",
+    "fts5",
+    "rag-alternative"
+  ],
+  "author": "Mike Parcewski",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mikeparcewski/wicked-brain.git"
+  },
+  "homepage": "https://github.com/mikeparcewski/wicked-brain",
+  "bugs": "https://github.com/mikeparcewski/wicked-brain/issues",
   "bin": {
     "wicked-brain": "./install.mjs"
   },
   "files": [
     "install.mjs",
     "skills/",
-    "server/"
-  ]
+    "server/bin/",
+    "server/lib/",
+    "server/package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "cd server && node --test",
+    "prepublishOnly": "npm test",
+    "release": "npm version patch && git push && git push --tags"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

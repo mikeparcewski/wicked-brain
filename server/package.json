@@ -2,14 +2,37 @@
   "name": "wicked-brain-server",
   "version": "0.1.0",
   "type": "module",
+  "description": "SQLite FTS5 search server for wicked-brain digital knowledge bases",
+  "keywords": [
+    "wicked-brain",
+    "sqlite",
+    "fts5",
+    "search",
+    "knowledge-base"
+  ],
+  "author": "Mike Parcewski",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mikeparcewski/wicked-brain.git",
+    "directory": "server"
+  },
   "bin": {
     "wicked-brain-server": "./bin/wicked-brain-server.mjs"
   },
+  "files": [
+    "bin/",
+    "lib/",
+    "package.json"
+  ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "start": "node bin/wicked-brain-server.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
