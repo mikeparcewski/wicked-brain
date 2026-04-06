@@ -135,6 +135,87 @@ test("reindex replaces all documents", () => {
   }
 });
 
+test("backlink-weighted search ranks linked doc higher", () => {
+  const db = makeDb();
+  try {
+    // Doc B and Doc C have identical content so FTS rank is the same.
+    // Doc A links to Doc B, giving B one backlink. C is an orphan.
+    db.index({ id: "docA", path: "docA.md", content: "Intro see [[docB.md]] for details about quantum physics" });
+    db.index({ id: "docB", path: "docB.md", content: "Quantum physics detailed explanation" });
+    db.index({ id: "docC", path: "docC.md", content: "Quantum physics detailed explanation" });
+
+    const result = db.search({ query: "quantum physics" });
+    // Both B and C should appear
+    assert.ok(result.results.length >= 2);
+
+    const idxB = result.results.findIndex((r) => r.id === "docB");
+    const idxC = result.results.findIndex((r) => r.id === "docC");
+    assert.ok(idxB !== -1, "docB should appear in results");
+    assert.ok(idxC !== -1, "docC should appear in results");
+    // B should rank higher (appear earlier) than C because of backlink boost
+    assert.ok(idxB < idxC, `docB (index ${idxB}) should rank higher than docC (index ${idxC})`);
+
+    // B should have backlink_count = 1, C should have 0
+    assert.equal(result.results[idxB].backlink_count, 1);
+    assert.equal(result.results[idxC].backlink_count, 0);
+  } finally {
+    db.close();
+  }
+});
+
+test("since parameter filters by indexed_at", () => {
+  const db = makeDb();
+  try {
+    // Index a doc, then wait a moment and record a timestamp, then index another
+    db.index({ id: "old1", path: "old1.md", content: "Machine learning basics" });
+
+    // We need a timestamp between the two indexing operations.
+    // Since indexing uses Date.now(), we grab a cutoff after the first index.
+    const cutoff = new Date(Date.now() + 1).toISOString();
+
+    // Small busy-wait to ensure the second doc gets a later timestamp
+    const start = Date.now();
+    while (Date.now() - start < 5) { /* wait 5ms */ }
+
+    db.index({ id: "new1", path: "new1.md", content: "Machine learning advanced" });
+
+    // Without since, both should appear
+    const all = db.search({ query: "machine learning" });
+    assert.equal(all.results.length, 2);
+
+    // With since, only the newer doc should appear
+    const recent = db.search({ query: "machine learning", since: cutoff });
+    assert.equal(recent.results.length, 1);
+    assert.equal(recent.results[0].id, "new1");
+    assert.equal(recent.total_matches, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("stores and retrieves typed relationship links", () => {
+  const db = makeDb();
+  try {
+    db.index({
+      id: "doc1",
+      path: "wiki/new-claim.md",
+      content: "This [[contradicts::wiki/old-claim]] and [[supports::wiki/evidence]]",
+    });
+    db.index({
+      id: "doc2",
+      path: "wiki/other.md",
+      content: "See [[wiki/new-claim]] for details",
+    });
+
+    const contradictions = db.contradictions();
+    assert.equal(contradictions.length, 1);
+    assert.equal(contradictions[0].source_id, "doc1");
+    assert.equal(contradictions[0].target_path, "wiki/old-claim");
+  } finally {
+    db.close();
+  }
+});
+
 test("health returns ok", () => {
   const db = makeDb();
   try {

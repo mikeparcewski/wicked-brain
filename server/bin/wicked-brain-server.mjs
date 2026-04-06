@@ -57,6 +57,7 @@ const actions = {
   backlinks: (p) => ({ links: db.backlinks(p.id) }),
   forward_links: (p) => ({ links: db.forwardLinks(p.id) }),
   stats: () => db.stats(),
+  contradictions: () => ({ links: db.contradictions() }),
 };
 
 // HTTP server

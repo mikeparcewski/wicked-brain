@@ -49,6 +49,13 @@ curl -s -X POST http://localhost:{port}/api \
   -d '{"action":"stats","params":{}}'
 ```
 
+Read _meta/log.jsonl. Look for:
+1. op: "search_miss" entries — these are topics users searched for but
+   couldn't find. Prioritize these as highest-value gaps.
+2. Low-frequency tags in chunks (existing approach) — secondary signal.
+
+Group search misses by topic and address the most frequent ones first.
+
 Search for thin areas — topics mentioned in existing chunks but with few entries.
 Use your Grep tool on `{brain_path}/chunks/` to find all `contains:` fields and
 count occurrences. Shell fallback:
@@ -61,6 +68,18 @@ Based on existing content, reason about:
 - Topics mentioned but never elaborated
 - Connections between concepts that exist but aren't documented
 - Questions the brain can't currently answer
+
+## Source Material Rules (CRITICAL)
+
+ONLY read from `chunks/extracted/` as source material for new inferences. Never base
+inferences on content from `chunks/inferred/` — that would be inference-of-inference,
+which causes confidence laundering (inferred content cites inferred content, making
+unreliable chains appear well-sourced).
+
+- If you find relevant content in `chunks/inferred/`, you may note it as background
+  context but do NOT cite it as a `source_chunk` or use it as evidence for new inferences.
+- Every entry in `source_chunks` in your output MUST start with `chunks/extracted/`.
+- If a gap cannot be filled using only extracted chunks as evidence, skip it.
 
 ## Step 3: Write inferred chunks
 

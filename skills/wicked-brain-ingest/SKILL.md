@@ -240,10 +240,34 @@ function splitText(text) {
   return chunks.length > 0 ? chunks : [text];
 }
 
+async function removeOldChunks(name) {
+  const chunkDir = join(BRAIN, "chunks", "extracted", name);
+  if (!existsSync(chunkDir)) return;
+  const ts = Math.floor(Date.now() / 1000);
+  // Remove each chunk from the search index before archiving
+  for (const f of readdirSync(chunkDir).filter(f => f.endsWith(".md"))) {
+    const id = `chunks/extracted/${name}/${f}`;
+    try {
+      await fetch(`http://localhost:${PORT}/api`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", params: { id } }),
+      });
+    } catch (e) {
+      console.error(`  Failed to remove ${id}: ${e.message}`);
+    }
+  }
+  // Archive the old directory
+  const { renameSync } = await import("node:fs");
+  renameSync(chunkDir, `${chunkDir}.archived-${ts}`);
+  console.log(`  Archived old chunks: ${name}`);
+}
+
 async function ingestFile(filePath) {
   const ext = extname(filePath).toLowerCase();
   const rel = relative(SOURCE_DIR, filePath);
   const name = safeName(rel);
+  await removeOldChunks(name);
   const chunkDir = join(BRAIN, "chunks", "extracted", name);
   mkdirSync(chunkDir, { recursive: true });
 
@@ -254,7 +278,19 @@ async function ingestFile(filePath) {
     const chunkId = `${name}/chunk-${String(i + 1).padStart(3, "0")}`;
     const chunkPath = `chunks/extracted/${chunkId}.md`;
     const ts = new Date().toISOString();
-    const keywords = [...new Set(chunks[i].toLowerCase().replace(/[^a-z0-9\s-]/g,"").split(/\s+/).filter(w => w.length > 5))].slice(0, 10);
+    const STOP = new Set([
+      "should","would","could","their","about","which","these","those",
+      "there","where","other","after","before","during","while","being",
+      "having","because","through","between","without","against","itself",
+      "become","becomes","another","however","already","always","around"
+    ]);
+
+    const keywords = [...new Set(
+      chunks[i].toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .split(/\s+/)
+        .filter(w => w.length > 5 && !STOP.has(w))
+    )].slice(0, 10);
 
     const frontmatter = [
       "---",
@@ -318,10 +354,19 @@ This pattern should be used **whenever more than 5 files need processing**. It:
 
 ### Step 4: Archive on re-ingest
 
-If previous chunks exist for a source, archive them first.
-Use the agent's native move/rename capability, or shell equivalents:
-- macOS/Linux: `mv "{brain_path}/chunks/extracted/{safe_name}" "{brain_path}/chunks/extracted/{safe_name}.archived-$(date +%s)"`
-- Windows: `Rename-Item "{brain_path}\chunks\extracted\{safe_name}" "{safe_name}.archived-{timestamp}"`
+If previous chunks exist for a source, **remove them from the search index before archiving**.
+Archived files are invisible to the file watcher, so the server won't clean them up automatically.
+
+1. List all .md files in `{brain_path}/chunks/extracted/{safe_name}/`
+2. For each file, call the server to remove it from the index:
+   ```bash
+   curl -s -X POST http://localhost:{port}/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"remove","params":{"id":"chunks/extracted/{safe_name}/chunk-NNN.md"}}'
+   ```
+3. Then rename the directory to archive it:
+   - macOS/Linux: `mv "{brain_path}/chunks/extracted/{safe_name}" "{brain_path}/chunks/extracted/{safe_name}.archived-$(date +%s)"`
+   - Windows: `Rename-Item "{brain_path}\chunks\extracted\{safe_name}" "{safe_name}.archived-{timestamp}"`
 
 ### Step 5: Report to user
 

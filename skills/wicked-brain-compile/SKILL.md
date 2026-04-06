@@ -83,9 +83,13 @@ or `{brain_path}/wiki/topics/{topic-name}.md`:
 ---
 authored_by: llm
 authored_at: {ISO timestamp}
+confidence: {average of source chunk confidences, rounded to 2 decimals}
 source_chunks:
   - {chunk-path-1}
   - {chunk-path-2}
+source_hashes:
+  - {chunk-path-1}: {first 8 chars of chunk content hash}
+  - {chunk-path-2}: {first 8 chars of chunk content hash}
 contains:
   - {topic tags}
 ---
@@ -95,6 +99,10 @@ contains:
 {Article body with [[backlinks]] to source chunks.}
 
 Every factual claim should link to its source: [[chunks/extracted/{source}/chunk-NNN]].
+
+When updating or replacing content from an existing wiki article, use a typed
+supersedes link: [[supersedes::wiki/concepts/{old-concept}]]. This creates an
+explicit lineage trail so the brain can track how concepts evolve over time.
 
 ## Related
 

@@ -75,16 +75,8 @@ curl -s -X POST http://localhost:{port}/api \
 
 Parse the JSON response to get results.
 
-## Step 2: File search (catches what FTS might miss)
+## Step 2: Return results
 
-Search for exact phrases or patterns that FTS tokenization might split.
-Use your Grep tool (preferred) or shell fallback:
-- macOS/Linux: `grep -rl "{query}" {brain_path}/chunks/ {brain_path}/wiki/ 2>/dev/null | head -20`
-- Windows: `findstr /s /m "{query}" {brain_path}\chunks\*.md {brain_path}\wiki\*.md 2>nul`
-
-## Step 3: Merge and return
-
-Combine FTS results and grep matches. Deduplicate by path.
 For each result, read the first line of the file to get the title/summary.
 
 Return in this format:
@@ -95,7 +87,7 @@ RESULTS:
 TOTAL: {count}
 ```
 
-### Step 4: Merge results from all subagents
+### Step 3: Merge results from all subagents
 
 After all subagents return:
 1. Collect all results
@@ -103,7 +95,7 @@ After all subagents return:
 3. Sort by score descending
 4. Tag each result with its brain origin
 
-### Step 5: Return at requested depth
+### Step 4: Return at requested depth
 
 **Depth 0 (default):**
 ```

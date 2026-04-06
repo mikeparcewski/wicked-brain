@@ -31,6 +31,20 @@ Server: http://localhost:{port}/api
 
 Question: "{question}"
 
+## Step 0: Decompose query
+
+Before searching, extract 3-5 keyword search terms from the question.
+These should be noun phrases, named entities, and technical terms — not
+full sentences or common words.
+
+Example:
+  Question: "What was the reasoning behind choosing PostgreSQL over SQLite?"
+  Key terms: ["PostgreSQL", "SQLite", "database decision", "API layer"]
+
+Use the key terms for FTS search queries (Step 1).
+Use the full original question for synthesis context (Step 4).
+Run multiple searches if key terms suggest different angles.
+
 ## Step 1: Search
 
 Search the brain for relevant content:
@@ -38,6 +52,13 @@ Search the brain for relevant content:
 curl -s -X POST http://localhost:{port}/api \
   -H "Content-Type: application/json" \
   -d '{"action":"search","params":{"query":"{question}","limit":10}}'
+```
+
+If the question implies recency ("recently", "this week", "latest"), add a `since` parameter to the search with an ISO 8601 timestamp. For example, for "this week" use the date 7 days ago:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"{question}","limit":10,"since":"{iso8601_date}"}}'
 ```
 
 Also search with grep for exact phrases:
@@ -82,4 +103,12 @@ Answer the question directly, then list sources:
 Sources:
 - {path}: {one-line description of what it contributed}
 - {path}: {one-line description}
+
+## Step 5: Log search effectiveness
+
+If evidence was insufficient to answer the question fully, append a
+search-miss event to the brain's log:
+
+Append this line to {brain_path}/_meta/log.jsonl:
+{"ts":"{ISO}","op":"search_miss","query":"{original question}","key_terms":[{extracted terms}],"results_found":{count},"author":"agent:query"}
 ```

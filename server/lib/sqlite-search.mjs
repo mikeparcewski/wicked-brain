@@ -11,6 +11,9 @@ function escapeFtsQuery(query) {
     .join(" ");
 }
 
+/** Weight factor for backlink count in search ranking (PageRank-lite). */
+const BACKLINK_WEIGHT = 0.5;
+
 export class SqliteSearch {
   #db;
   #brainId;
@@ -48,6 +51,7 @@ export class SqliteSearch {
         source_brain TEXT NOT NULL,
         target_path TEXT NOT NULL,
         target_brain TEXT,
+        rel TEXT,
         link_text TEXT
       );
 
@@ -80,8 +84,8 @@ export class SqliteSearch {
 
     const deleteLinks = this.#db.prepare(`DELETE FROM links WHERE source_id = ?`);
     const insertLink = this.#db.prepare(`
-      INSERT INTO links (source_id, source_brain, target_path, target_brain, link_text)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO links (source_id, source_brain, target_path, target_brain, rel, link_text)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const run = this.#db.transaction(() => {
@@ -91,7 +95,7 @@ export class SqliteSearch {
       deleteLinks.run(id);
       const wikilinks = parseWikilinks(content);
       for (const link of wikilinks) {
-        insertLink.run(id, brainId, link.path, link.brain, link.raw);
+        insertLink.run(id, brainId, link.path, link.brain, link.rel || null, link.raw);
       }
     });
 
@@ -119,9 +123,12 @@ export class SqliteSearch {
     run();
   }
 
-  search({ query, limit = 10, offset = 0 }) {
+  search({ query, limit = 10, offset = 0, since = null }) {
     const escaped = escapeFtsQuery(query);
     if (!escaped) return { results: [], total_matches: 0, showing: 0 };
+
+    const sinceClause = since ? `AND d.indexed_at >= ?` : "";
+    const sinceParams = since ? [new Date(since).getTime()] : [];
 
     const rows = this.#db
       .prepare(`
@@ -129,18 +136,30 @@ export class SqliteSearch {
           d.id,
           d.path,
           d.brain_id,
-          snippet(documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet
+          snippet(documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet,
+          COALESCE(link_count.cnt, 0) AS backlink_count
         FROM documents_fts f
         JOIN documents d ON d.id = f.id
+        LEFT JOIN (
+          SELECT target_path, COUNT(*) AS cnt
+          FROM links
+          GROUP BY target_path
+        ) link_count ON d.path = link_count.target_path
         WHERE documents_fts MATCH ?
-        ORDER BY rank
+        ${sinceClause}
+        ORDER BY (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}))
         LIMIT ? OFFSET ?
       `)
-      .all(escaped, limit, offset);
+      .all(escaped, ...sinceParams, limit, offset);
 
     const countRow = this.#db
-      .prepare(`SELECT COUNT(*) as cnt FROM documents_fts WHERE documents_fts MATCH ?`)
-      .get(escaped);
+      .prepare(
+        `SELECT COUNT(*) as cnt FROM documents_fts f
+         JOIN documents d ON d.id = f.id
+         WHERE documents_fts MATCH ?
+         ${sinceClause}`
+      )
+      .get(escaped, ...sinceParams);
 
     const total_matches = countRow ? countRow.cnt : 0;
 
@@ -252,6 +271,16 @@ export class SqliteSearch {
       uptime: Date.now() - this.#startTime,
       brain_id: this.#brainId,
     };
+  }
+
+  contradictions() {
+    return this.#db
+      .prepare(`
+        SELECT source_id, source_brain, target_path, target_brain, link_text
+        FROM links
+        WHERE rel = 'contradicts'
+      `)
+      .all();
   }
 
   close() {

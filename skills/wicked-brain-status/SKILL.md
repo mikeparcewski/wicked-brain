@@ -67,6 +67,13 @@ Check parent/link accessibility by using the Read tool on
 Depth 0 plus:
 - Use the Read tool on `_meta/log.jsonl` (last 50 lines) to identify topic distribution from recent tag events.
   Shell fallback: `tail -50 {brain_path}/_meta/log.jsonl` (macOS/Linux) or `Get-Content "{brain_path}\_meta\log.jsonl" -Tail 50` (Windows PowerShell)
+- Show topic distribution for the last 7 days by searching with a `since` filter:
+  ```bash
+  curl -s -X POST http://localhost:{port}/api \
+    -H "Content-Type: application/json" \
+    -d '{"action":"search","params":{"query":"*","limit":100,"since":"{iso8601_7_days_ago}"}}'
+  ```
+  Group results by path prefix (e.g., `chunks/extracted/`, `wiki/`) to show recent activity distribution.
 - List the top 10 most common tags
 - Flag any staleness warnings (sources modified after last ingest)
 

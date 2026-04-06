@@ -69,6 +69,12 @@ Shell fallback:
 ### Stale entries
 Compare source file modification times with chunk creation times.
 
+### Stale wiki articles
+For each wiki article with source_hashes in frontmatter:
+- Read each source chunk
+- Compare its current content hash prefix against the stored hash
+- If any hash mismatches or chunk is missing: flag as stale
+
 ### Missing frontmatter
 Check each chunk has required frontmatter fields (source, chunk_id, confidence, indexed_at).
 
@@ -77,6 +83,14 @@ Check each chunk has required frontmatter fields (source, chunk_id, confidence, 
 Read a sample of chunks and wiki articles. Check:
 - Are tags consistent? (same concept tagged differently in different chunks)
 - Are there factual contradictions between articles?
+- Check for `contradicts` typed links — query the server:
+  ```bash
+  curl -s -X POST http://localhost:{port}/api \
+    -H "Content-Type: application/json" \
+    -d '{"action":"contradictions","params":{}}'
+  ```
+  For each contradiction link, read both the source and target to determine
+  if the contradiction is resolved. Flag unresolved contradictions as warnings.
 - Are there implicit connections that should be explicit [[links]]?
 - What topics have chunks but no wiki article? (coverage gaps)
 
