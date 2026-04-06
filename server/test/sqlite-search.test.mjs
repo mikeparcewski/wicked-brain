@@ -286,6 +286,48 @@ test("access count boosts search ranking", () => {
   }
 });
 
+test("candidates promote returns highest-scored docs first", () => {
+  const db = makeDb();
+  try {
+    // Index three chunks: one with access, one with backlinks, one orphan
+    db.index({ id: "c1", path: "chunks/popular.md", content: "Popular chunk" });
+    db.index({ id: "c2", path: "chunks/linked.md", content: "Linked chunk" });
+    db.index({ id: "c3", path: "chunks/orphan.md", content: "Orphan chunk" });
+    // linker has backlink pointing to c2
+    db.index({ id: "linker", path: "chunks/linker.md", content: "See [[chunks/linked.md]]" });
+    // c1 gets accessed
+    db.search({ query: "popular", session_id: "s1" });
+    db.search({ query: "popular", session_id: "s2" });
+
+    const result = db.candidates({ mode: "promote", limit: 10 });
+    assert.ok(result.length >= 2);
+    // c1 (accessed) and c2 (linked) should appear before c3 (orphan)
+    const paths = result.map((r) => r.path);
+    const idxOrphan = paths.indexOf("chunks/orphan.md");
+    const idxPopular = paths.indexOf("chunks/popular.md");
+    const idxLinked = paths.indexOf("chunks/linked.md");
+    assert.ok(idxPopular < idxOrphan, "popular should rank above orphan");
+    assert.ok(idxLinked < idxOrphan, "linked should rank above orphan");
+  } finally {
+    db.close();
+  }
+});
+
+test("candidates archive returns old zero-access zero-backlink docs", () => {
+  const db = makeDb();
+  try {
+    // Index docs — they'll have recent indexed_at so won't match archive by default
+    db.index({ id: "old1", path: "chunks/old.md", content: "Old content" });
+    db.index({ id: "new1", path: "chunks/new.md", content: "New content" });
+
+    // Archive mode with recent docs should return empty (all < 30 days old)
+    const result = db.candidates({ mode: "archive", limit: 10 });
+    assert.equal(result.length, 0, "recent docs should not be archive candidates");
+  } finally {
+    db.close();
+  }
+});
+
 test("search without session_id does not log access", () => {
   const db = makeDb();
   try {

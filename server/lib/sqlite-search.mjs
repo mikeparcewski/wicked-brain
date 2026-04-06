@@ -17,6 +17,14 @@ const BACKLINK_WEIGHT = 0.5;
 /** Weight factor for access count in search ranking. */
 const SEARCH_ACCESS_WEIGHT = 0.1;
 
+/** Candidate scoring weights for promote mode. */
+const PROMOTE_ACCESS_WEIGHT = 0.3;
+const PROMOTE_SESSION_WEIGHT = 0.3;
+const PROMOTE_BACKLINK_WEIGHT = 0.2;
+const PROMOTE_RECENCY_WEIGHT = 0.2;
+const MAX_AGE_MS = 7776000000; // 90 days
+const ARCHIVE_AGE_MS = 2592000000; // 30 days
+
 export class SqliteSearch {
   #db;
   #brainId;
@@ -302,6 +310,64 @@ export class SqliteSearch {
       uptime: Date.now() - this.#startTime,
       brain_id: this.#brainId,
     };
+  }
+
+  candidates({ mode, limit = 20 }) {
+    const now = Date.now();
+
+    if (mode === "promote") {
+      return this.#db.prepare(`
+        SELECT d.id, d.path, d.indexed_at, d.frontmatter,
+               COALESCE(ac.access_count, 0) AS access_count,
+               COALESCE(ac.session_diversity, 0) AS session_diversity,
+               COALESCE(lc.cnt, 0) AS backlink_count
+        FROM documents d
+        LEFT JOIN (
+          SELECT doc_id,
+                 COUNT(*) AS access_count,
+                 COUNT(DISTINCT session_id) AS session_diversity
+          FROM access_log GROUP BY doc_id
+        ) ac ON d.id = ac.doc_id
+        LEFT JOIN (
+          SELECT target_path, COUNT(*) AS cnt
+          FROM links GROUP BY target_path
+        ) lc ON d.path = lc.target_path
+        WHERE d.path LIKE 'chunks/%' OR d.path LIKE 'memory/%'
+        ORDER BY (
+          COALESCE(ac.access_count, 0) * ${PROMOTE_ACCESS_WEIGHT}
+          + COALESCE(ac.session_diversity, 0) * ${PROMOTE_SESSION_WEIGHT}
+          + COALESCE(lc.cnt, 0) * ${PROMOTE_BACKLINK_WEIGHT}
+          + (1.0 - MIN(CAST((${now} - d.indexed_at) AS REAL) / ${MAX_AGE_MS}, 1.0)) * ${PROMOTE_RECENCY_WEIGHT}
+        ) DESC
+        LIMIT ?
+      `).all(limit);
+    }
+
+    if (mode === "archive") {
+      const cutoff = now - ARCHIVE_AGE_MS;
+      return this.#db.prepare(`
+        SELECT d.id, d.path, d.indexed_at, d.frontmatter,
+               COALESCE(ac.access_count, 0) AS access_count,
+               COALESCE(lc.cnt, 0) AS backlink_count
+        FROM documents d
+        LEFT JOIN (
+          SELECT doc_id, COUNT(*) AS access_count
+          FROM access_log GROUP BY doc_id
+        ) ac ON d.id = ac.doc_id
+        LEFT JOIN (
+          SELECT target_path, COUNT(*) AS cnt
+          FROM links GROUP BY target_path
+        ) lc ON d.path = lc.target_path
+        WHERE (d.path LIKE 'chunks/%' OR d.path LIKE 'memory/%')
+          AND COALESCE(ac.access_count, 0) = 0
+          AND COALESCE(lc.cnt, 0) = 0
+          AND d.indexed_at < ?
+        ORDER BY d.indexed_at ASC
+        LIMIT ?
+      `).all(cutoff, limit);
+    }
+
+    throw new Error(`Unknown candidates mode: ${mode}`);
   }
 
   accessLog(docId) {
