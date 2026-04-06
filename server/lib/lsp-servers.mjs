@@ -109,11 +109,6 @@ export const KNOWN_SERVERS = {
     extensions: [".zig"],
     install: { method: "brew", package: "zls" }
   },
-  nim: {
-    command: "nimlsp", args: ["--stdio"],
-    extensions: [".nim"],
-    install: { method: "nimble", package: "nimlsp" }
-  },
   haskell: {
     command: "haskell-language-server", args: ["--stdio"],
     extensions: [".hs", ".lhs"],
@@ -149,11 +144,6 @@ export const KNOWN_SERVERS = {
     command: "bash-language-server", args: ["start"],
     extensions: [".sh", ".bash"],
     install: { method: "npm", package: "bash-language-server" }
-  },
-  powershell: {
-    command: "pwsh", args: ["-NoLogo", "-NoProfile", "-Command", "Import-Module PowerShellEditorServices; Start-EditorServices"],
-    extensions: [".ps1", ".psm1", ".psd1"],
-    install: { method: "manual", package: "PowerShell Editor Services" }
   },
   // Data & Config
   sql: {
@@ -204,11 +194,6 @@ export const KNOWN_SERVERS = {
     filenames: ["Dockerfile", "Dockerfile.*"],
     install: { method: "npm", package: "dockerfile-language-server-nodejs" }
   },
-  ansible: {
-    command: "ansible-language-server", args: ["--stdio"],
-    extensions: [],
-    install: { method: "npm", package: "@ansible/ansible-language-server" }
-  },
   // Docs
   markdown: {
     command: "marksman", args: ["server"],
@@ -250,16 +235,6 @@ export const KNOWN_SERVERS = {
     command: "buf", args: ["lsp"],
     extensions: [".proto"],
     install: { method: "brew", package: "bufbuild/buf/buf" }
-  },
-  d: {
-    command: "serve-d", args: [],
-    extensions: [".d"],
-    install: { method: "dub", package: "serve-d" }
-  },
-  v: {
-    command: "v-analyzer", args: ["--stdio"],
-    extensions: [".v"],
-    install: { method: "manual", package: "v-analyzer — download from GitHub" }
   },
 };
 
