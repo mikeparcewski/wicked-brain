@@ -14,6 +14,9 @@ function escapeFtsQuery(query) {
 /** Weight factor for backlink count in search ranking (PageRank-lite). */
 const BACKLINK_WEIGHT = 0.5;
 
+/** Weight factor for access count in search ranking. */
+const SEARCH_ACCESS_WEIGHT = 0.1;
+
 export class SqliteSearch {
   #db;
   #brainId;
@@ -145,7 +148,8 @@ export class SqliteSearch {
           d.path,
           d.brain_id,
           snippet(documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet,
-          COALESCE(link_count.cnt, 0) AS backlink_count
+          COALESCE(link_count.cnt, 0) AS backlink_count,
+          COALESCE(ac.cnt, 0) AS access_count
         FROM documents_fts f
         JOIN documents d ON d.id = f.id
         LEFT JOIN (
@@ -153,9 +157,14 @@ export class SqliteSearch {
           FROM links
           GROUP BY target_path
         ) link_count ON d.path = link_count.target_path
+        LEFT JOIN (
+          SELECT doc_id, COUNT(*) AS cnt
+          FROM access_log
+          GROUP BY doc_id
+        ) ac ON d.id = ac.doc_id
         WHERE documents_fts MATCH ?
         ${sinceClause}
-        ORDER BY (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}))
+        ORDER BY (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}) - (COALESCE(ac.cnt, 0) * ${SEARCH_ACCESS_WEIGHT}))
         LIMIT ? OFFSET ?
       `)
       .all(escaped, ...sinceParams, limit, offset);

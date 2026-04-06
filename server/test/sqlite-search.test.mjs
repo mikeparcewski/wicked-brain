@@ -264,6 +264,28 @@ test("session diversity tracks distinct sessions", () => {
   }
 });
 
+test("access count boosts search ranking", () => {
+  const db = makeDb();
+  try {
+    // Two docs with identical content
+    db.index({ id: "popular", path: "chunks/popular.md", content: "Identical topic content here" });
+    db.index({ id: "obscure", path: "chunks/obscure.md", content: "Identical topic content here" });
+
+    // Make "popular" doc accessed many times
+    for (let i = 0; i < 10; i++) {
+      db.search({ query: "identical topic", session_id: `session-${i}` });
+    }
+
+    // Now search again — popular should rank higher
+    const result = db.search({ query: "identical topic" });
+    const idxPopular = result.results.findIndex((r) => r.id === "popular");
+    const idxObscure = result.results.findIndex((r) => r.id === "obscure");
+    assert.ok(idxPopular < idxObscure, "popular doc should rank higher due to access count");
+  } finally {
+    db.close();
+  }
+});
+
 test("search without session_id does not log access", () => {
   const db = makeDb();
   try {
