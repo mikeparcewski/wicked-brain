@@ -27,7 +27,11 @@
   "homepage": "https://github.com/mikeparcewski/wicked-brain",
   "bugs": "https://github.com/mikeparcewski/wicked-brain/issues",
   "bin": {
-    "wicked-brain": "./install.mjs"
+    "wicked-brain": "./install.mjs",
+    "wicked-brain-server": "./server/bin/wicked-brain-server.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.0.0"
   },
   "files": [
     "install.mjs",

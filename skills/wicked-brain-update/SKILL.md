@@ -45,7 +45,7 @@ npm list -g wicked-brain-server --json 2>/dev/null | grep version
 ### Step 2: Check latest version on npm
 
 ```bash
-npm view wicked-brain version 2>/dev/null || npm view wicked-brain-server version 2>/dev/null
+npm view wicked-brain version 2>/dev/null
 ```
 
 ### Step 3: Compare versions
@@ -58,38 +58,15 @@ If an update is available, ask the user:
 
 ### Step 4: Update (if user approves)
 
-#### Update server
-```bash
-npm install -g wicked-brain-server@latest
-```
+#### Update everything (skills + server)
 
-#### Update skills
+The server is bundled in the main package — one command updates both:
 
-Find where wicked-brain skills are installed and update them.
-Check each CLI's skills directory. On macOS/Linux:
-```bash
-for dir in ~/.claude/skills ~/.gemini/skills ~/.github/skills ~/.codex/skills ~/.cursor/skills; do
-  if [ -d "$dir/wicked-brain-init" ]; then
-    echo "Updating skills in $dir..."
-    npx wicked-brain --cli=$(basename $(dirname $dir))
-  fi
-done
-```
-
-On Windows (PowerShell):
-```powershell
-@("$env:USERPROFILE\.claude\skills","$env:USERPROFILE\.gemini\skills","$env:USERPROFILE\.github\skills","$env:USERPROFILE\.codex\skills","$env:USERPROFILE\.cursor\skills") | ForEach-Object {
-  if (Test-Path "$_\wicked-brain-init") {
-    $cli = Split-Path (Split-Path $_) -Leaf
-    npx wicked-brain "--cli=$cli"
-  }
-}
-```
-
-Or run the installer directly which handles detection:
 ```bash
 npx wicked-brain@latest
 ```
+
+This re-runs the installer with the latest version, updating all skills across detected CLIs. The server binary updates automatically since it's part of the same package.
 
 ### Step 5: Restart server if running
 

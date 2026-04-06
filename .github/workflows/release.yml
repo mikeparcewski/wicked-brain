@@ -40,11 +40,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish wicked-brain-server to npm
-        run: cd server && npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
   publish-github-packages:
     needs: test
     runs-on: ubuntu-latest
@@ -59,14 +54,6 @@ jobs:
       - name: Publish wicked-brain to GitHub Packages
         run: |
           npm pkg set name='@mikeparcewski/wicked-brain'
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish wicked-brain-server to GitHub Packages
-        run: |
-          cd server
-          npm pkg set name='@mikeparcewski/wicked-brain-server'
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
