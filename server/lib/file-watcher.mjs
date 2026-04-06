@@ -25,9 +25,10 @@ export class FileWatcher {
     // Build initial hash map
     this.#scanAndHash("chunks");
     this.#scanAndHash("wiki");
+    this.#scanAndHash("memory");
 
     // Watch directories
-    for (const dir of ["chunks", "wiki"]) {
+    for (const dir of ["chunks", "wiki", "memory"]) {
       const absDir = join(this.#brainPath, dir);
       if (!existsSync(absDir)) continue;
 
@@ -47,7 +48,7 @@ export class FileWatcher {
     if (this.#watchers.length === 0) {
       this.#startPolling();
     } else {
-      console.log(`File watcher active on chunks/ and wiki/`);
+      console.log(`File watcher active on chunks/, wiki/, and memory/`);
     }
   }
 
@@ -116,7 +117,7 @@ export class FileWatcher {
   #startPolling() {
     console.log("File watcher using polling mode (recursive watch not available)");
     this.#pollInterval = setInterval(() => {
-      for (const dir of ["chunks", "wiki"]) {
+      for (const dir of ["chunks", "wiki", "memory"]) {
         const absDir = join(this.#brainPath, dir);
         if (!existsSync(absDir)) continue;
         this.#walkDir(absDir, (absPath) => {

@@ -288,6 +288,10 @@ export class SqliteSearch {
       .prepare(`SELECT COUNT(*) as cnt FROM documents WHERE path LIKE 'wiki/%'`)
       .get().cnt;
 
+    const memory = this.#db
+      .prepare(`SELECT COUNT(*) as cnt FROM documents WHERE path LIKE 'memory/%'`)
+      .get().cnt;
+
     const lastRow = this.#db
       .prepare(`SELECT MAX(indexed_at) as last FROM documents`)
       .get();
@@ -301,7 +305,7 @@ export class SqliteSearch {
       // in-memory or inaccessible
     }
 
-    return { total, chunks, wiki, last_indexed, db_size };
+    return { total, chunks, wiki, memory, last_indexed, db_size };
   }
 
   health() {
