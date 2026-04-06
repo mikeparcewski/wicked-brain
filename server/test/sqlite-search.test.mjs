@@ -328,6 +328,24 @@ test("candidates archive returns old zero-access zero-backlink docs", () => {
   }
 });
 
+test("recentMemories returns memory docs from last N days", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "mem1", path: "memory/decision-a.md", content: "Decision about auth" });
+    db.index({ id: "mem2", path: "memory/gotcha-b.md", content: "Watch out for X" });
+    db.index({ id: "chunk1", path: "chunks/extracted/foo/chunk-001.md", content: "Some chunk" });
+
+    const result = db.recentMemories({ days: 1, limit: 10 });
+    assert.equal(result.length, 2); // only memory/ paths
+    assert.ok(result.every(r => r.path.startsWith("memory/")));
+
+    const result2 = db.recentMemories({ days: 1, limit: 1 });
+    assert.equal(result2.length, 1); // respects limit
+  } finally {
+    db.close();
+  }
+});
+
 test("search without session_id does not log access", () => {
   const db = makeDb();
   try {

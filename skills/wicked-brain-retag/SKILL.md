@@ -48,6 +48,13 @@ For each file, read the YAML frontmatter between `---` lines. Parse the `contain
 
 For each under-tagged document, read at depth 1 (first ~10 lines of content after frontmatter). Generate expanded tags:
 
+#### Check learned synonyms
+
+Before LLM expansion, check if `{brain_path}/_meta/synonyms.json` exists.
+For each existing tag, look it up in the synonym map. Learned expansions take
+priority over LLM-generated ones. Supplement with LLM expansions for tags
+not in the map.
+
 - For each existing tag, add 1-3 synonyms or related terms
 - Extract additional keywords from the content summary
 - Apply the same expansion rules as wicked-brain:memory store:

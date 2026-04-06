@@ -62,6 +62,7 @@ const actions = {
   stats: () => db.stats(),
   candidates: (p) => ({ candidates: db.candidates(p) }),
   access_log: (p) => db.accessLog(p.id),
+  recent_memories: (p) => ({ memories: db.recentMemories(p) }),
   contradictions: () => ({ links: db.contradictions() }),
 };
 

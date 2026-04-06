@@ -27,20 +27,29 @@ Analyze the prompt:
 
 ### Step 2a: Hot Path (simple prompts)
 
-Search for recent memories (last 7 days):
+**First**, fetch recent memories (last 7 days) using the dedicated `recent_memories` action:
 ```bash
 curl -s -X POST http://localhost:{port}/api \
   -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"{key terms from prompt}","limit":5,"since":"{ISO date 7 days ago}","session_id":"{session_id}"}}'
+  -d '{"action":"recent_memories","params":{"days":7,"limit":10}}'
 ```
 
-Filter results to `memory/` and `wiki/` paths only. For wiki results, read frontmatter and filter to `confidence > 0.8`.
+**Then**, search for wiki articles matching the prompt:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"{key terms from prompt}","limit":5,"session_id":"{session_id}"}}'
+```
+
+Filter wiki search results to `wiki/` paths only. For wiki results, read frontmatter and filter to `confidence > 0.8`.
+
+**Merge**: memories first, then wiki results. Deduplicate by path.
 
 Return results at depth 0:
 ```
 Context (hot path, {N} results):
-- {path} | {type} | {one-line from snippet}
-- {path} | {type} | {one-line from snippet}
+- {path} | {type} | {one-line from snippet or frontmatter}
+- {path} | {type} | {one-line from snippet or frontmatter}
 ```
 
 ### Step 2b: Fast Path (complex prompts)

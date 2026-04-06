@@ -41,7 +41,26 @@ Example:
   Question: "What was the reasoning behind choosing PostgreSQL over SQLite?"
   Key terms: ["PostgreSQL", "SQLite", "database decision", "API layer"]
 
-For each key term, also generate 1-2 synonyms or related terms:
+### Check learned synonyms first
+
+Before generating synonyms, check if `{brain_path}/_meta/synonyms.json` exists.
+If it does, read it. Format:
+
+```json
+{
+  "testing": ["unit-test", "integration-test", "test-coverage"],
+  "auth": ["authentication", "jwt", "session"],
+  "bootcamp": ["pod-exercises", "hands-on-lab"]
+}
+```
+
+For each key term, look it up in the synonym map. Use learned synonyms first,
+then supplement with LLM-generated synonyms for terms not in the map.
+Learned synonyms are more reliable — they come from actual brain usage.
+
+### LLM synonym expansion
+
+For terms not covered by the learned synonym map, generate 1-2 synonyms or related terms:
 - "auth" → also search "authentication", "credentials"
 - "DB" → also search "database", "datastore"
 - "K8s" → also search "kubernetes", "container-orchestration"
@@ -82,6 +101,18 @@ Also search with grep for exact phrases:
 ```bash
 grep -rl "{key_terms}" {brain_path}/chunks/ {brain_path}/wiki/ 2>/dev/null | head -10
 ```
+
+### Log synonym effectiveness
+
+For each synonym-expanded search term, log whether it produced results:
+
+If the expansion returned results that the user accessed (appeared in final answer):
+Append to `{brain_path}/_meta/log.jsonl`:
+{"ts":"{ISO}","op":"synonym_hit","original":"{original term}","expansion":"{expanded term}","results_found":{count},"author":"agent:query"}
+
+If the expansion returned 0 results:
+Append to `{brain_path}/_meta/log.jsonl`:
+{"ts":"{ISO}","op":"synonym_miss","original":"{original term}","expansion":"{expanded term}","results_found":0,"author":"agent:query"}
 
 ## Step 2: Progressive read
 

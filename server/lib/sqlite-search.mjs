@@ -397,6 +397,18 @@ export class SqliteSearch {
     return row;
   }
 
+  recentMemories({ days = 7, limit = 10 } = {}) {
+    const since = Date.now() - (days * 86400000);
+    return this.#db.prepare(`
+      SELECT id, path, frontmatter, indexed_at
+      FROM documents
+      WHERE path LIKE 'memory/%'
+        AND indexed_at >= ?
+      ORDER BY indexed_at DESC
+      LIMIT ?
+    `).all(since, limit);
+  }
+
   contradictions() {
     return this.#db
       .prepare(`

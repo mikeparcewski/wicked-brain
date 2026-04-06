@@ -1,13 +1,14 @@
 # consolidate
 
 ## Depth 0 — Summary
-Three-pass lifecycle: archive noise, promote patterns, merge duplicates.
+Four-pass lifecycle: archive noise, promote patterns, merge duplicates, build synonym map.
 Triggers: manual invocation via `wicked-brain:agent dispatch consolidate`, or after reviewing consolidation_hint entries in log.jsonl.
 
 ## Depth 1 — Pipeline Steps
 Pass 1 (Archive): Call server candidates(archive) → review at depth 0 → check TTL expiry for memories → archive stale items + remove from index
 Pass 2 (Promote): Call server candidates(promote) → for chunks: log promote_candidate → for memories: update tier + bump confidence
 Pass 3 (Merge): Read promote candidates at depth 2 → LLM similarity comparison → keep highest-scored / archive duplicates / flag complementary for review
+Pass 4 (Synonyms): Aggregate synonym_hit/synonym_miss events from log → build/update learned synonym map at _meta/synonyms.json
 
 Parameters: brain_path, port, session_id
 Depends on: server candidates action, memory frontmatter schema, wicked-brain:memory skill
@@ -105,11 +106,33 @@ curl -s -X POST http://localhost:{port}/api \
    {"ts":"{ISO}","op":"consolidate_merge","merged":{N},"flagged_for_review":{N},"author":"agent:consolidate"}
    ```
 
+### Pass 4: Build synonym map
+
+1. Read `{brain_path}/_meta/log.jsonl` for `synonym_hit` and `synonym_miss` events.
+
+2. Aggregate by original term:
+   - For each original term, count hits and misses per expansion
+   - An expansion is "effective" if it has 2+ hits and hit_rate > 50%
+   - An expansion is "ineffective" if it has 3+ misses and hit_rate < 20%
+
+3. Read existing `{brain_path}/_meta/synonyms.json` (or start empty).
+
+4. Update the map:
+   - Add effective expansions not already in the map
+   - Remove ineffective expansions that are in the map
+   - Keep existing entries unchanged if no new data
+
+5. Write updated `{brain_path}/_meta/synonyms.json`.
+
+6. Log:
+   {"ts":"{ISO}","op":"consolidate_synonyms","added":{N},"removed":{N},"total":{N},"author":"agent:consolidate"}
+
 ### Summary
 
-After all three passes, report:
+After all four passes, report:
 - Archived: {N} items
 - Promoted: {N} memories ({N} working→episodic, {N} episodic→semantic)
 - Compile candidates flagged: {N} chunks
 - Merged: {N} near-duplicates
 - Flagged for review: {N} complementary pairs
+- Synonyms: {N} added, {N} removed, {N} total in map
