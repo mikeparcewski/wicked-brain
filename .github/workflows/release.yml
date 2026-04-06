@@ -24,7 +24,6 @@ jobs:
   publish-npm:
     needs: test
     runs-on: ubuntu-latest
-    environment: npm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,10 +34,11 @@ jobs:
       - name: Install server deps
         run: cd server && npm install --omit=dev
 
-      - name: Publish to npm with provenance
+      # Trusted publishing — no NPM_TOKEN needed
+      # Configure at: https://www.npmjs.com/package/wicked-brain/access
+      # Link GitHub Actions as trusted publisher for this package
+      - name: Publish to npm (trusted publisher + provenance)
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-github-packages:
     needs: test
