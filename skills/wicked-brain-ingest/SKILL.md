@@ -108,6 +108,21 @@ narrative_theme: {the "so what" in 8 words or fewer}
 
 {Extracted content in markdown format}
 
+## Tag Expansion
+
+After generating the initial `contains:` tags, expand each keyword with 1-3 synonyms or related terms:
+
+- **Abbreviations**: JWT → "json-web-token", K8s → "kubernetes", API → "application-programming-interface"
+- **Synonyms**: "auth" → "authentication", "DB" → "database", "config" → "configuration"
+- **Related concepts**: "JWT" → "tokens", "session", "security"; "PostgreSQL" → "database", "RDBMS"
+- **Domain hierarchy**: specific terms get their general category added
+
+Add expanded tags to `contains:` alongside originals. Deduplicate. Cap total tags at 15 per chunk.
+
+Example:
+  Original tags: ["jwt", "session", "expiry"]
+  After expansion: ["jwt", "json-web-token", "tokens", "security", "session", "session-management", "expiry", "timeout", "ttl"]
+
 ## After writing chunks, index them in the server:
 
 curl -s -X POST http://localhost:{port}/api \
@@ -285,6 +300,9 @@ async function ingestFile(filePath) {
       "become","becomes","another","however","already","always","around"
     ]);
 
+    // Note: These keywords are for FTS indexing. The LLM-based ingest
+    // generates richer synonym-expanded tags in the contains: field.
+    // This batch script extracts basic keywords only.
     const keywords = [...new Set(
       chunks[i].toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
