@@ -1,4 +1,4 @@
-import { watch, readFileSync, existsSync, readdirSync } from "node:fs";
+import { watch, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -106,15 +106,29 @@ export class FileWatcher {
   }
 
   #scanAndHashProject(project) {
+    let indexed = 0;
     this.#walkDir(project.path, (absPath) => {
-      const parts = absPath.split(/[/\\]/);
-      if (parts.some(p => IGNORE_DIRS.has(p))) return;
-      if (!absPath.endsWith(".md") && !this.#isCodeFile(absPath)) return;
+      if (!this.#isCodeFile(absPath)) return;
+      try {
+        const stat = statSync(absPath);
+        if (stat.size > FileWatcher.#MAX_FILE_SIZE) return;
+      } catch { return; }
       const relPath = normalizePath(`projects/${project.name}/${relative(project.path, absPath)}`);
-      const content = readFileSync(absPath, "utf-8");
-      const hash = this.#hash(content);
-      this.#hashes.set(relPath, hash);
+      try {
+        const content = readFileSync(absPath, "utf-8");
+        const hash = this.#hash(content);
+        this.#hashes.set(relPath, hash);
+        // Index project files on first scan (brain dirs are pre-indexed, project dirs are not)
+        this.#db.index({
+          id: relPath,
+          path: relPath,
+          content,
+          brain_id: this.#brainId,
+        });
+        indexed++;
+      } catch { /* binary or unreadable — skip */ }
     });
+    console.log(`[watcher] Scanned project ${project.name}: ${indexed} files indexed`);
   }
 
   #walkDir(dir, callback) {
@@ -183,6 +197,12 @@ export class FileWatcher {
       return;
     }
 
+    if (!this.#isCodeFile(absPath)) return;
+    try {
+      const stat = statSync(absPath);
+      if (stat.size > FileWatcher.#MAX_FILE_SIZE) return;
+    } catch { return; }
+
     try {
       const content = readFileSync(absPath, "utf-8");
       const newHash = this.#hash(content);
@@ -203,11 +223,40 @@ export class FileWatcher {
     } catch {}
   }
 
+  /** Max file size to index (1MB). Skips binaries and large generated files. */
+  static #MAX_FILE_SIZE = 1048576;
+
+  /** Text file extensions safe to read and index. */
+  static #CODE_EXTENSIONS = new Set([
+    // Web
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts", ".cjs",
+    ".html", ".htm", ".css", ".scss", ".less", ".sass",
+    ".vue", ".svelte", ".astro",
+    // Backend
+    ".py", ".go", ".rs", ".java", ".cs", ".rb", ".php",
+    ".kt", ".kts", ".scala", ".sc", ".ex", ".exs", ".erl",
+    // Systems
+    ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".zig", ".nim", ".d",
+    ".hs", ".lhs", ".ml", ".mli",
+    // Scripting
+    ".lua", ".pl", ".pm", ".r", ".R", ".jl", ".sh", ".bash", ".zsh",
+    // Data / Config
+    ".sql", ".graphql", ".gql", ".tf", ".yaml", ".yml",
+    ".toml", ".json", ".jsonc", ".xml", ".csv",
+    // Mobile
+    ".swift", ".dart",
+    // Other
+    ".clj", ".cljs", ".cljc", ".edn", ".fs", ".fsx", ".fsi",
+    ".gleam", ".sol", ".prisma", ".proto",
+    // Docs
+    ".md", ".markdown", ".tex", ".txt", ".rst",
+  ]);
+
   #isCodeFile(absPath) {
     const dot = absPath.lastIndexOf(".");
     if (dot === -1) return false;
-    const ext = absPath.slice(dot);
-    return ext.length <= 6;
+    const ext = absPath.slice(dot).toLowerCase();
+    return FileWatcher.#CODE_EXTENSIONS.has(ext);
   }
 
   #startPolling() {
