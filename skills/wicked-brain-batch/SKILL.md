@@ -21,6 +21,21 @@ of executing repetitive tool calls inline.
 - Bulk search across many terms
 - Any operation touching more than 5 files
 
+## When NOT to use batch
+
+If processing fewer than ~10 files, inline ingest is simpler and easier to
+debug — write a batch script only when the repetition would noticeably flood
+context or where a single script run is meaningfully faster.
+
+## Error recovery
+
+If a batch script crashes mid-way, do not re-index everything from scratch.
+Check which files were already indexed using the server's `search` or `stats`
+action, then resume from the first unprocessed file. The `stats` action returns
+the total indexed document count; `search` can confirm whether a specific file
+path is already in the index. Design batch scripts to skip files whose chunk IDs
+are already present in the index (check before writing).
+
 ## Why scripts over tool calls
 
 | Approach | Context cost | Speed | Reliability |
@@ -75,7 +90,9 @@ Or keep it for re-runs — the user can run it manually too.
 - Node.js scripts are fully cross-platform (same code on macOS/Linux/Windows)
 - Python scripts are fully cross-platform
 - Shell scripts need macOS/Linux + Windows variants — avoid if Node or Python available
-- Use `fetch()` (Node 18+) instead of `curl` in scripts — it's native and cross-platform
+- Use `fetch()` (Node 18+) instead of `curl` in scripts — it's native and cross-platform.
+  `fetch()` requires Node 18 or later. If running Node 16 or older, install `node-fetch`
+  (`npm install node-fetch`) and import it: `import fetch from 'node-fetch';`
 - Use `node:fs` and `node:path` — they handle platform differences
 
 ## Template: Node.js batch script
@@ -84,6 +101,9 @@ See wicked-brain:ingest for a complete example. The key structure:
 
 ```javascript
 #!/usr/bin/env node
+// Note: fetch() is built-in from Node 18+. For Node 16 or older, run:
+//   npm install node-fetch  and change the line below to:
+//   import fetch from 'node-fetch';
 import { ... } from "node:fs";
 import { ... } from "node:path";
 

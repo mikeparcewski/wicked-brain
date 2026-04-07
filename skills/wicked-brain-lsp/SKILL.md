@@ -26,9 +26,17 @@ For the brain path default:
 
 - `curl` works on macOS, Linux, and Windows 10+
 - File paths must be absolute
-- On Windows, use forward slashes in JSON: `"file":"C:/Users/me/project/file.ts"`
+- On Windows, use forward slashes in file URIs passed to the server. Most LSP
+  servers accept `file:///C:/Users/me/project/file.ts` (forward slashes, three
+  leading slashes). Do not use backslashes in URIs even on Windows.
 - Language server install commands assume the package manager is in PATH
 - For Windows PowerShell without npm/pip in PATH, guide the user to install manually
+
+**Debugging LSP issues:** If an LSP server appears to hang or returns no
+results on the first request, it may require a workspace initialization
+sequence before accepting queries. Try calling `lsp-health` first — the server
+layer sends an `initialize` handshake on first contact. If hang persists, check
+whether the language server process is running and review its stderr logs.
 
 ## Config
 

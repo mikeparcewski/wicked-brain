@@ -46,7 +46,8 @@ Use your Grep tool (preferred):
 
 Shell fallback:
 - macOS/Linux: `grep -roh '\[\[[^]]*\]\]' {brain_path}/wiki/ {brain_path}/chunks/ 2>/dev/null | sort -u`
-- Windows: `findstr /s /r "\[\[" "{brain_path}\wiki\*.md" "{brain_path}\chunks\*.md" 2>nul`
+- Windows (findstr): `findstr /s /r "\[\[" "{brain_path}\wiki\*.md" "{brain_path}\chunks\*.md" 2>nul`
+- Windows (PowerShell preferred): `Get-ChildItem -Recurse -Path "{brain_path}\wiki","{brain_path}\chunks" -Filter "*.md" | Select-String -Pattern '\[\[' | Select-Object Path,LineNumber,Line`
 
 For each link, use the Read tool to check if the target file exists.
 
@@ -63,7 +64,8 @@ Shell fallback:
 - Windows:
   ```powershell
   Get-ChildItem -Recurse -Filter "chunk-*.md" "{brain_path}\chunks"
-  findstr /s /m "chunk-" "{brain_path}\wiki\*.md" 2>nul
+  findstr /s /r /m "chunk-" "{brain_path}\wiki\*.md" 2>nul
+  # PowerShell preferred: Get-ChildItem -Recurse -Path "{brain_path}\wiki" -Filter "*.md" | Select-String -Pattern "chunk-" -List | Select-Object -ExpandProperty Path
   ```
 
 ### Stale entries
@@ -102,6 +104,16 @@ For each issue found:
 - **path**: which file
 - **message**: what's wrong
 - **fix**: suggested fix (or "auto-fixed" if you fixed it)
+
+Auto-fix items include (apply silently, then report as "auto-fixed"):
+- Missing frontmatter fields: fill with safe defaults (e.g., `confidence: low`, `indexed_at: now`)
+- Orphaned index entries: remove entries from the SQLite index whose source file no longer exists
+
+Manual review required (flag as error or warning — do NOT auto-fix):
+- Factual contradictions between articles
+- Duplicate content covering the same concept in different files
+- Broken wikilinks where the correct target is ambiguous
+- Stale wiki articles where the underlying chunk content has changed substantially
 
 Auto-fix broken links and missing fields where possible. Report everything else.
 ```

@@ -46,7 +46,7 @@ curl -s -X POST http://localhost:{port}/api \
   -d '{"action":"stats","params":{}}'
 ```
 
-If connection refused, start the server (see wicked-brain:server skill), then retry.
+If connection refused, invoke the `wicked-brain:server` skill to start the server, then retry.
 
 ### Step 3: Return at requested depth
 
@@ -67,7 +67,8 @@ Check parent/link accessibility by using the Read tool on
 Depth 0 plus:
 - Use the Read tool on `_meta/log.jsonl` (last 50 lines) to identify topic distribution from recent tag events.
   Shell fallback: `tail -50 {brain_path}/_meta/log.jsonl` (macOS/Linux) or `Get-Content "{brain_path}\_meta\log.jsonl" -Tail 50` (Windows PowerShell)
-- Show topic distribution for the last 7 days by searching with a `since` filter:
+- Show topic distribution for the last 7 days by searching with a `since` filter.
+  The `since` value must be ISO 8601 format (e.g., `2025-01-15T00:00:00Z`):
   ```bash
   curl -s -X POST http://localhost:{port}/api \
     -H "Content-Type: application/json" \

@@ -69,6 +69,18 @@ Shell fallback:
 
 Focus on chunks NOT referenced by any wiki article.
 
+**Chunk prioritization:** When there are many uncovered chunks, process them in
+this order:
+1. Most recently modified (check file mtime or `authored_at` frontmatter field)
+2. Highest backlink count (use `{"action":"backlinks","params":{"id":"{chunk-path}"}}` — more backlinks = more referenced by other content)
+
+**Existing wiki articles:** For each existing wiki article, compare the
+`source_hashes` in its frontmatter against the current content hash of each
+source chunk (first 8 chars of the chunk body's SHA-256). If all hashes match,
+the source chunks are unchanged — skip re-compilation for that article. If any
+hash has changed, re-compile the article and update it in place (overwrite the
+file, update `authored_at` and `source_hashes`).
+
 ## Step 3: Read uncovered chunks
 
 Read uncovered chunks (frontmatter + body) to understand their content.

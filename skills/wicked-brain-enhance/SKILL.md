@@ -76,10 +76,24 @@ inferences on content from `chunks/inferred/` — that would be inference-of-inf
 which causes confidence laundering (inferred content cites inferred content, making
 unreliable chains appear well-sourced).
 
+**Why this matters:** Each inference step introduces uncertainty. When you infer from
+already-inferred content, errors and assumptions compound silently across the chain.
+The result is chunks that sound authoritative but are actually several degrees removed
+from any real source. A `confidence: 0.6` chunk derived from another `confidence: 0.6`
+chunk is not `confidence: 0.6` — it is substantially less reliable, but the metadata
+won't show it. Only raw source material (extracted chunks, actual files) provides a
+trustworthy evidence base.
+
 - If you find relevant content in `chunks/inferred/`, you may note it as background
   context but do NOT cite it as a `source_chunk` or use it as evidence for new inferences.
 - Every entry in `source_chunks` in your output MUST start with `chunks/extracted/`.
 - If a gap cannot be filled using only extracted chunks as evidence, skip it.
+
+**Bootstrapping caveat:** If the brain contains no `chunks/extracted/` files at all
+(e.g., very early stage with only inferred chunks), do NOT proceed silently. Stop and
+inform the user: "The brain has no extracted source chunks — enhancement requires raw
+source material. Run wicked-brain:ingest to add source files first." This prevents
+a silent chain of inferences with no grounding.
 
 ## Step 3: Write inferred chunks
 

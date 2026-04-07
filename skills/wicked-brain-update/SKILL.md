@@ -103,6 +103,11 @@ For each pid file found:
 
 ### Step 6: Verify migration
 
+`npx wicked-brain-server` automatically applies all pending schema migrations on
+startup — users do not need to run a separate migration command. Each new server
+version may add tables or columns to the SQLite database; migrations are numbered,
+run in order, and are idempotent (safe to re-run).
+
 After server restart, verify the server started successfully and migrations ran:
 
 ```bash
@@ -111,9 +116,19 @@ curl -s -X POST http://localhost:{port}/api \
   -d '{"action":"health"}'
 ```
 
-If health check fails, check server logs for migration errors. The server runs
-numbered schema migrations on startup — each new version may add tables or columns
-to the SQLite database. Migrations are automatic and idempotent.
+If the health check fails, the migration may have errored. To diagnose:
+1. Check whether the server process is actually running:
+   - Read `{brain_path}/_meta/server.pid` to get the PID.
+   - macOS/Linux: `ps -p {pid}` — if the process is absent, the server crashed on startup.
+   - Windows: `tasklist /FI "PID eq {pid}"`
+2. The server logs migration errors to **stderr**. If you launched it in the
+   foreground, the error will be visible in the terminal. If launched in the
+   background, redirect stderr to a file:
+   `npx wicked-brain-server --brain "{brain_path}" --port {port} 2>{brain_path}/_meta/server-error.log`
+   then read `{brain_path}/_meta/server-error.log`.
+3. Common causes: the SQLite file is locked by another process, or the database
+   file is corrupted. Stop all server instances and retry, or delete `.brain.db`
+   to force a clean rebuild (data is re-indexed from source files on next ingest).
 
 ### Step 7: Report
 

@@ -99,6 +99,44 @@ indexed_at: "{ISO 8601 timestamp}"
 {memory content}
 ```
 
+#### Tier definitions
+
+- **working**: Active, session-specific context. Expires quickly (hours to days). Use for in-progress decisions, temporary notes, and things only relevant to the current task.
+- **episodic**: Specific events or decisions from past sessions. Medium longevity. Use for "we decided X on date Y" or "this happened in project Z".
+- **semantic**: Generalized patterns and facts extracted from experience. Permanent by default. Use for stable conventions, recurring patterns, and distilled knowledge that transcends any single session.
+
+New memories always start at `tier: working`. Consolidation (wicked-brain:consolidate) promotes them to `episodic` or `semantic` based on access frequency and age.
+
+#### Complete example
+
+```yaml
+---
+type: decision
+tier: working
+confidence: 0.9
+importance: 7
+ttl_days: null
+session_origin: "2026-04-07T14:23:00Z"
+contains:
+  - jwt
+  - json-web-token
+  - authentication
+  - auth
+  - tokens
+  - session
+  - security
+  - expiry
+  - 15-minutes
+  - access-control
+entities:
+  people: []
+  systems: ["auth-service", "api-gateway"]
+indexed_at: "2026-04-07T14:23:01Z"
+---
+
+Decided to use JWT with a 15-minute expiry for the auth-service API. Refresh tokens stored in HttpOnly cookies with 7-day TTL. Rationale: short access token lifetime limits blast radius if a token is leaked.
+```
+
 The server's file watcher will auto-index this file.
 
 ### Step 6: Log the store event

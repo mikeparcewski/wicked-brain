@@ -24,18 +24,41 @@ Create a structured summary of what you found.
 
 ### Step 2: Trace architecture
 
-- Identify entry points (main files, server start, CLI entry)
+- Identify entry points — look for: `main.js`, `index.js/ts`, `server.js`,
+  `app.py`, `main.go`, `src/main.*`, `bin/` executables, `__main__.py`
 - Map module boundaries (directories, packages, namespaces)
-- Identify API surfaces (HTTP routes, CLI commands, exported functions)
+- Identify API surfaces — look for: Express/Fastify route definitions
+  (`app.get`, `router.post`), CLI command registrations (`program.command`,
+  `click.command`, `cobra.Command`), exported function signatures in index files
+- Identify database schemas — look for: migration files, ORM model definitions,
+  `CREATE TABLE` statements, schema files (`.prisma`, `schema.rb`, `models/`)
 - Trace primary data flows (request -> handler -> storage -> response)
 - Note external dependencies and integrations
 
 ### Step 3: Extract conventions
 
 - **Naming**: file naming, function naming, variable naming patterns
-- **Testing**: test framework, test file locations, test naming patterns
+- **Testing**: test framework, test file locations, test naming patterns —
+  look for: `*.test.*`, `*.spec.*`, `test_*.py`, files in `test/` or `__tests__/`
 - **Build/Deploy**: build commands, deploy scripts, CI/CD patterns
-- **Code style**: formatting, import ordering, comment conventions
+- **Code style**: formatting, import ordering, comment conventions — look for:
+  `.eslintrc*`, `.eslintrc.json`, `pyproject.toml` (ruff/black config),
+  `.prettierrc`, `rustfmt.toml`, import grouping in existing source files
+
+### Monorepo guidance
+
+If the project has multiple top-level packages or apps (e.g., a `packages/`,
+`apps/`, or `services/` directory with independent `package.json` / `pyproject.toml`
+files), treat each package as a separate chunk group:
+- Write chunks to `{brain_path}/chunks/extracted/project-{safe_project_name}-{package_name}/`
+- Also write a shared overview chunk at `project-{safe_project_name}/chunk-000-overview.md`
+  that summarises the monorepo layout, inter-package relationships, and shared tooling.
+
+### Re-onboarding
+
+Re-onboarding is triggered **manually** by the user saying "re-onboard this
+project" (or equivalent). It does not run automatically. When re-onboarding,
+follow the archive-then-replace pattern described in Step 4 below.
 
 ### Step 4: Ingest findings
 

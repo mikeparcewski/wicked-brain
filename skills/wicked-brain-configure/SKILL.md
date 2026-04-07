@@ -50,11 +50,19 @@ Check for these signals in order (first match wins):
 | `COPILOT_CLI` env var or `.github/` exists | Copilot CLI | `.github/copilot-instructions.md` |
 | `.cursor/` exists | Cursor | `.cursor/rules/wicked-brain.md` |
 | `.antigravity/` exists | Antigravity | `.antigravity/rules/wicked-brain.md` |
-| None | Fallback | `CLAUDE.md` |
+| None matched | Fallback | ask the user |
+
+If no signal matches, tell the user: "I couldn't detect your CLI automatically.
+Which agent config file should I write to?" Accept a user-specified path and
+write to that file directly.
 
 ### Step 3: Write config section
 
-Read the target config file. Find the `## wicked-brain` section (if it exists, replace it). If it doesn't exist, append it.
+Read the target config file. If a `## wicked-brain` section already exists,
+update it in place — replace from the `## wicked-brain` heading to the next
+`##`-level heading (or end of file) with the new content. Do NOT append a
+duplicate section. If no `## wicked-brain` section exists, append it at the
+end of the file.
 
 Write a section like this (adapt content to actual brain state):
 

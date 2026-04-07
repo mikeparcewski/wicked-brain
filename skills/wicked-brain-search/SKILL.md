@@ -56,7 +56,13 @@ If connection refused, trigger wicked-brain:server auto-start pattern.
 
 ### Step 3: Dispatch search subagents in parallel
 
-Launch one subagent per accessible brain **in the same message** (parallel dispatch).
+Launch one subagent per accessible brain using parallel dispatch:
+
+- **Claude Code:** use the Agent tool, launching all subagents in a single message so they run concurrently.
+- **Other CLIs with subagent support:** use the CLI's native parallel dispatch mechanism (e.g., Gemini CLI's parallel tool calls).
+- **No subagent support:** run each brain search sequentially and collect results before merging.
+
+Each subagent call passes the brain-specific instructions below.
 
 Each search subagent receives these instructions:
 

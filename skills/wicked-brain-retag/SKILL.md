@@ -55,6 +55,12 @@ For each existing tag, look it up in the synonym map. Learned expansions take
 priority over LLM-generated ones. Supplement with LLM expansions for tags
 not in the map.
 
+**Fallback behavior:** If `synonyms.json` is missing or cannot be parsed (malformed
+JSON, permission error, etc.), do not fail. Simply skip the synonym-map lookup for
+that document and proceed with LLM-only expansion. Never abort the retag operation
+because of a missing or broken synonyms file — it is an optional accelerant, not a
+hard dependency.
+
 - For each existing tag, add 1-3 synonyms or related terms
 - Extract additional keywords from the content summary
 - Apply the same expansion rules as wicked-brain:memory store:
@@ -77,3 +83,14 @@ Report:
 - Files under threshold
 - Files updated (or would-be-updated in dry run)
 - Sample of expanded tags for verification
+
+## Performance Guidance
+
+For brains with 1000+ chunks, process files in batches of 100 rather than all at once.
+After each batch, report progress (e.g., "Updated 100/1247 files...") so the user can
+see the operation is running.
+
+The operation is safe to interrupt and resume: retag only updates existing chunks in
+place and never deletes data. On resume, Step 2's tag-count filter will naturally skip
+files that were already expanded in a previous run (they will meet the `min_tags`
+threshold). No state file or checkpoint is needed.

@@ -36,10 +36,10 @@ For the brain path default:
      -H "Content-Type: application/json" \
      -d '{"action":"health","params":{}}'
    ```
+   A successful response returns `{"status":"ok"}`. If the request succeeds,
+   the server is running — report the status and stop.
 
-3. If the health check succeeds, the server is running. Report the status.
-
-4. If connection refused:
+3. If connection refused:
    a. Read the file at `{brain_path}/_meta/server.pid` to get the PID.
 
    b. Check if the process is running:
@@ -51,7 +51,10 @@ For the brain path default:
       ```bash
       npx wicked-brain-server --brain {brain_path} --port {port} &
       ```
-      On Windows (PowerShell): `Start-Process npx -ArgumentList "wicked-brain-server","--brain","{brain_path}","--port","{port}" -NoNewWindow`
+      On Windows (PowerShell):
+      ```powershell
+      Start-Process -FilePath "npx" -ArgumentList "wicked-brain-server", "--brain", "{brain_path}", "--port", "{port}" -NoNewWindow
+      ```
 
    d. Wait 2 seconds, then retry the health check.
    e. If still failing, tell the user:

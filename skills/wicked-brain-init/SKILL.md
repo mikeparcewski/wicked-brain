@@ -38,15 +38,17 @@ Ask these questions (provide defaults):
    - Default (Windows): `%USERPROFILE%\.wicked-brain`
 2. "What should this brain be called?" — Default: directory name
 
-### Step 2: Dispatch onboard agent (in parallel)
+### Step 2: Dispatch onboard agent (fire and continue)
 
-Immediately dispatch the `wicked-brain-onboard` agent for the current project — don't wait for Steps 3–6 to finish first. Init is fast; onboard's scanning takes longer and should start now.
+Immediately dispatch the `wicked-brain-onboard` agent for the current project — don't wait for Steps 3–6 to finish first.
 
 Pass it:
 - `brain_path`: the path confirmed in Step 1
 - `project_path`: the current working directory
 
-Then continue Steps 3–6 below in parallel with the onboard agent running.
+**Sequencing rationale:** Onboard starts with a read-only scanning phase (Glob, Grep, Read across the project). That scanning takes meaningful time. Steps 3–6 below are fast — just creating a handful of files and directories. They will complete well before onboard finishes scanning and reaches its write phase (where it needs `brain_path` dirs to exist). So it is safe to fire onboard now and proceed immediately with Steps 3–6; the brain dirs will be in place long before onboard needs them.
+
+Continue with Steps 3–6 immediately after dispatching.
 
 ### Step 3: Create directory structure
 

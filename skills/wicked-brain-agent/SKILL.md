@@ -35,6 +35,12 @@ Read agent definitions from the `agents/` subdirectory relative to this skill fi
 
 ## Dispatch Mode
 
+Dispatching a named agent (rather than running inline) gives it isolated
+context, a longer token budget, and access to file-writing tools. This makes
+it better suited for heavy background tasks — consolidation, full project
+onboarding, or large-scale compilation — where inline execution would exhaust
+context or produce incomplete results.
+
 1. Read the requested agent's `.md` file from `agents/` at depth 2
 2. Dispatch as a subagent with those instructions using the host CLI's mechanism:
    - Claude Code: use `Agent` tool

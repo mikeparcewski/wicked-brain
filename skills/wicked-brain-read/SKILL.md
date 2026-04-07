@@ -44,11 +44,19 @@ Body content here...
 
 Split the file on the second `---` line. Everything before is frontmatter, everything after is body.
 
+If the frontmatter delimiters are missing or the YAML is unparseable, do not
+fail — return the raw file content with a warning: "Note: frontmatter missing
+or unparseable. Showing raw content." Continue with empty frontmatter and the
+full file text as body.
+
 ### Step 3: Count stats
 
 - **word_count**: split body on whitespace, count words
 - **link_count**: count occurrences of `[[` in the body (each `[[...]]` is one link)
-- **related**: extract all `[[target]]` and `[[brain::target]]` patterns
+- **related**: extract all wikilink targets from the body. Wikilink formats:
+  - `[[path/to/chunk]]` — path is relative to the brain root
+  - `[[label|path/to/chunk]]` — display label with explicit path (label is shown to the reader; path is the target)
+  - `[[brain-id::path/to/chunk]]` — cross-brain link
 
 ### Step 4: Return at requested depth
 
