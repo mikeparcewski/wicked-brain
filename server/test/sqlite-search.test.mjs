@@ -1,6 +1,8 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import Database from "better-sqlite3";
 import { SqliteSearch } from "../lib/sqlite-search.mjs";
 
@@ -376,7 +378,7 @@ test("schemaVersion returns current version for new database", () => {
 
 test("migration upgrades a v0 database to current schema", () => {
   // Create a file-based v0 database WITHOUT rel column and WITHOUT access_log
-  const tmpPath = `/tmp/wicked-brain-migration-test-${Date.now()}.db`;
+  const tmpPath = join(tmpdir(), `wicked-brain-migration-test-${Date.now()}.db`);
   try {
     // Create the v0 database
     const v0 = new Database(tmpPath);
