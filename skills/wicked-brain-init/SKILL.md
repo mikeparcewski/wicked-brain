@@ -38,7 +38,17 @@ Ask these questions (provide defaults):
    - Default (Windows): `%USERPROFILE%\.wicked-brain`
 2. "What should this brain be called?" — Default: directory name
 
-### Step 2: Create directory structure
+### Step 2: Dispatch onboard agent (in parallel)
+
+Immediately dispatch the `wicked-brain-onboard` agent for the current project — don't wait for Steps 3–6 to finish first. Init is fast; onboard's scanning takes longer and should start now.
+
+Pass it:
+- `brain_path`: the path confirmed in Step 1
+- `project_path`: the current working directory
+
+Then continue Steps 3–6 below in parallel with the onboard agent running.
+
+### Step 3: Create directory structure
 
 Use your native Write/mkdir tools to create these directories and files.
 
@@ -61,7 +71,7 @@ mkdir -p {brain_path}/raw {brain_path}/chunks/extracted {brain_path}/chunks/infe
 New-Item -ItemType Directory -Force -Path "{brain_path}\raw","{brain_path}\chunks\extracted","{brain_path}\chunks\inferred","{brain_path}\wiki\concepts","{brain_path}\wiki\topics","{brain_path}\_meta"
 ```
 
-### Step 3: Write brain.json
+### Step 4: Write brain.json
 
 Write to `{brain_path}/brain.json`:
 ```json
@@ -76,7 +86,7 @@ Write to `{brain_path}/brain.json`:
 
 Where `{id}` is the directory name (lowercase, hyphens for spaces) and `{name}` is what the user provided.
 
-### Step 4: Write config
+### Step 5: Write config
 
 Write to `{brain_path}/_meta/config.json`:
 ```json
@@ -87,7 +97,7 @@ Write to `{brain_path}/_meta/config.json`:
 }
 ```
 
-### Step 5: Initialize the event log
+### Step 6: Initialize the event log
 
 Use your Write tool to create an empty file at `{brain_path}/_meta/log.jsonl`.
 
@@ -101,10 +111,7 @@ touch {brain_path}/_meta/log.jsonl
 New-Item -ItemType File -Force -Path "{brain_path}\_meta\log.jsonl"
 ```
 
-### Step 6: Confirm
+### Step 7: Confirm
 
 Tell the user:
-"Brain initialized at `{brain_path}`. You can now:
-- `wicked-brain:ingest` to add source files
-- `wicked-brain:search` to search content
-- `wicked-brain:status` to check brain health"
+"Brain initialized at `{brain_path}`. Onboarding agent is running in the background to index the project."
