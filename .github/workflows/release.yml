@@ -37,8 +37,8 @@ jobs:
       - name: Set version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$VERSION" --no-git-tag-version
-          cd server && npm version "$VERSION" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          cd server && npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install server deps
         run: cd server && npm install --omit=dev
@@ -60,7 +60,7 @@ jobs:
       - name: Set version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$VERSION" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install deps (needed for prepublishOnly test run)
         run: npm install --omit=dev
