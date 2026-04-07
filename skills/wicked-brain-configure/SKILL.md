@@ -71,8 +71,8 @@ Digital brain: {brain_id} | {total} indexed items | {chunks} chunks, {wiki} wiki
 
 ### How to use
 
-- **Before responding**: call `wicked-brain:context` to surface relevant knowledge
-- **Capture learnings**: call `wicked-brain:session-teardown` at session end
+- **Before responding**: call `wicked-brain:agent` (context) to surface relevant knowledge
+- **Capture learnings**: call `wicked-brain:agent` (session-teardown) at session end
 - **Store a decision/pattern/gotcha**: call `wicked-brain:memory` (store mode)
 - **Ask the brain**: call `wicked-brain:query` for cited answers
 - **Available agents**: consolidate, context, session-teardown, onboard (via `wicked-brain:agent`)
