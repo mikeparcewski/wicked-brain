@@ -37,13 +37,33 @@ if (detected.length === 0) {
 
 console.log(`Detected CLIs: ${detected.map((d) => d.name).join(", ")}\n`);
 
-// Allow filtering via --cli flag
+// Allow filtering via --cli flag or custom --path
 const args = argv.slice(2);
 const cliArg = args.find((a) => a.startsWith("--cli="));
-const cliFilter = cliArg ? cliArg.split("=")[1].split(",") : null;
-const targets = cliFilter
-  ? detected.filter((d) => cliFilter.includes(d.name))
-  : detected;
+const pathArg = args.find((a) => a.startsWith("--path="));
+
+let targets;
+
+if (pathArg) {
+  const rawPath = pathArg.split("=")[1].replace(/^~/, home);
+  const customPath = resolve(rawPath);
+  const dirName = customPath.split(/[\\/]/).pop().replace(/^\./, ""); // e.g. ".claude" → "claude"
+  const knownPlatform = CLI_TARGETS.find((t) => t.name === dirName);
+  // Use platform's agent subdir name (e.g. antigravity uses "rules"), default to "agents"
+  const agentSubdirName = knownPlatform
+    ? knownPlatform.agentDir.split(/[\\/]/).pop()
+    : "agents";
+  targets = [{
+    name: dirName,
+    dir: join(customPath, "skills"),
+    agentDir: join(customPath, agentSubdirName),
+    platform: knownPlatform?.platform ?? dirName,
+  }];
+  console.log(`Custom path: ${customPath}\n`);
+} else {
+  const cliFilter = cliArg ? cliArg.split("=")[1].split(",") : null;
+  targets = cliFilter ? detected.filter((d) => cliFilter.includes(d.name)) : detected;
+}
 
 // Copy skills to each target CLI
 const skillDirs = readdirSync(skillsSource).filter((d) => !d.startsWith("."));
