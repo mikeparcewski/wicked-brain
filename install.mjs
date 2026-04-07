@@ -2,7 +2,7 @@
 // wicked-brain installer — detects CLIs and installs skills + agents
 
 import { existsSync, mkdirSync, cpSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
 import { argv } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -12,56 +12,55 @@ const skillsSource = join(__dirname, "skills");
 const home = homedir();
 
 const CLI_TARGETS = [
-  { name: "claude", dir: join(home, ".claude", "skills"), agentDir: join(home, ".claude", "agents"), platform: "claude" },
-  { name: "gemini", dir: join(home, ".gemini", "skills"), agentDir: join(home, ".gemini", "agents"), platform: "gemini" },
-  { name: "copilot", dir: join(home, ".github", "skills"), agentDir: join(home, ".github", "agents"), platform: "copilot" },
-  { name: "codex", dir: join(home, ".codex", "skills"), agentDir: join(home, ".codex", "agents"), platform: "codex" },
-  { name: "cursor", dir: join(home, ".cursor", "skills"), agentDir: join(home, ".cursor", "agents"), platform: "cursor" },
-  { name: "kiro", dir: join(home, ".kiro", "skills"), agentDir: join(home, ".kiro", "agents"), platform: "kiro" },
-  { name: "antigravity", dir: join(home, ".antigravity", "skills"), agentDir: join(home, ".antigravity", "rules"), platform: "antigravity" },
+  { name: "claude",      dir: join(home, ".claude", "skills"),      agentDir: join(home, ".claude", "agents"),      agentSubdir: "agents", platform: "claude" },
+  { name: "gemini",      dir: join(home, ".gemini", "skills"),      agentDir: join(home, ".gemini", "agents"),      agentSubdir: "agents", platform: "gemini" },
+  { name: "copilot",     dir: join(home, ".github", "skills"),      agentDir: join(home, ".github", "agents"),      agentSubdir: "agents", platform: "copilot" },
+  { name: "codex",       dir: join(home, ".codex", "skills"),       agentDir: join(home, ".codex", "agents"),       agentSubdir: "agents", platform: "codex" },
+  { name: "cursor",      dir: join(home, ".cursor", "skills"),      agentDir: join(home, ".cursor", "agents"),      agentSubdir: "agents", platform: "cursor" },
+  { name: "kiro",        dir: join(home, ".kiro", "skills"),        agentDir: join(home, ".kiro", "agents"),        agentSubdir: "agents", platform: "kiro" },
+  { name: "antigravity", dir: join(home, ".antigravity", "skills"), agentDir: join(home, ".antigravity", "rules"),  agentSubdir: "rules",  platform: "antigravity" },
 ];
-
-// Detect which CLIs are installed by checking if parent dir exists
-const detected = CLI_TARGETS.filter((t) => {
-  const parentDir = resolve(t.dir, "..");
-  return existsSync(parentDir);
-});
 
 console.log("wicked-brain installer\n");
 
-if (detected.length === 0) {
-  console.log("No supported AI CLIs detected. Supported: claude, gemini, copilot, codex, cursor, kiro, antigravity");
-  console.log("Install skills manually by copying the skills/ directory.");
-  process.exit(1);
-}
-
-console.log(`Detected CLIs: ${detected.map((d) => d.name).join(", ")}\n`);
-
-// Allow filtering via --cli flag or custom --path
 const args = argv.slice(2);
+const argValue = (a) => a.split("=")[1];
 const cliArg = args.find((a) => a.startsWith("--cli="));
 const pathArg = args.find((a) => a.startsWith("--path="));
 
 let targets;
 
 if (pathArg) {
-  const rawPath = pathArg.split("=")[1].replace(/^~/, home);
-  const customPath = resolve(rawPath);
-  const dirName = customPath.split(/[\\/]/).pop().replace(/^\./, ""); // e.g. ".claude" → "claude"
+  const rawPath = argValue(pathArg);
+  if (!rawPath) {
+    console.error("Error: --path requires a value (e.g. --path=~/.claude)");
+    process.exit(1);
+  }
+  const customPath = resolve(rawPath.replace(/^~/, home));
+  // Strip leading dot to match CLI_TARGETS names (e.g. ".claude" → "claude")
+  const dirName = basename(customPath).replace(/^\./, "");
   const knownPlatform = CLI_TARGETS.find((t) => t.name === dirName);
-  // Use platform's agent subdir name (e.g. antigravity uses "rules"), default to "agents"
-  const agentSubdirName = knownPlatform
-    ? knownPlatform.agentDir.split(/[\\/]/).pop()
-    : "agents";
+  const agentSubdir = knownPlatform?.agentSubdir ?? "agents";
   targets = [{
     name: dirName,
     dir: join(customPath, "skills"),
-    agentDir: join(customPath, agentSubdirName),
+    agentDir: join(customPath, agentSubdir),
     platform: knownPlatform?.platform ?? dirName,
   }];
   console.log(`Custom path: ${customPath}\n`);
 } else {
-  const cliFilter = cliArg ? cliArg.split("=")[1].split(",") : null;
+  // Detect which CLIs are installed by checking if parent dir exists
+  const detected = CLI_TARGETS.filter((t) => existsSync(resolve(t.dir, "..")));
+
+  if (detected.length === 0) {
+    console.log("No supported AI CLIs detected. Supported: claude, gemini, copilot, codex, cursor, kiro, antigravity");
+    console.log("Install skills manually by copying the skills/ directory.");
+    process.exit(1);
+  }
+
+  console.log(`Detected CLIs: ${detected.map((d) => d.name).join(", ")}\n`);
+
+  const cliFilter = cliArg ? argValue(cliArg).split(",") : null;
   targets = cliFilter ? detected.filter((d) => cliFilter.includes(d.name)) : detected;
 }
 
