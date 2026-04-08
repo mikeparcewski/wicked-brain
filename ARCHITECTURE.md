@@ -5,53 +5,59 @@ wicked-brain has two components: a server and a set of skills. Everything else i
 ## System Diagram
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                Your AI Coding CLI                            │
-│          (Claude Code / Gemini / Copilot / Cursor)           │
-│                                                              │
-│   ┌─────────────────────────────────────────────────────┐    │
-│   │                    Skills                            │    │
-│   │                                                      │    │
-│   │   wicked-brain:ingest     Subagent dispatched ──►    │    │
-│   │   wicked-brain:search     Parallel subagents ──►──►  │    │
-│   │   wicked-brain:compile    Subagent dispatched ──►    │    │
-│   │   wicked-brain:query      Subagent dispatched ──►    │    │
-│   │   wicked-brain:read       Inline (direct)            │    │
-│   │   wicked-brain:status     Inline (direct)            │    │
-│   │   wicked-brain:lint       Subagent dispatched ──►    │    │
-│   │   wicked-brain:enhance    Subagent dispatched ──►    │    │
-│   │   wicked-brain:init       Inline (one-time setup)    │    │
-│   │   wicked-brain:server     Inline (auto-triggered)    │    │
-│   │   wicked-brain:update     Inline (self-update)       │    │
-│   │   wicked-brain:batch      Script generation          │    │
-│   │                                                      │    │
-│   └──────────┬──────────────────────────┬────────────────┘    │
-│              │                          │                     │
-│        Agent tools                 curl localhost             │
-│   (Read, Write, Grep, Glob)       (search, index)            │
-│              │                          │                     │
-└──────────────┼──────────────────────────┼─────────────────────┘
-               │                          │
-               ▼                          ▼
-┌──────────────────────┐     ┌──────────────────────────────┐
-│                      │     │                              │
-│   Brain Directory    │     │   wicked-brain-server        │
-│                      │     │                              │
-│   brain.json         │     │   POST /api                  │
-│   raw/               │     │   ┌────────────────────────┐ │
-│   chunks/            │     │   │  SQLite FTS5           │ │
-│     extracted/       │     │   │  + WAL mode            │ │
-│     inferred/        │     │   │  + Porter stemmer      │ │
-│   wiki/              │     │   │  + Backlink tracking   │ │
-│     concepts/        │     │   │  + Federation (ATTACH) │ │
-│     topics/          │     │   └────────────────────────┘ │
-│   _meta/             │     │   File watcher (auto-index)  │
-│     log.jsonl        │     │   PID management             │
-│     config.json      │     │   ~300 lines of JavaScript   │
-│                      │     │                              │
-│   .brain.db ◄────────┼─────┤   Rebuildable from markdown  │
-│                      │     │                              │
-└──────────────────────┘     └──────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│           Your AI Coding CLI                                       │
+│    (Claude Code / Gemini / Copilot / Cursor / Codex / Kiro / ...)  │
+│                                                                    │
+│   ┌───────────────────────────────────────────────────────────┐    │
+│   │                       Skills                              │    │
+│   │                                                           │    │
+│   │   wicked-brain:ingest     Subagent dispatched ──►         │    │
+│   │   wicked-brain:search     Parallel subagents ──►──►       │    │
+│   │   wicked-brain:compile    Subagent dispatched ──►         │    │
+│   │   wicked-brain:query      Subagent dispatched ──►         │    │
+│   │   wicked-brain:lint       Subagent dispatched ──►         │    │
+│   │   wicked-brain:enhance    Subagent dispatched ──►         │    │
+│   │   wicked-brain:read       Inline (direct)                 │    │
+│   │   wicked-brain:status     Inline (direct)                 │    │
+│   │   wicked-brain:memory     Inline (read/write files)       │    │
+│   │   wicked-brain:init       Inline + onboard agent ──►      │    │
+│   │   wicked-brain:server     Inline (auto-triggered)         │    │
+│   │   wicked-brain:configure  Inline (writes CLI config)      │    │
+│   │   wicked-brain:update     Inline (self-update)            │    │
+│   │   wicked-brain:retag      Subagent dispatched ──►         │    │
+│   │   wicked-brain:batch      Script generation               │    │
+│   │   wicked-brain:lsp        Inline → JSON-RPC ──────────►   │    │
+│   │                                                           │    │
+│   └──────────┬──────────────────────────┬─────────────────────┘    │
+│              │                          │                          │
+│        Agent tools                 curl localhost                  │
+│   (Read, Write, Grep, Glob)       (search, index)                  │
+│              │                          │                          │
+└──────────────┼──────────────────────────┼───────────────┬──────────┘
+               │                          │               │ JSON-RPC
+               ▼                          ▼               ▼
+┌──────────────────────┐  ┌─────────────────────────┐  ┌──────────────────┐
+│                      │  │                         │  │                  │
+│   Brain Directory    │  │   wicked-brain-server   │  │  Language Server │
+│                      │  │                         │  │  (tsserver,      │
+│   brain.json         │  │   POST /api             │  │   pylsp,         │
+│   raw/               │  │   ┌───────────────────┐ │  │   rust-analyzer, │
+│   chunks/            │  │   │  SQLite FTS5      │ │  │   etc.)          │
+│     extracted/       │  │   │  + WAL mode       │ │  │                  │
+│     inferred/        │  │   │  + Porter stemmer │ │  │  Auto-installed  │
+│     memory/          │  │   │  + Typed links    │ │  │  on first use    │
+│   wiki/              │  │   │  + Access log     │ │  │                  │
+│     concepts/        │  │   │  + Federation     │ │  └──────────────────┘
+│     topics/          │  │   └───────────────────┘ │
+│   _meta/             │  │   File watcher           │
+│     log.jsonl        │  │   Schema migrations      │
+│     config.json      │  │   PID management         │
+│     server.pid       │  │   ~300 lines JavaScript  │
+│                      │  │                         │
+│   .brain.db ◄────────┼──┤   Rebuildable from md   │
+│                      │  │                         │
+└──────────────────────┘  └─────────────────────────┘
 ```
 
 ## Component Details
@@ -155,9 +161,11 @@ WAL mode for concurrent reader safety. Wikilinks are parsed from content on inde
   chunks/
     extracted/            Source-faithful extractions with YAML frontmatter
     inferred/             LLM-generated content (clearly separated)
+    memory/               Experiential learnings (working / episodic / semantic)
   wiki/
     concepts/             Synthesized articles about specific concepts
     topics/               Broader topic articles
+    projects/             Per-project onboarding articles (created by onboard agent)
   _meta/
     log.jsonl             Append-only event log
     config.json           Server port, brain path
@@ -216,12 +224,27 @@ Source file (PDF, DOCX, MD, code)
     ↺  The brain gets smarter as you use it
 ```
 
+### LSP Client Layer
+
+The `wicked-brain:lsp` skill wraps Language Server Protocol communication in the agent's native tool calls. When invoked:
+
+1. Checks if the required language server is running (by language/file type)
+2. Auto-installs if missing (e.g. `npm install -g typescript-language-server`)
+3. Sends JSON-RPC requests: `initialize` → `textDocument/didOpen` → query → `shutdown`
+4. Returns structured results: hover types, definition locations, diagnostics, completions
+
+The LSP client uses hand-rolled JSON-RPC over stdio — zero additional npm dependencies. Each language server runs as a child process managed by the skill.
+
+**Supported out of the box:** TypeScript/JavaScript (`typescript-language-server`), Python (`pylsp`), Rust (`rust-analyzer`), Go (`gopls`), Java (`jdtls`). Others can be configured manually.
+
 ## What Runs Where
 
 | Component | Runs in | Language | Dependencies |
 |---|---|---|---|
 | Skills | Your AI CLI's process | Markdown (agent interprets) | None |
 | Server | Background process | JavaScript (Node.js) | `better-sqlite3` |
+| LSP client | Inline (skill layer) | JSON-RPC via agent tools | None (hand-rolled) |
+| Language servers | Child processes | Various | Per language |
 | Brain files | Filesystem | Markdown + JSON | None |
 | SQLite index | Managed by server | Binary (rebuildable) | None |
 
