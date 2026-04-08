@@ -2,6 +2,16 @@ import Database from "better-sqlite3";
 import { parseWikilinks } from "./wikilinks.mjs";
 import { statSync } from "node:fs";
 
+/**
+ * Extracts body text from a document, stripping YAML frontmatter.
+ * Falls back to the raw content if no frontmatter is detected.
+ */
+function extractBodyExcerpt(content, maxLen = 300) {
+  const match = content.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)/);
+  const body = match ? match[1] : content;
+  return body.trim().slice(0, maxLen);
+}
+
 function escapeFtsQuery(query) {
   return query
     .trim()
@@ -209,6 +219,7 @@ export class SqliteSearch {
           d.path,
           d.brain_id,
           snippet(documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet,
+          SUBSTR(d.content, 1, 1000) AS raw_content,
           COALESCE(link_count.cnt, 0) AS backlink_count,
           COALESCE(ac.cnt, 0) AS access_count
         FROM documents_fts f
@@ -228,7 +239,12 @@ export class SqliteSearch {
         ORDER BY (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}) - (COALESCE(ac.cnt, 0) * ${SEARCH_ACCESS_WEIGHT}))
         LIMIT ? OFFSET ?
       `)
-      .all(escaped, ...sinceParams, limit, offset);
+      .all(escaped, ...sinceParams, limit, offset)
+      .map((row) => {
+        const body_excerpt = extractBodyExcerpt(row.raw_content ?? "");
+        delete row.raw_content;
+        return { ...row, body_excerpt };
+      });
 
     const countRow = this.#db
       .prepare(

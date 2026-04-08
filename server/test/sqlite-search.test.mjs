@@ -364,6 +364,43 @@ test("search without session_id does not log access", () => {
   }
 });
 
+test("body_excerpt contains body text, not frontmatter tag list", () => {
+  const db = makeDb();
+  try {
+    // Simulate a chunk with a rich contains: tag list that repeats the query terms,
+    // followed by body text that actually explains the concept.
+    const content = `---
+name: specialist-routing
+contains: specialist routing logic crew phases dispatch orchestration
+indexed_at: 2026-04-08
+---
+
+Specialist routing works by inspecting the crew phase and dispatching
+to the appropriate handler based on the role map. Each specialist receives
+a scoped context with only the fields relevant to their domain.`;
+
+    db.index({ id: "chunk1", path: "chunks/extracted/routing/chunk-001.md", content });
+
+    const result = db.search({ query: "specialist routing" });
+    assert.equal(result.results.length, 1);
+
+    const { body_excerpt, snippet } = result.results[0];
+
+    // body_excerpt must not contain frontmatter keys or the contains: list
+    assert.ok(!body_excerpt.includes("contains:"), `body_excerpt should not include frontmatter 'contains:' key: ${body_excerpt}`);
+    assert.ok(!body_excerpt.includes("indexed_at:"), `body_excerpt should not include frontmatter keys: ${body_excerpt}`);
+
+    // body_excerpt should contain actual body text
+    assert.ok(body_excerpt.includes("dispatching") || body_excerpt.includes("crew phase") || body_excerpt.includes("handler"),
+      `body_excerpt should contain body text, got: ${body_excerpt}`);
+
+    // snippet field is still present for backward compat
+    assert.ok(typeof snippet === "string", "snippet should still be present");
+  } finally {
+    db.close();
+  }
+});
+
 // --- Migration tests ---
 
 test("schemaVersion returns current version for new database", () => {
