@@ -67,6 +67,22 @@ cd server && node --test test/sqlite-search.test.mjs  # Run one test file
 
 No test framework dependencies. Uses `node:test` and `node:assert/strict`.
 
+## Releasing
+
+Releases are fully automated via GitHub Actions (`.github/workflows/release.yml`). **Never run `npm publish` locally.**
+
+To release:
+1. Commit and push your changes to `main`
+2. Tag and push: `git tag vX.Y.Z && git push --tags`
+
+The pipeline triggers on `v*` tags and:
+- Runs tests on ubuntu, macos, and windows
+- Publishes to npm (with provenance)
+- Publishes to GitHub Packages
+- Creates a GitHub Release with auto-generated notes
+
+The `package.json` version does not need to be updated manually — the pipeline sets it from the tag.
+
 ## Brain Directory Structure
 
 ```
