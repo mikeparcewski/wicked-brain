@@ -56,7 +56,7 @@ wicked-brain has two components: a server and a set of skills. Everything else i
 
 ## Component Details
 
-### Skills (~900 lines of markdown)
+### Skills (~1,400 lines of markdown)
 
 Skills are SKILL.md files installed into your AI CLI's skills directory. Each skill is a set of instructions that teaches the agent how to perform a knowledge operation using its native tools.
 
@@ -75,8 +75,12 @@ Skills are SKILL.md files installed into your AI CLI's skills directory. Each sk
 - `wicked-brain:enhance` — worker identifies gaps, writes inferred chunks
 
 **Utility skills:**
+- `wicked-brain:memory` — stores and recalls experiential learnings (decisions, patterns, gotchas) across sessions in working/episodic/semantic tiers
+- `wicked-brain:configure` — detects the active CLI and writes brain-aware context into its config file (CLAUDE.md, GEMINI.md, etc.)
+- `wicked-brain:retag` — backfills synonym-expanded tags across all chunks for better search recall; safe to interrupt and resume
 - `wicked-brain:batch` — generates and runs scripts for bulk operations instead of burning context on repetitive tool calls
 - `wicked-brain:update` — checks npm for updates, refreshes skills across CLIs
+- `wicked-brain:lsp` — universal code intelligence via LSP; auto-installs language servers and exposes hover/definition/diagnostics/completions to the agent
 
 ### Server (~300 lines of JavaScript)
 
@@ -87,7 +91,7 @@ A Node.js HTTP server wrapping SQLite with FTS5. One runtime dependency: `better
 | Action | Purpose |
 |---|---|
 | `health` | Server status and uptime |
-| `search` | Full-text search with Porter stemming, snippets, pagination |
+| `search` | Full-text search with Porter stemming, snippets, pagination, session diversity ranking |
 | `index` | Add or update a document in the FTS index |
 | `remove` | Remove a document from the index |
 | `reindex` | Replace all documents |
@@ -95,8 +99,11 @@ A Node.js HTTP server wrapping SQLite with FTS5. One runtime dependency: `better
 | `forward_links` | Find what a document references |
 | `federated_search` | Search across multiple brains via SQLite ATTACH |
 | `stats` | Document counts, index size, last activity |
+| `candidates` | Surface docs for promotion (high-access) or archival (zero-access, zero-backlinks) |
+| `recentMemories` | Retrieve memory-tier docs from the last N days |
+| `schemaVersion` | Return current schema version for migration diagnostics |
 
-**SQLite schema:**
+**SQLite schema** (auto-migrated on server start via numbered migrations):
 
 ```sql
 -- Full-text search
@@ -115,17 +122,25 @@ CREATE TABLE documents (
   indexed_at TEXT NOT NULL
 );
 
--- Wikilink tracking
+-- Wikilink tracking (typed relationships supported: supersedes, related-to, etc.)
 CREATE TABLE links (
   source_id TEXT NOT NULL,
   source_brain TEXT NOT NULL,
   target_path TEXT NOT NULL,
   target_brain TEXT,
-  link_text TEXT NOT NULL
+  link_text TEXT NOT NULL,
+  link_type TEXT           -- null = standard [[wikilink]], non-null = typed relationship
+);
+
+-- Access log for session diversity and popularity ranking
+CREATE TABLE access_log (
+  doc_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  accessed_at TEXT NOT NULL
 );
 ```
 
-WAL mode for concurrent reader safety. Wikilinks are parsed from content on index and stored in the links table for backlink queries.
+WAL mode for concurrent reader safety. Wikilinks are parsed from content on index and stored in the links table for backlink queries. The schema uses a numbered migration system — existing databases upgrade automatically on server restart, no manual steps needed.
 
 **File watcher:** Monitors `chunks/` and `wiki/` for changes. When a `.md` file is created, modified, or deleted, it's automatically reindexed. Uses `fs.watch` with recursive mode on macOS/Windows, falls back to 3-second polling on Linux. Content hashing (SHA-256, 16-char prefix) prevents redundant reindexing.
 
@@ -210,4 +225,4 @@ Source file (PDF, DOCX, MD, code)
 | Brain files | Filesystem | Markdown + JSON | None |
 | SQLite index | Managed by server | Binary (rebuildable) | None |
 
-Total system: ~300 lines JS + ~900 lines markdown. One npm dependency.
+Total system: ~300 lines JS + ~1,400 lines markdown. One npm dependency.

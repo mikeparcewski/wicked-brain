@@ -75,6 +75,12 @@ npx wicked-brain
 
 That's it. The installer detects your AI CLIs and drops in the skills. First time you use any skill, it walks you through setup.
 
+To install into a non-standard CLI config path:
+
+```bash
+npx wicked-brain --path=~/alt-configs/.claude
+```
+
 Or install via [agent-skills-cli](https://github.com/Karanjot786/agent-skills-cli):
 
 ```bash
@@ -119,16 +125,22 @@ Every operation uses **progressive loading** — the agent never pulls more than
 
 | Skill | What it does |
 |---|---|
-| `wicked-brain:init` | Set up a new brain (auto-triggers on first use) |
+| `wicked-brain:init` | Set up a new brain — creates directory structure, then onboards your project in parallel |
 | `wicked-brain:ingest` | Add source files — text extracted deterministically, binary docs read via LLM vision |
 | `wicked-brain:search` | Parallel search across your brain and linked brains |
 | `wicked-brain:read` | Progressive loading: depth 0 (stats), depth 1 (summary), depth 2 (full content) |
 | `wicked-brain:query` | Answer questions with source citations |
 | `wicked-brain:compile` | Synthesize wiki articles from chunks |
-| `wicked-brain:lint` | Find broken links, orphan chunks, inconsistencies |
-| `wicked-brain:enhance` | Identify and fill knowledge gaps |
+| `wicked-brain:lint` | Find broken links, orphan chunks, inconsistencies; auto-fix where possible |
+| `wicked-brain:enhance` | Identify and fill knowledge gaps with inferred content |
+| `wicked-brain:memory` | Store and recall experiential learnings across sessions (working / episodic / semantic tiers) |
 | `wicked-brain:status` | Brain health, stats, orientation |
 | `wicked-brain:server` | Manage the background search server (auto-triggered) |
+| `wicked-brain:configure` | Write brain-aware context into your CLI's config (CLAUDE.md, GEMINI.md, etc.) |
+| `wicked-brain:batch` | Generate scripts for bulk operations — avoids burning context on repetitive tool calls |
+| `wicked-brain:retag` | Backfill synonym-expanded tags across all chunks for better search recall |
+| `wicked-brain:update` | Check npm for updates and reinstall skills across all detected CLIs |
+| `wicked-brain:lsp` | Universal code intelligence via LSP — hover, go-to-definition, diagnostics, completions |
 
 ## Multi-Brain Federation
 
@@ -169,7 +181,7 @@ Modern LLMs read PDF, DOCX, PPTX, and XLSX natively. When you ingest a binary do
 
 ## Architecture
 
-**~500 lines of server JavaScript** (SQLite FTS5 + file watcher) + **~900 lines of skill markdown** (agent instructions).
+**~300 lines of server JavaScript** (SQLite FTS5 + file watcher) + **~1,400 lines of skill markdown** (agent instructions).
 
 That's the entire system. Compare that to a typical RAG stack:
 
@@ -182,7 +194,7 @@ Typical RAG:                          wicked-brain:
 - Re-ranking model                    - LLM reasoning
 - Orchestration layer                 - Skills (markdown)
 ─────────────────                     ─────────────────
-~5,000+ lines, 10+ deps              ~1,400 lines, 1 dep
+~5,000+ lines, 10+ deps              ~1,700 lines, 1 dep
 ```
 
 ## Supported CLIs
@@ -194,6 +206,8 @@ Typical RAG:                          wicked-brain:
 | GitHub Copilot CLI | Supported |
 | Cursor | Supported |
 | Codex | Supported |
+| Kiro | Supported |
+| Antigravity | Supported |
 
 Skills use only universally available operations (read files, write files, run shell commands, grep). No CLI-specific features.
 
