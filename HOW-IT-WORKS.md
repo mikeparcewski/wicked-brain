@@ -94,12 +94,58 @@ Enhance → Fill gaps with inferred content
      ↓
 Query → Synthesize answers, file results back as new articles
      ↓
+Memory → Store decisions, patterns, gotchas across sessions
+     ↓
 Repeat → The brain knows more after every session
 ```
 
 When a new team member onboards, they don't just search raw docs — they search a curated, interlinked knowledge base that previous sessions have refined. Wiki articles cite source chunks. Source chunks link to related concepts. The agent follows these connections, building richer answers than any search engine could.
 
-### 6. Multi-Brain Federation is Just Filesystem Permissions
+**Memory is different from chunks.** Chunks are extracted from source files — factual, traceable, evidence-based. Memory stores *experiential* knowledge: the architectural decision your team debated for a week, the gotcha that burned two developers, the pattern that works reliably in your specific stack. Three tiers:
+
+- **Working** — active session context, expires quickly
+- **Episodic** — specific past events and decisions (survives session boundaries)
+- **Semantic** — generalized patterns extracted from repeated experience
+
+Memory files are just markdown in `chunks/memory/` — searchable, auditable, editable.
+
+### 5a. Typed Relationships
+
+Wikilinks in wicked-brain can carry semantic meaning:
+
+```markdown
+[[supersedes::old-approach]]
+[[related-to::auth-design]]
+[[inspired-by::karpathy-pattern]]
+```
+
+These typed relationships are stored in the links table and queryable via the server API. The lint skill checks for broken typed links. The compile skill uses them when synthesizing wiki articles. This lets the brain encode *how* concepts relate, not just *that* they do.
+
+### 5b. Search Gets Smarter With Use
+
+Every search is logged against a session ID. The server tracks which documents each session has accessed — and uses this to diversify results over time. If you've read a chunk three times this session, it's deprioritized in favor of related content you haven't seen yet. Popular documents (accessed across many sessions) get a ranking boost.
+
+This means the search results you see on day 30 are better than day 1 — not because you re-indexed anything, but because the access patterns tell the brain what's actually useful.
+
+### 6. Code Intelligence Without a Plugin
+
+wicked-brain includes an LSP (Language Server Protocol) client. This means your agent can ask any language server — TypeScript, Python, Rust, Go, Java — for hover information, go-to-definition, diagnostics, and completions, without a browser, without an IDE plugin, and without reading the entire codebase.
+
+```
+Agent asks: "What does this function return?"
+     ↓
+wicked-brain:lsp → starts language server if not running
+     ↓
+Sends textDocument/hover request
+     ↓
+Returns: type signature, docstring, inferred return type
+```
+
+Language servers are installed automatically if missing (e.g. `npm install -g typescript-language-server`). The LSP layer uses hand-rolled JSON-RPC — zero new dependencies beyond what the language server itself needs.
+
+**Why this matters:** An agent navigating a large codebase normally has to read many files to trace a type through several layers of abstraction. With LSP, it asks once and gets the answer. For deep codebases, this can reduce code-navigation token usage by 10-50x.
+
+### 8. Multi-Brain Federation is Just Filesystem Permissions
 
 Traditional knowledge management systems need complex access control: roles, permissions, sharing policies, admin dashboards. wicked-brain uses the operating system.
 
