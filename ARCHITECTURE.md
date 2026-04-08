@@ -1,251 +1,357 @@
 # Architecture
 
-wicked-brain has two components: a server and a set of skills. Everything else is markdown on your filesystem.
+> **Why it works this way:** See [HOW-IT-WORKS.md](HOW-IT-WORKS.md) for the reasoning behind FTS over vectors, progressive loading, the agent-as-parser pattern, and the compounding brain model.
 
-## System Diagram
+wicked-brain has three runtime components: a **skill layer** (markdown instructions in your AI CLI), a **search server** (SQLite FTS5 over HTTP), and an optional **LSP client** (code intelligence via language servers). Everything else is markdown on your filesystem.
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│           Your AI Coding CLI                                       │
-│    (Claude Code / Gemini / Copilot / Cursor / Codex / Kiro / ...)  │
-│                                                                    │
-│   ┌───────────────────────────────────────────────────────────┐    │
-│   │                       Skills                              │    │
-│   │                                                           │    │
-│   │   wicked-brain:ingest     Subagent dispatched ──►         │    │
-│   │   wicked-brain:search     Parallel subagents ──►──►       │    │
-│   │   wicked-brain:compile    Subagent dispatched ──►         │    │
-│   │   wicked-brain:query      Subagent dispatched ──►         │    │
-│   │   wicked-brain:lint       Subagent dispatched ──►         │    │
-│   │   wicked-brain:enhance    Subagent dispatched ──►         │    │
-│   │   wicked-brain:read       Inline (direct)                 │    │
-│   │   wicked-brain:status     Inline (direct)                 │    │
-│   │   wicked-brain:memory     Inline (read/write files)       │    │
-│   │   wicked-brain:init       Inline + onboard agent ──►      │    │
-│   │   wicked-brain:server     Inline (auto-triggered)         │    │
-│   │   wicked-brain:configure  Inline (writes CLI config)      │    │
-│   │   wicked-brain:update     Inline (self-update)            │    │
-│   │   wicked-brain:retag      Subagent dispatched ──►         │    │
-│   │   wicked-brain:batch      Script generation               │    │
-│   │   wicked-brain:lsp        Inline → JSON-RPC ──────────►   │    │
-│   │                                                           │    │
-│   └──────────┬──────────────────────────┬─────────────────────┘    │
-│              │                          │                          │
-│        Agent tools                 curl localhost                  │
-│   (Read, Write, Grep, Glob)       (search, index)                  │
-│              │                          │                          │
-└──────────────┼──────────────────────────┼───────────────┬──────────┘
-               │                          │               │ JSON-RPC
-               ▼                          ▼               ▼
-┌──────────────────────┐  ┌─────────────────────────┐  ┌──────────────────┐
-│                      │  │                         │  │                  │
-│   Brain Directory    │  │   wicked-brain-server   │  │  Language Server │
-│                      │  │                         │  │  (tsserver,      │
-│   brain.json         │  │   POST /api             │  │   pylsp,         │
-│   raw/               │  │   ┌───────────────────┐ │  │   rust-analyzer, │
-│   chunks/            │  │   │  SQLite FTS5      │ │  │   etc.)          │
-│     extracted/       │  │   │  + WAL mode       │ │  │                  │
-│     inferred/        │  │   │  + Porter stemmer │ │  │  Auto-installed  │
-│     memory/          │  │   │  + Typed links    │ │  │  on first use    │
-│   wiki/              │  │   │  + Access log     │ │  │                  │
-│     concepts/        │  │   │  + Federation     │ │  └──────────────────┘
-│     topics/          │  │   └───────────────────┘ │
-│   _meta/             │  │   File watcher           │
-│     log.jsonl        │  │   Schema migrations      │
-│     config.json      │  │   PID management         │
-│     server.pid       │  │   ~300 lines JavaScript  │
-│                      │  │                         │
-│   .brain.db ◄────────┼──┤   Rebuildable from md   │
-│                      │  │                         │
-└──────────────────────┘  └─────────────────────────┘
+---
+
+## System Overview
+
+```mermaid
+graph TB
+    CLI["Your AI CLI<br/>(Claude Code / Gemini / Copilot<br/>Cursor / Codex / Kiro / Antigravity)"]
+
+    subgraph Skills["Skill Layer (markdown instructions)"]
+        direction LR
+        S1["Subagent skills<br/>ingest · search · compile<br/>query · lint · enhance · retag"]
+        S2["Inline skills<br/>read · status · memory<br/>init · server · configure · update · batch"]
+        S3["LSP skill<br/>lsp"]
+    end
+
+    subgraph Server["wicked-brain-server (Node.js)"]
+        API["POST /api"]
+        DB["SQLite FTS5<br/>+ WAL + Porter stemmer<br/>+ Typed links + Access log"]
+        FW["File watcher<br/>(auto-reindex)"]
+        MIG["Schema migrations<br/>(auto on start)"]
+    end
+
+    subgraph Brain["Brain Directory (~/.wicked-brain)"]
+        Files["Markdown files<br/>chunks/ · wiki/ · raw/"]
+        Meta["_meta/<br/>config.json · log.jsonl · server.pid"]
+        Index[".brain.db<br/>(rebuildable cache)"]
+    end
+
+    subgraph LSP["Language Servers (child processes)"]
+        TS["typescript-language-server"]
+        PY["pylsp"]
+        RS["rust-analyzer"]
+        Other["gopls · jdtls · …"]
+    end
+
+    CLI --> Skills
+    S1 -->|"Agent tools<br/>(Read/Write/Grep/Glob)"| Brain
+    S2 -->|"Agent tools"| Brain
+    S1 -->|"curl localhost"| API
+    S2 -->|"curl localhost"| API
+    S3 -->|"JSON-RPC (stdio)"| LSP
+    API --> DB
+    FW -->|watches| Files
+    FW -->|reindexes| DB
+    MIG --> DB
+    DB --> Index
 ```
 
-## Component Details
+---
 
-### Skills (~1,400 lines of markdown)
+## Component: Skill Layer
 
-Skills are SKILL.md files installed into your AI CLI's skills directory. Each skill is a set of instructions that teaches the agent how to perform a knowledge operation using its native tools.
+Skills are SKILL.md files installed into your CLI's skills directory by the installer. The agent reads the skill when triggered and follows its instructions using its own native tools.
 
-**Inline skills** run directly in the conversation:
-- `wicked-brain:read` — reads a file from disk, parses frontmatter, returns at the requested depth
-- `wicked-brain:status` — queries the server for stats, reads config files
-- `wicked-brain:init` — creates the brain directory structure
-- `wicked-brain:server` — checks if the server is running, starts it if not
+```mermaid
+graph LR
+    subgraph Inline["Inline (runs in conversation)"]
+        read["wicked-brain:read<br/>progressive depth 0/1/2"]
+        status["wicked-brain:status<br/>health + stats"]
+        memory["wicked-brain:memory<br/>working/episodic/semantic tiers"]
+        init["wicked-brain:init<br/>setup + fires onboard agent"]
+        server["wicked-brain:server<br/>start/check/stop"]
+        configure["wicked-brain:configure<br/>writes CLAUDE.md / GEMINI.md"]
+        update["wicked-brain:update<br/>npm check + reinstall"]
+        batch["wicked-brain:batch<br/>generates bulk scripts"]
+        lsp["wicked-brain:lsp<br/>LSP queries via JSON-RPC"]
+    end
 
-**Subagent skills** dispatch a focused worker to do the job:
-- `wicked-brain:ingest` — worker reads files, splits into chunks, writes markdown, indexes via API
-- `wicked-brain:search` — dispatches one worker per brain (local + parents + links) in parallel
-- `wicked-brain:compile` — worker reads chunks, reasons about concepts, writes wiki articles
-- `wicked-brain:query` — worker searches, reads, follows links, synthesizes an answer
-- `wicked-brain:lint` — worker checks for broken links, orphans, inconsistencies
-- `wicked-brain:enhance` — worker identifies gaps, writes inferred chunks
-
-**Utility skills:**
-- `wicked-brain:memory` — stores and recalls experiential learnings (decisions, patterns, gotchas) across sessions in working/episodic/semantic tiers
-- `wicked-brain:configure` — detects the active CLI and writes brain-aware context into its config file (CLAUDE.md, GEMINI.md, etc.)
-- `wicked-brain:retag` — backfills synonym-expanded tags across all chunks for better search recall; safe to interrupt and resume
-- `wicked-brain:batch` — generates and runs scripts for bulk operations instead of burning context on repetitive tool calls
-- `wicked-brain:update` — checks npm for updates, refreshes skills across CLIs
-- `wicked-brain:lsp` — universal code intelligence via LSP; auto-installs language servers and exposes hover/definition/diagnostics/completions to the agent
-
-### Server (~300 lines of JavaScript)
-
-A Node.js HTTP server wrapping SQLite with FTS5. One runtime dependency: `better-sqlite3`.
-
-**Single endpoint:** `POST /api` with `{ "action": "...", "params": {...} }`
-
-| Action | Purpose |
-|---|---|
-| `health` | Server status and uptime |
-| `search` | Full-text search with Porter stemming, snippets, pagination, session diversity ranking |
-| `index` | Add or update a document in the FTS index |
-| `remove` | Remove a document from the index |
-| `reindex` | Replace all documents |
-| `backlinks` | Find documents that reference a given path via `[[wikilinks]]` |
-| `forward_links` | Find what a document references |
-| `federated_search` | Search across multiple brains via SQLite ATTACH |
-| `stats` | Document counts, index size, last activity |
-| `candidates` | Surface docs for promotion (high-access) or archival (zero-access, zero-backlinks) |
-| `recentMemories` | Retrieve memory-tier docs from the last N days |
-| `schemaVersion` | Return current schema version for migration diagnostics |
-
-**SQLite schema** (auto-migrated on server start via numbered migrations):
-
-```sql
--- Full-text search
-CREATE VIRTUAL TABLE documents_fts USING fts5(
-  id, path, content, brain_id,
-  tokenize='porter unicode61'
-);
-
--- Metadata
-CREATE TABLE documents (
-  id TEXT PRIMARY KEY,
-  path TEXT NOT NULL,
-  content TEXT NOT NULL,
-  frontmatter TEXT,
-  brain_id TEXT NOT NULL,
-  indexed_at TEXT NOT NULL
-);
-
--- Wikilink tracking (typed relationships supported: supersedes, related-to, etc.)
-CREATE TABLE links (
-  source_id TEXT NOT NULL,
-  source_brain TEXT NOT NULL,
-  target_path TEXT NOT NULL,
-  target_brain TEXT,
-  link_text TEXT NOT NULL,
-  link_type TEXT           -- null = standard [[wikilink]], non-null = typed relationship
-);
-
--- Access log for session diversity and popularity ranking
-CREATE TABLE access_log (
-  doc_id TEXT NOT NULL,
-  session_id TEXT NOT NULL,
-  accessed_at TEXT NOT NULL
-);
+    subgraph Subagent["Subagent (isolated worker)"]
+        ingest["wicked-brain:ingest<br/>chunk + index source files"]
+        search["wicked-brain:search<br/>parallel per-brain workers"]
+        compile["wicked-brain:compile<br/>synthesize wiki articles"]
+        query["wicked-brain:query<br/>search → read → answer"]
+        lint["wicked-brain:lint<br/>broken links · orphans · gaps"]
+        enhance["wicked-brain:enhance<br/>fill gaps with inferred content"]
+        retag["wicked-brain:retag<br/>backfill synonym tags"]
+    end
 ```
 
-WAL mode for concurrent reader safety. Wikilinks are parsed from content on index and stored in the links table for backlink queries. The schema uses a numbered migration system — existing databases upgrade automatically on server restart, no manual steps needed.
+**Installer:** `install.mjs` detects installed CLIs by checking for their config directories and copies all skills into `<cli-dir>/skills/`. Platform-specific agents go to `<cli-dir>/agents/`. Supports `--cli=<name>` to filter and `--path=<dir>` for non-standard locations.
 
-**File watcher:** Monitors `chunks/` and `wiki/` for changes. When a `.md` file is created, modified, or deleted, it's automatically reindexed. Uses `fs.watch` with recursive mode on macOS/Windows, falls back to 3-second polling on Linux. Content hashing (SHA-256, 16-char prefix) prevents redundant reindexing.
+---
 
-**Federation:** `federated_search` uses SQLite `ATTACH DATABASE` to query linked brains' `.brain.db` files. Each attached DB is searched, results merged and ranked, then detached. Inaccessible brains are reported as unreachable.
+## Component: Search Server
 
-### Brain Directory
+A Node.js HTTP server (~300 lines) with a single `POST /api` endpoint. One runtime dependency: `better-sqlite3`.
+
+### API Actions
+
+| Action | Parameters | Returns |
+|---|---|---|
+| `health` | — | `{ status, uptime, docCount }` |
+| `search` | `query, brain_id, limit, since, session_id` | Ranked results with snippets |
+| `federated_search` | `query, brain_paths, session_id` | Merged results across brains |
+| `index` | `id, path, content, frontmatter, brain_id` | `{ ok }` |
+| `remove` | `id` | `{ ok }` |
+| `reindex` | `docs[]` | `{ ok, count }` |
+| `backlinks` | `path, brain_id` | Docs that `[[link]]` to this path |
+| `forward_links` | `id` | Links this doc references |
+| `stats` | `brain_id` | Doc counts, index size, last activity |
+| `candidates` | `brain_id, mode` | Docs for promotion (`high-access`) or archival (`zero-access`) |
+| `recentMemories` | `brain_id, days` | Memory-tier docs from last N days |
+| `schemaVersion` | — | Current schema version integer |
+
+### SQLite Schema
+
+```mermaid
+erDiagram
+    documents {
+        TEXT id PK
+        TEXT path
+        TEXT content
+        TEXT frontmatter
+        TEXT brain_id
+        TEXT indexed_at
+    }
+    documents_fts {
+        TEXT id
+        TEXT path
+        TEXT content
+        TEXT brain_id
+    }
+    links {
+        TEXT source_id FK
+        TEXT source_brain
+        TEXT target_path
+        TEXT target_brain
+        TEXT link_text
+        TEXT link_type
+    }
+    access_log {
+        TEXT doc_id FK
+        TEXT session_id
+        TEXT accessed_at
+    }
+
+    documents ||--o{ links : "has"
+    documents ||--o{ access_log : "accessed via"
+    documents ||--|| documents_fts : "indexed in"
+```
+
+**Notes:**
+- `documents_fts` uses `fts5` with `tokenize='porter unicode61'` for stemmed full-text search
+- `links.link_type` is `null` for standard `[[wikilinks]]`, non-null for typed relationships (`supersedes`, `related-to`, etc.)
+- `access_log` drives session diversity ranking — documents accessed this session are deprioritized in favor of unseen related content
+- Schema is versioned; migrations run automatically on server start — existing databases upgrade without manual intervention
+
+### File Watcher
+
+```mermaid
+sequenceDiagram
+    participant FS as Filesystem
+    participant FW as File Watcher
+    participant Hash as SHA-256 Cache
+    participant DB as SQLite
+
+    FS->>FW: file created/modified/deleted
+    FW->>Hash: check content hash
+    alt hash unchanged
+        Hash-->>FW: skip (no-op)
+    else hash changed or new file
+        Hash->>Hash: store new hash
+        FW->>DB: index / remove document
+    end
+```
+
+Uses `fs.watch({ recursive: true })` on macOS and Windows. Falls back to 3-second polling on Linux where recursive watch is unsupported. Only watches `chunks/` and `wiki/` — `raw/` is not indexed directly.
+
+---
+
+## Component: LSP Client
+
+`wicked-brain:lsp` provides code intelligence by connecting to language servers via JSON-RPC over stdio. No additional npm dependencies — the JSON-RPC layer is hand-rolled.
+
+```mermaid
+sequenceDiagram
+    participant Agent as Agent (skill)
+    participant LSP as LSP Client (skill)
+    participant LS as Language Server
+
+    Agent->>LSP: query(file, position, capability)
+    LSP->>LS: start if not running
+    LSP->>LS: initialize + workspace config
+    LSP->>LS: textDocument/didOpen
+    LSP->>LS: textDocument/hover (or definition/diagnostics/completion)
+    LS-->>LSP: result
+    LSP->>LS: shutdown
+    LSP-->>Agent: structured result
+```
+
+Language servers are auto-installed on first use if not found in PATH. Supported out of the box: `typescript-language-server`, `pylsp`, `rust-analyzer`, `gopls`, `jdtls`.
+
+---
+
+## Brain Directory Structure
 
 ```
 ~/.wicked-brain/
-  brain.json              Identity, parents, links
-  raw/                    Source files (originals or symlinks)
-  chunks/
-    extracted/            Source-faithful extractions with YAML frontmatter
-    inferred/             LLM-generated content (clearly separated)
-    memory/               Experiential learnings (working / episodic / semantic)
-  wiki/
-    concepts/             Synthesized articles about specific concepts
-    topics/               Broader topic articles
-    projects/             Per-project onboarding articles (created by onboard agent)
-  _meta/
-    log.jsonl             Append-only event log
-    config.json           Server port, brain path
-    server.pid            Running server PID
-  .brain.db               SQLite FTS5 index (rebuildable)
+├── brain.json                    # Identity, parent links, peer links
+├── raw/                          # Source files (originals or symlinks)
+├── chunks/
+│   ├── extracted/                # Source-faithful extractions (YAML frontmatter + content)
+│   │   └── <source-name>/        # One directory per ingested source
+│   ├── inferred/                 # LLM-generated content (clearly separated from extracted)
+│   └── memory/                   # Experiential learnings (working / episodic / semantic)
+├── wiki/
+│   ├── concepts/                 # Synthesized articles about specific concepts
+│   ├── topics/                   # Broader topic articles
+│   └── projects/                 # Per-project onboarding articles (from onboard agent)
+├── _meta/
+│   ├── config.json               # Server port, brain path
+│   ├── log.jsonl                 # Append-only event log
+│   └── server.pid                # Running server PID (absent when stopped)
+└── .brain.db                     # SQLite FTS5 index (rebuildable from markdown)
 ```
 
 **Two content layers:**
-- `chunks/` is the evidence layer — traceable to specific source files
-- `wiki/` is the knowledge layer — synthesized by the LLM with `[[backlinks]]` to source chunks
+- `chunks/` — evidence layer, traceable to specific source files
+- `wiki/` — knowledge layer, synthesized by the LLM with `[[backlinks]]` to source chunks
 
-**Filesystem permissions = access control.** `chmod 700 raw/` restricts source files while leaving `wiki/` readable. No auth system needed.
+**Filesystem permissions = access control.** No auth system. `chmod 700 raw/` restricts source files while leaving `wiki/` publicly readable.
 
-### Multi-Brain Federation
+---
 
-Brains declare relationships in `brain.json`:
+## Data Flow
+
+### Ingest → Index
+
+```mermaid
+flowchart TD
+    Source["Source file<br/>(PDF · DOCX · MD · code · image)"]
+    Raw["raw/<br/>(original, untouched)"]
+    Ingest["wicked-brain:ingest<br/>(subagent)"]
+    TextSplit["Text: split on headings<br/>or 800-word windows"]
+    BinarySplit["Binary: LLM reads via vision<br/>writes structured chunks"]
+    Chunks["chunks/extracted/<br/>(YAML frontmatter + content)"]
+    Watcher["File watcher"]
+    Index["SQLite FTS5"]
+
+    Source --> Raw
+    Raw --> Ingest
+    Ingest --> TextSplit
+    Ingest --> BinarySplit
+    TextSplit --> Chunks
+    BinarySplit --> Chunks
+    Chunks --> Watcher
+    Watcher --> Index
+```
+
+### Query → Answer
+
+```mermaid
+flowchart TD
+    Q["User question"]
+    Search["wicked-brain:search<br/>(parallel workers per brain)"]
+    Results["Ranked results<br/>(depth 0: one-line summaries)"]
+    Read["wicked-brain:read<br/>(depth 1/2 on relevant hits)"]
+    Follow["Follow [[backlinks]]<br/>and typed relationships"]
+    Synthesize["Synthesize answer<br/>with source citations"]
+
+    Q --> Search
+    Search --> Results
+    Results --> Read
+    Read --> Follow
+    Follow --> Synthesize
+```
+
+### Brain Lifecycle
+
+```mermaid
+flowchart LR
+    Ingest --> Chunks
+    Chunks --> Compile
+    Compile --> Wiki
+    Wiki --> Lint
+    Lint --> Enhance
+    Enhance --> Chunks
+    Wiki --> Query
+    Query --> Memory
+    Memory --> Search
+    Search --> Query
+
+    Ingest["ingest<br/>add sources"]
+    Chunks["chunks/<br/>evidence layer"]
+    Compile["compile<br/>synthesize"]
+    Wiki["wiki/<br/>knowledge layer"]
+    Lint["lint<br/>fix + connect"]
+    Enhance["enhance<br/>fill gaps"]
+    Query["query<br/>answer questions"]
+    Memory["memory<br/>store learnings"]
+    Search["search<br/>retrieve"]
+```
+
+---
+
+## Multi-Brain Federation
+
+```mermaid
+graph TB
+    subgraph Personal["Personal Brain"]
+        PB["~/.wicked-brain"]
+    end
+
+    subgraph Team["Team Brain"]
+        TB["~/team-brain"]
+    end
+
+    subgraph Client["Client Brain"]
+        CB["~/client-x-brain"]
+    end
+
+    PB -->|"parents (inherited)"| TB
+    CB -->|"parents (inherited)"| TB
+    CB -->|"links (peer)"| PB
+
+    Search["wicked-brain:search<br/>(one subagent per accessible brain)"]
+    Search --> PB
+    Search --> TB
+    Search --> CB
+    Merge["Merge + rank<br/>(brain origin tagged on each result)"]
+    Search --> Merge
+```
+
+`brain.json` declares relationships:
 
 ```json
 {
   "id": "client-x",
-  "parents": ["../company-standards"],
-  "links": ["../shared-research"]
+  "parents": ["../team-brain"],
+  "links": ["../personal-brain"]
 }
 ```
 
-- **Parents** are searched with lower priority (inheritance)
-- **Links** are searched as peers (mesh)
-- Paths are relative — filesystem resolves access
+- **Parents** — searched at lower priority (inheritance semantics)
+- **Links** — searched as peers (mesh semantics)
+- **Access control** — filesystem permissions. Unreadable brains are reported as unreachable, not silently skipped.
 
-When `wicked-brain:search` runs, it dispatches parallel subagents, one per accessible brain. Results merge with brain origin tagged on each result.
+Federation uses SQLite `ATTACH DATABASE` to query linked brains' `.brain.db` files in a single process — sub-millisecond cross-brain joins.
 
-## Data Flow
+---
 
-```
-Source file (PDF, DOCX, MD, code)
-    │
-    ▼
-  raw/                  ← Original, untouched
-    │
-    │  wicked-brain:ingest (subagent)
-    │  ├── Text files: deterministic split (headings / 800-word chunks)
-    │  └── Binary files: LLM reads via vision, writes structured chunks
-    ▼
-  chunks/extracted/     ← YAML frontmatter + extracted content
-    │
-    │  Server file watcher auto-indexes into SQLite FTS5
-    │
-    │  wicked-brain:compile (subagent)
-    │  └── Reads chunks, reasons about concepts, writes articles
-    ▼
-  wiki/                 ← Synthesized articles with [[backlinks]]
-    │
-    │  wicked-brain:lint + wicked-brain:enhance
-    │  └── Quality checks, gap filling, feeds back into chunks/
-    ▼
-    ↺  The brain gets smarter as you use it
-```
+## Runtime Summary
 
-### LSP Client Layer
-
-The `wicked-brain:lsp` skill wraps Language Server Protocol communication in the agent's native tool calls. When invoked:
-
-1. Checks if the required language server is running (by language/file type)
-2. Auto-installs if missing (e.g. `npm install -g typescript-language-server`)
-3. Sends JSON-RPC requests: `initialize` → `textDocument/didOpen` → query → `shutdown`
-4. Returns structured results: hover types, definition locations, diagnostics, completions
-
-The LSP client uses hand-rolled JSON-RPC over stdio — zero additional npm dependencies. Each language server runs as a child process managed by the skill.
-
-**Supported out of the box:** TypeScript/JavaScript (`typescript-language-server`), Python (`pylsp`), Rust (`rust-analyzer`), Go (`gopls`), Java (`jdtls`). Others can be configured manually.
-
-## What Runs Where
-
-| Component | Runs in | Language | Dependencies |
-|---|---|---|---|
-| Skills | Your AI CLI's process | Markdown (agent interprets) | None |
-| Server | Background process | JavaScript (Node.js) | `better-sqlite3` |
-| LSP client | Inline (skill layer) | JSON-RPC via agent tools | None (hand-rolled) |
-| Language servers | Child processes | Various | Per language |
-| Brain files | Filesystem | Markdown + JSON | None |
-| SQLite index | Managed by server | Binary (rebuildable) | None |
-
-Total system: ~300 lines JS + ~1,400 lines markdown. One npm dependency.
+| Component | Process | Language | Lines | Dependencies |
+|---|---|---|---|---|
+| Skill layer | Your AI CLI | Markdown | ~1,400 | None |
+| Search server | Background (auto-start) | JavaScript | ~300 | `better-sqlite3` |
+| LSP client | Inline (skill) | JSON-RPC | — | None (hand-rolled) |
+| Language servers | Child processes | Various | — | Per language |
+| Brain files | Filesystem | Markdown + JSON | — | None |
+| SQLite index | Server-managed | Binary | — | Rebuildable |
