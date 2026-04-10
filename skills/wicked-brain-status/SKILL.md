@@ -78,8 +78,64 @@ Depth 0 plus:
 - List the top 10 most common tags
 - Flag any staleness warnings (sources modified after last ingest)
 
+**Convergence Debt:**
+Detect chunks that are frequently accessed but have never been compiled into wiki articles:
+
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"candidates","params":{"mode":"promote","limit":50}}'
+```
+
+For each result where `access_count >= 5` and `session_diversity >= 3`, check whether any wiki article references it. Use the Grep tool on `{brain_path}/wiki/` searching for the chunk path string. If no wiki article references it, flag it as convergence debt:
+
+```
+⚠ Convergence debt: {path} (accessed {access_count} times across {session_diversity} sessions, no wiki citation)
+```
+
+If any convergence debt exists, suggest running `wicked-brain:compile` to promote high-value chunks.
+
+**Contradiction Hotspots:**
+Detect path prefixes that concentrate multiple contradictions:
+
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"contradictions","params":{}}'
+```
+
+Group the returned contradiction links by path prefix: take the first two path segments of each linked path (e.g., a path `chunks/extracted/auth/session.md` yields prefix `chunks/extracted/auth/`). If any prefix has 2 or more contradiction links, flag it as a hotspot:
+
+```
+⚠ Contradiction hotspot: {prefix} ({N} contradictions) — consider dispatching wicked-brain:compile or manual review
+```
+
 **Depth 2:**
 Depth 1 plus:
 - Read `_meta/log.jsonl` fully for recent activity (last 7 days)
 - List coverage gaps (chunks with no wiki article referencing them)
 - Full linked brain details
+
+**Link Health (Depth 2 only):**
+Check link integrity and surface knowledge gaps using two additional API calls.
+
+Get link health:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"link_health","params":{}}'
+```
+
+Report:
+- Total links checked and number of broken links
+- Links with confidence below 0.5 (low confidence links)
+- Average confidence score across all links
+
+Get recent search misses:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search_misses","params":{"limit":20}}'
+```
+
+Report the top recurring search miss queries to identify knowledge gaps. If a query appears multiple times, that topic is a strong candidate for ingestion or wiki article creation.

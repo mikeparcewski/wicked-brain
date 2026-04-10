@@ -69,6 +69,10 @@ const actions = {
   access_log: (p) => db.accessLog(p.id),
   recent_memories: (p) => ({ memories: db.recentMemories(p) }),
   contradictions: () => ({ links: db.contradictions() }),
+  confirm_link: (p) => db.confirmLink(p.source_id, p.target_path, p.verdict),
+  link_health: () => db.linkHealth(),
+  tag_frequency: () => ({ tags: db.tagFrequency() }),
+  search_misses: (p) => ({ misses: db.searchMisses(p) }),
   // LSP actions
   "lsp-health": () => lsp.health(),
   "lsp-symbols": (p) => lsp.symbols(p),

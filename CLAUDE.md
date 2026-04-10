@@ -56,7 +56,7 @@ Two components:
 
 Single endpoint: `POST http://localhost:{port}/api`
 
-Actions: `health`, `search`, `federated_search`, `index`, `remove`, `reindex`, `backlinks`, `forward_links`, `stats`
+Actions: `health`, `search`, `federated_search`, `index`, `remove`, `reindex`, `backlinks`, `forward_links`, `stats`, `candidates`, `access_log`, `recent_memories`, `contradictions`, `confirm_link`, `link_health`, `tag_frequency`, `search_misses`
 
 ## Testing
 

@@ -80,6 +80,58 @@ For each wiki article with source_hashes in frontmatter:
 ### Missing frontmatter
 Check each chunk has required frontmatter fields (source, chunk_id, confidence, indexed_at).
 
+### Tag synonym candidates
+
+Call the server to get all tag frequencies:
+
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"tag_frequency","params":{}}'
+```
+
+The response contains `tags: [{tag, count}]`. Identify potential synonyms:
+
+1. **Substring pairs**: if tag A is a substring of tag B (e.g., "auth" is a substring
+   of "authentication"), they may be synonyms. Flag pairs where both appear in the brain.
+
+2. **Edit distance ≤ 2**: tags that differ by at most 2 character insertions, deletions,
+   or substitutions (e.g., "authentification" vs "authentication") may be typos or synonyms.
+
+For each candidate pair, report as `info` severity with type `synonym_candidate`:
+- **path**: `_meta` (brain-level issue, not file-specific)
+- **message**: `Possible synonym: "{tagA}" ({countA} uses) and "{tagB}" ({countB} uses) — consider merging`
+- **fix**: `Run wicked-brain:retag to consolidate tags`
+
+Only report pairs where both tags have at least 1 use.
+
+### Link confidence report
+
+Call the server for link health:
+
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"link_health","params":{}}'
+```
+
+The response contains:
+- `broken_links`: count of links whose target is not in the index
+- `low_confidence_links`: count of links with confidence < 0.3
+- `total_links`: total link count
+- `avg_confidence`: average confidence across all links
+
+Report findings:
+
+- If `broken_links > 0`: severity `error`, type `broken_link`:
+  `{broken_links} links point to targets not in the index. Use wicked-brain:search to verify targets.`
+
+- If `low_confidence_links > 0`: severity `warning`, type `low_confidence`:
+  `{low_confidence_links} links have confidence < 0.3. Use wicked-brain:confirm to evaluate them.`
+
+- Always include summary stats in the report:
+  `Total links: {total_links}, avg confidence: {avg_confidence:.2f}`
+
 ## Pass 2: Semantic analysis
 
 Read a sample of chunks and wiki articles. Check:

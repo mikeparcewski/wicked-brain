@@ -62,8 +62,10 @@ Skills are SKILL.md files installed into your CLI's skills directory by the inst
 graph LR
     subgraph Inline["Inline (runs in conversation)"]
         read["wicked-brain:read<br/>progressive depth 0/1/2"]
-        status["wicked-brain:status<br/>health + stats"]
+        status["wicked-brain:status<br/>health + convergence debt + hotspots"]
         memory["wicked-brain:memory<br/>working/episodic/semantic tiers"]
+        confirm["wicked-brain:confirm<br/>strengthen/weaken link confidence"]
+        synonyms["wicked-brain:synonyms<br/>manage search synonym map"]
         init["wicked-brain:init<br/>setup + fires onboard agent"]
         server["wicked-brain:server<br/>start/check/stop"]
         configure["wicked-brain:configure<br/>writes CLAUDE.md / GEMINI.md"]
@@ -74,10 +76,10 @@ graph LR
 
     subgraph Subagent["Subagent (isolated worker)"]
         ingest["wicked-brain:ingest<br/>chunk + index source files"]
-        search["wicked-brain:search<br/>parallel per-brain workers"]
-        compile["wicked-brain:compile<br/>synthesize wiki articles"]
+        search["wicked-brain:search<br/>synonym expansion + parallel search"]
+        compile["wicked-brain:compile<br/>persona-driven synthesis + consensus"]
         query["wicked-brain:query<br/>search → read → answer"]
-        lint["wicked-brain:lint<br/>broken links · orphans · gaps"]
+        lint["wicked-brain:lint<br/>links · orphans · confidence · synonyms"]
         enhance["wicked-brain:enhance<br/>fill gaps with inferred content"]
         retag["wicked-brain:retag<br/>backfill synonym tags"]
     end
@@ -106,6 +108,11 @@ A Node.js HTTP server (~300 lines) with a single `POST /api` endpoint. One runti
 | `stats` | `brain_id` | Doc counts, index size, last activity |
 | `candidates` | `brain_id, mode` | Docs for promotion (`high-access`) or archival (`zero-access`) |
 | `recentMemories` | `brain_id, days` | Memory-tier docs from last N days |
+| `contradictions` | — | All `contradicts` typed links |
+| `confirm_link` | `source_id, target_path, verdict` | Adjust link confidence (+0.1 confirm / -0.2 contradict) |
+| `link_health` | — | Broken links, low-confidence links, avg confidence |
+| `tag_frequency` | — | Tag counts from document frontmatter |
+| `search_misses` | `limit, since` | Queries that returned zero results |
 | `schemaVersion` | — | Current schema version integer |
 
 ### SQLite Schema
@@ -132,12 +139,19 @@ erDiagram
         TEXT target_path
         TEXT target_brain
         TEXT link_text
-        TEXT link_type
+        TEXT rel
+        REAL confidence "DEFAULT 0.5"
+        INTEGER evidence_count "DEFAULT 0"
     }
     access_log {
         TEXT doc_id FK
         TEXT session_id
-        TEXT accessed_at
+        INTEGER accessed_at
+    }
+    search_misses {
+        TEXT query
+        INTEGER searched_at
+        TEXT session_id
     }
 
     documents ||--o{ links : "has"
@@ -147,9 +161,11 @@ erDiagram
 
 **Notes:**
 - `documents_fts` uses `fts5` with `tokenize='porter unicode61'` for stemmed full-text search
-- `links.link_type` is `null` for standard `[[wikilinks]]`, non-null for typed relationships (`supersedes`, `related-to`, etc.)
+- `links.rel` is `null` for standard `[[wikilinks]]`, non-null for typed relationships (`contradicts`, `supersedes`, `supports`, `caused-by`, `extends`, `depends-on`, `questions`)
+- `links.confidence` starts at 0.5, increases with `confirm_link` confirmations (+0.1), decreases with contradictions (-0.2), clamped to [0.0, 1.0]
 - `access_log` drives session diversity ranking — documents accessed this session are deprioritized in favor of unseen related content
-- Schema is versioned; migrations run automatically on server start — existing databases upgrade without manual intervention
+- `search_misses` tracks queries that returned zero results, enabling synonym auto-suggestion
+- Schema is versioned (currently v2); migrations run automatically on server start — existing databases upgrade without manual intervention
 
 ### File Watcher
 

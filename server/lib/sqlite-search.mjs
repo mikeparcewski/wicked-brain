@@ -24,6 +24,9 @@ function escapeFtsQuery(query) {
 /** Weight factor for backlink count in search ranking (PageRank-lite). */
 const BACKLINK_WEIGHT = 0.5;
 
+/** Weight factor for average backlink confidence in search ranking. */
+const CONFIDENCE_WEIGHT = 0.3;
+
 /** Weight factor for access count in search ranking. */
 const SEARCH_ACCESS_WEIGHT = 0.1;
 
@@ -73,7 +76,9 @@ export class SqliteSearch {
         target_path TEXT NOT NULL,
         target_brain TEXT,
         rel TEXT,
-        link_text TEXT
+        link_text TEXT,
+        confidence REAL DEFAULT 0.5,
+        evidence_count INTEGER DEFAULT 0
       );
 
       CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_id);
@@ -86,6 +91,12 @@ export class SqliteSearch {
       );
       CREATE INDEX IF NOT EXISTS idx_access_doc ON access_log(doc_id);
       CREATE INDEX IF NOT EXISTS idx_access_session ON access_log(session_id);
+
+      CREATE TABLE IF NOT EXISTS search_misses (
+        query TEXT NOT NULL,
+        searched_at INTEGER NOT NULL,
+        session_id TEXT
+      );
     `);
 
     this.#migrate();
@@ -124,8 +135,23 @@ export class SqliteSearch {
       currentVersion = 1;
     }
 
-    // Future migrations go here:
-    // if (currentVersion < 2) { ... currentVersion = 2; }
+    // Migration 2: add confidence + evidence_count to links, add search_misses table
+    if (currentVersion < 2) {
+      try { this.#db.prepare(`SELECT confidence FROM links LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE links ADD COLUMN confidence REAL DEFAULT 0.5`);
+      }
+      try { this.#db.prepare(`SELECT evidence_count FROM links LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE links ADD COLUMN evidence_count INTEGER DEFAULT 0`);
+      }
+      this.#db.exec(`
+        CREATE TABLE IF NOT EXISTS search_misses (
+          query TEXT NOT NULL,
+          searched_at INTEGER NOT NULL,
+          session_id TEXT
+        )
+      `);
+      currentVersion = 2;
+    }
 
     // Persist the current version
     this.#db.exec(`DELETE FROM _schema_version`);
@@ -221,7 +247,8 @@ export class SqliteSearch {
           snippet(documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet,
           SUBSTR(d.content, 1, 1000) AS raw_content,
           COALESCE(link_count.cnt, 0) AS backlink_count,
-          COALESCE(ac.cnt, 0) AS access_count
+          COALESCE(ac.cnt, 0) AS access_count,
+          COALESCE(link_conf.avg_conf, 0.5) AS avg_backlink_confidence
         FROM documents_fts f
         JOIN documents d ON d.id = f.id
         LEFT JOIN (
@@ -230,13 +257,18 @@ export class SqliteSearch {
           GROUP BY target_path
         ) link_count ON d.path = link_count.target_path
         LEFT JOIN (
+          SELECT target_path, AVG(confidence) AS avg_conf
+          FROM links
+          GROUP BY target_path
+        ) link_conf ON d.path = link_conf.target_path
+        LEFT JOIN (
           SELECT doc_id, COUNT(*) AS cnt
           FROM access_log
           GROUP BY doc_id
         ) ac ON d.id = ac.doc_id
         WHERE documents_fts MATCH ?
         ${sinceClause}
-        ORDER BY (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}) - (COALESCE(ac.cnt, 0) * ${SEARCH_ACCESS_WEIGHT}))
+        ORDER BY (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}) - (COALESCE(ac.cnt, 0) * ${SEARCH_ACCESS_WEIGHT}) - (COALESCE(link_conf.avg_conf, 0.5) * ${CONFIDENCE_WEIGHT}))
         LIMIT ? OFFSET ?
       `)
       .all(escaped, ...sinceParams, limit, offset)
@@ -256,6 +288,13 @@ export class SqliteSearch {
       .get(escaped, ...sinceParams);
 
     const total_matches = countRow ? countRow.cnt : 0;
+
+    // Log search miss when no results returned
+    if (total_matches === 0) {
+      this.#db.prepare(
+        `INSERT INTO search_misses (query, searched_at, session_id) VALUES (?, ?, ?)`
+      ).run(query, Date.now(), session_id ?? null);
+    }
 
     // Log access for each returned document if session_id provided
     if (session_id && rows.length > 0) {
@@ -474,6 +513,150 @@ export class SqliteSearch {
         WHERE rel = 'contradicts'
       `)
       .all();
+  }
+
+  /**
+   * Confirm or contradict a link, adjusting its confidence score.
+   * verdict: "confirm" → confidence += 0.1 (capped at 1.0)
+   * verdict: "contradict" → confidence -= 0.2 (floored at 0.0)
+   * Returns the updated link row, or null if no matching link was found.
+   */
+  confirmLink(sourceId, targetPath, verdict) {
+    const link = this.#db.prepare(`
+      SELECT rowid, confidence, evidence_count
+      FROM links
+      WHERE source_id = ? AND target_path = ?
+      LIMIT 1
+    `).get(sourceId, targetPath);
+
+    if (!link) return null;
+
+    let newConfidence;
+    if (verdict === "confirm") {
+      newConfidence = Math.min(link.confidence + 0.1, 1.0);
+    } else if (verdict === "contradict") {
+      newConfidence = Math.max(link.confidence - 0.2, 0.0);
+    } else {
+      throw new Error(`Unknown verdict: ${verdict}. Expected "confirm" or "contradict".`);
+    }
+
+    this.#db.prepare(`
+      UPDATE links
+      SET confidence = ?, evidence_count = evidence_count + 1
+      WHERE rowid = ?
+    `).run(newConfidence, link.rowid);
+
+    return this.#db.prepare(`
+      SELECT source_id, target_path, confidence, evidence_count
+      FROM links
+      WHERE rowid = ?
+    `).get(link.rowid);
+  }
+
+  /**
+   * Returns link health statistics for the lint skill.
+   * - broken_links: links where target_path doesn't exist in documents table
+   * - low_confidence_links: links where confidence < 0.3
+   * - total_links: total link count
+   * - avg_confidence: average confidence across all links
+   */
+  linkHealth() {
+    const totalsRow = this.#db.prepare(`
+      SELECT COUNT(*) AS total_links, AVG(confidence) AS avg_confidence
+      FROM links
+    `).get();
+
+    const brokenRow = this.#db.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM links l
+      WHERE NOT EXISTS (
+        SELECT 1 FROM documents d WHERE d.path = l.target_path
+      )
+    `).get();
+
+    const lowConfRow = this.#db.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM links
+      WHERE confidence < 0.3
+    `).get();
+
+    return {
+      total_links: totalsRow.total_links ?? 0,
+      avg_confidence: totalsRow.avg_confidence ?? null,
+      broken_links: brokenRow.cnt ?? 0,
+      low_confidence_links: lowConfRow.cnt ?? 0,
+    };
+  }
+
+  /**
+   * Returns tag frequency data for synonym detection.
+   * Parses frontmatter from all documents and extracts `contains` arrays.
+   * Returns [{tag, count}] sorted by count descending.
+   */
+  tagFrequency() {
+    const rows = this.#db.prepare(`
+      SELECT frontmatter FROM documents WHERE frontmatter IS NOT NULL
+    `).all();
+
+    const counts = new Map();
+
+    for (const row of rows) {
+      const fm = row.frontmatter;
+      // Match: contains: tag1 tag2 tag3  (space-separated inline)
+      // or contains: ["tag1","tag2"]  (JSON array)
+      // or multi-line YAML list (- tag per line)
+      // Note: \S required after contains: to avoid matching block-list headers
+      const inlineMatch = fm.match(/^contains:[ \t]+(\S.*)$/m);
+      if (inlineMatch) {
+        const raw = inlineMatch[1].trim();
+        let tags = [];
+        // Try JSON array first
+        if (raw.startsWith("[")) {
+          try {
+            tags = JSON.parse(raw).map(String);
+          } catch {
+            tags = raw.replace(/[\[\]"]/g, "").split(/[\s,]+/).filter(Boolean);
+          }
+        } else {
+          tags = raw.split(/\s+/).filter(Boolean);
+        }
+        for (const tag of tags) {
+          counts.set(tag, (counts.get(tag) ?? 0) + 1);
+        }
+      }
+
+      // Also handle YAML block list: lines starting with "  - tag" after "contains:"
+      const blockMatch = fm.match(/^contains:\s*\n((?:\s+-\s+.+\n?)+)/m);
+      if (!inlineMatch && blockMatch) {
+        const listLines = blockMatch[1].match(/^\s+-\s+(.+)$/gm) || [];
+        for (const line of listLines) {
+          const tag = line.replace(/^\s+-\s+/, "").trim();
+          if (tag) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+        }
+      }
+    }
+
+    return Array.from(counts.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  /**
+   * Retrieve logged search misses.
+   * @param {object} opts
+   * @param {number} [opts.limit=50]
+   * @param {string} [opts.since] - ISO 8601 timestamp
+   */
+  searchMisses({ limit = 50, since = null } = {}) {
+    const sinceClause = since ? `WHERE searched_at >= ?` : "";
+    const sinceParams = since ? [new Date(since).getTime()] : [];
+    return this.#db.prepare(`
+      SELECT query, searched_at, session_id
+      FROM search_misses
+      ${sinceClause}
+      ORDER BY searched_at DESC
+      LIMIT ?
+    `).all(...sinceParams, limit);
   }
 
   close() {

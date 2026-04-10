@@ -401,6 +401,279 @@ a scoped context with only the fields relevant to their domain.`;
   }
 });
 
+// --- confirmLink tests ---
+
+test("confirmLink with confirm increases confidence and evidence_count", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "src", path: "src.md", content: "See [[target.md]] for details" });
+
+    const updated = db.confirmLink("src", "target.md", "confirm");
+    assert.ok(updated !== null, "should return updated link");
+    assert.ok(updated.confidence > 0.5, "confidence should increase above default 0.5");
+    assert.equal(updated.evidence_count, 1, "evidence_count should be 1");
+    assert.equal(updated.confidence, 0.6);
+  } finally {
+    db.close();
+  }
+});
+
+test("confirmLink with contradict decreases confidence", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "src", path: "src.md", content: "See [[target.md]] for details" });
+
+    const updated = db.confirmLink("src", "target.md", "contradict");
+    assert.ok(updated !== null, "should return updated link");
+    assert.ok(updated.confidence < 0.5, "confidence should decrease below default 0.5");
+    assert.equal(updated.confidence, 0.3);
+    assert.equal(updated.evidence_count, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("confirmLink clamps confidence to [0.0, 1.0]", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "src", path: "src.md", content: "See [[target.md]] for details" });
+
+    // Drive confidence to maximum
+    for (let i = 0; i < 10; i++) {
+      db.confirmLink("src", "target.md", "confirm");
+    }
+    const high = db.confirmLink("src", "target.md", "confirm");
+    assert.equal(high.confidence, 1.0, "confidence should be clamped at 1.0");
+
+    // Drive confidence to minimum
+    for (let i = 0; i < 10; i++) {
+      db.confirmLink("src", "target.md", "contradict");
+    }
+    const low = db.confirmLink("src", "target.md", "contradict");
+    assert.equal(low.confidence, 0.0, "confidence should be clamped at 0.0");
+  } finally {
+    db.close();
+  }
+});
+
+test("confirmLink returns null for non-existent link", () => {
+  const db = makeDb();
+  try {
+    const result = db.confirmLink("nonexistent", "also-nonexistent.md", "confirm");
+    assert.equal(result, null);
+  } finally {
+    db.close();
+  }
+});
+
+// --- linkHealth tests ---
+
+test("linkHealth returns correct broken link count", () => {
+  const db = makeDb();
+  try {
+    // doc-a links to doc-b (which exists) and to ghost.md (which does NOT exist)
+    db.index({ id: "doc-a", path: "doc-a.md", content: "See [[doc-b.md]] and [[ghost.md]]" });
+    db.index({ id: "doc-b", path: "doc-b.md", content: "I exist" });
+
+    const health = db.linkHealth();
+    assert.equal(health.total_links, 2);
+    assert.equal(health.broken_links, 1, "only ghost.md is broken");
+    assert.ok(typeof health.avg_confidence === "number");
+    assert.ok(health.avg_confidence >= 0 && health.avg_confidence <= 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("linkHealth reports low_confidence_links correctly", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "src", path: "src.md", content: "See [[target.md]]" });
+
+    // Drive confidence below 0.3
+    db.confirmLink("src", "target.md", "contradict");
+    db.confirmLink("src", "target.md", "contradict");
+
+    const health = db.linkHealth();
+    assert.equal(health.low_confidence_links, 1);
+  } finally {
+    db.close();
+  }
+});
+
+// --- tagFrequency tests ---
+
+test("tagFrequency counts inline space-separated tags", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "d1", path: "chunks/a.md", content: "Body", frontmatter: "contains: foo bar foo" });
+    db.index({ id: "d2", path: "chunks/b.md", content: "Body", frontmatter: "contains: bar baz" });
+
+    const tags = db.tagFrequency();
+    const fooEntry = tags.find((t) => t.tag === "foo");
+    const barEntry = tags.find((t) => t.tag === "bar");
+    const bazEntry = tags.find((t) => t.tag === "baz");
+    assert.equal(fooEntry.count, 2, "foo appears in 2 docs (once per doc)");
+    assert.equal(barEntry.count, 2, "bar appears in 2 docs");
+    assert.equal(bazEntry.count, 1, "baz appears in 1 doc");
+  } finally {
+    db.close();
+  }
+});
+
+test("tagFrequency parses JSON array contains", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "d1", path: "chunks/a.md", content: "Body", frontmatter: 'contains: ["alpha","beta"]' });
+
+    const tags = db.tagFrequency();
+    const alphaEntry = tags.find((t) => t.tag === "alpha");
+    const betaEntry = tags.find((t) => t.tag === "beta");
+    assert.ok(alphaEntry, "alpha tag should be present");
+    assert.ok(betaEntry, "beta tag should be present");
+    assert.equal(alphaEntry.count, 1);
+    assert.equal(betaEntry.count, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("tagFrequency parses YAML block list", () => {
+  const db = makeDb();
+  try {
+    const fm = "name: test\ncontains:\n  - tag1\n  - tag2\n  - tag1\n";
+    db.index({ id: "d1", path: "chunks/a.md", content: "Body", frontmatter: fm });
+
+    const tags = db.tagFrequency();
+    const t1 = tags.find((t) => t.tag === "tag1");
+    const t2 = tags.find((t) => t.tag === "tag2");
+    assert.ok(t1, "tag1 should be present");
+    assert.ok(t2, "tag2 should be present");
+    assert.equal(t1.count, 2, "tag1 appears twice in block list");
+    assert.equal(t2.count, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("tagFrequency returns empty array when no frontmatter", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "d1", path: "chunks/a.md", content: "No frontmatter here" });
+
+    const tags = db.tagFrequency();
+    assert.ok(Array.isArray(tags));
+    assert.equal(tags.length, 0);
+  } finally {
+    db.close();
+  }
+});
+
+// --- confirmLink edge case tests ---
+
+test("confirmLink throws on unknown verdict", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "src", path: "src.md", content: "See [[target.md]]" });
+
+    assert.throws(
+      () => db.confirmLink("src", "target.md", "maybe"),
+      { message: /Unknown verdict: maybe/ }
+    );
+  } finally {
+    db.close();
+  }
+});
+
+// --- linkHealth edge case tests ---
+
+test("linkHealth on empty db returns null avg_confidence and zero counts", () => {
+  const db = makeDb();
+  try {
+    const health = db.linkHealth();
+    assert.equal(health.total_links, 0);
+    assert.equal(health.avg_confidence, null);
+    assert.equal(health.broken_links, 0);
+    assert.equal(health.low_confidence_links, 0);
+  } finally {
+    db.close();
+  }
+});
+
+// --- searchMisses tests ---
+
+test("searchMisses logs when search returns 0 results", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "doc1", path: "doc1.md", content: "Hello world content" });
+
+    db.search({ query: "xyznonexistentterm" });
+
+    const { misses } = { misses: db.searchMisses() };
+    assert.equal(misses.length, 1);
+    assert.equal(misses[0].query, "xyznonexistentterm");
+  } finally {
+    db.close();
+  }
+});
+
+test("searchMisses since parameter filters by timestamp", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "doc1", path: "doc1.md", content: "Hello world content" });
+
+    // Generate a miss
+    db.search({ query: "xyzoldmiss" });
+
+    const cutoff = new Date(Date.now() + 1).toISOString();
+    const start = Date.now();
+    while (Date.now() - start < 5) { /* wait 5ms */ }
+
+    // Generate a newer miss
+    db.search({ query: "xyznewmiss" });
+
+    // Without since, both should appear
+    const all = db.searchMisses();
+    assert.equal(all.length, 2);
+
+    // With since, only the newer miss should appear
+    const recent = db.searchMisses({ since: cutoff });
+    assert.equal(recent.length, 1);
+    assert.equal(recent[0].query, "xyznewmiss");
+  } finally {
+    db.close();
+  }
+});
+
+test("searchMisses records session_id from search call", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "doc1", path: "doc1.md", content: "Hello world content" });
+
+    db.search({ query: "xyznonexistentterm", session_id: "sess-abc" });
+
+    const misses = db.searchMisses();
+    assert.equal(misses.length, 1);
+    assert.equal(misses[0].session_id, "sess-abc");
+  } finally {
+    db.close();
+  }
+});
+
+test("searchMisses does NOT log when results exist", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "doc1", path: "doc1.md", content: "Hello world content" });
+
+    db.search({ query: "hello" });
+
+    const misses = db.searchMisses();
+    assert.equal(misses.length, 0, "no miss should be logged when results are found");
+  } finally {
+    db.close();
+  }
+});
+
 // --- Migration tests ---
 
 test("schemaVersion returns current version for new database", () => {
@@ -453,6 +726,59 @@ test("migration upgrades a v0 database to current schema", () => {
       // schema version should be current
       const version = db.schemaVersion();
       assert.ok(version >= 1, "Schema version should be set after migration");
+    } finally {
+      db.close();
+    }
+  } finally {
+    try { unlinkSync(tmpPath); } catch {}
+    try { unlinkSync(tmpPath + "-wal"); } catch {}
+    try { unlinkSync(tmpPath + "-shm"); } catch {}
+  }
+});
+
+test("migration 2 upgrades a v1 database to add confidence and evidence_count columns", () => {
+  const tmpPath = join(tmpdir(), `wicked-brain-migration2-test-${Date.now()}.db`);
+  try {
+    // Create a v1 database: has rel column but NOT confidence/evidence_count
+    const v1 = new Database(tmpPath);
+    v1.exec(`
+      CREATE TABLE documents (
+        id TEXT PRIMARY KEY, path TEXT NOT NULL, content TEXT NOT NULL,
+        frontmatter TEXT, brain_id TEXT NOT NULL, indexed_at INTEGER NOT NULL
+      );
+      CREATE VIRTUAL TABLE documents_fts USING fts5(id, path, content, brain_id, tokenize='porter unicode61');
+      CREATE TABLE links (
+        source_id TEXT NOT NULL, source_brain TEXT NOT NULL,
+        target_path TEXT NOT NULL, target_brain TEXT, rel TEXT, link_text TEXT
+      );
+      CREATE INDEX idx_links_source ON links(source_id);
+      CREATE INDEX idx_links_target ON links(target_path);
+      CREATE TABLE access_log (
+        doc_id TEXT NOT NULL, session_id TEXT NOT NULL, accessed_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_access_doc ON access_log(doc_id);
+      CREATE INDEX idx_access_session ON access_log(session_id);
+      CREATE TABLE _schema_version (version INTEGER NOT NULL);
+    `);
+    v1.prepare(`INSERT INTO _schema_version (version) VALUES (?)`).run(1);
+    v1.close();
+
+    // Open with SqliteSearch — should run migration 2
+    const db = new SqliteSearch(tmpPath, "test-brain");
+    try {
+      const version = db.schemaVersion();
+      assert.equal(version, 2, "Schema version should be 2 after migration");
+
+      // confidence and evidence_count should exist — confirmLink should work
+      db.index({ id: "t1", path: "t1.md", content: "See [[target.md]]" });
+      const updated = db.confirmLink("t1", "target.md", "confirm");
+      assert.ok(updated !== null, "confirmLink should work after migration 2");
+      assert.equal(updated.confidence, 0.6);
+
+      // search_misses table should exist
+      db.search({ query: "xyznonexistent99" });
+      const misses = db.searchMisses();
+      assert.equal(misses.length, 1, "search_misses table should exist after migration 2");
     } finally {
       db.close();
     }

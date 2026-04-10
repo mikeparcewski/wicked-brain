@@ -37,6 +37,25 @@ If it doesn't exist, trigger wicked-brain:init.
 
 ## Process
 
+### Step 0: Load synonyms (optional)
+
+Check if `{brain_path}/_meta/synonyms.json` exists using the Read tool.
+If it exists, parse it. Format:
+```json
+{
+  "jwt": ["json web token", "auth token"],
+  "auth": ["authentication", "authorization"],
+  "k8s": ["kubernetes"]
+}
+```
+
+When searching, expand the query: if any word in the query matches a synonym key,
+add the synonym values as additional OR terms.
+
+Example: query "jwt validation" → search for "jwt validation" first, then also
+search for "json web token validation" and "auth token validation" if initial
+results are sparse (fewer than 3 results).
+
 ### Step 1: Discover brains to search
 
 Use the Read tool on `{brain_path}/brain.json` to get parents and links.
@@ -101,7 +120,21 @@ After all subagents return:
 3. Sort by score descending
 4. Tag each result with its brain origin
 
-### Step 4: Return at requested depth
+### Step 4: Log search miss (if applicable)
+
+If the merged results have 0 matches across all brains, the query is a "search miss."
+Log it so the brain can learn:
+```bash
+curl -s -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search_misses","params":{"query":"{original_query}","session_id":"{session_id}"}}'
+```
+
+Note: This logging happens server-side automatically when search returns 0 results.
+The explicit call here is only needed if synonym-expanded searches found results
+but the original query did not.
+
+### Step 5: Return at requested depth
 
 **Depth 0 (default):**
 ```

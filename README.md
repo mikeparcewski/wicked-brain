@@ -33,6 +33,7 @@ Your documents  ──>  Structured chunks  ──>  Synthesized wiki  ──>  
 
 - **Chunks** are source-faithful extractions with rich metadata (entities, themes, tags)
 - **Wiki articles** are LLM-synthesized concepts with `[[backlinks]]` to source chunks
+- **Links carry confidence** — confirmed connections rank higher, contradictions surface for review
 - **Every claim traces back** to a specific file you can read, edit, or delete
 
 The brain is plain markdown on your filesystem. Open it in Obsidian, VS Code, or `cat`. No black box.
@@ -117,7 +118,7 @@ Every operation uses **progressive loading** — the agent never pulls more than
 | **Connections** | None (just similarity scores) | Explicit `[[backlinks]]` between concepts |
 | **Auditability** | Low (why did it retrieve this?) | High (every claim links to a source file) |
 | **Infrastructure** | Vector DB + embedding pipeline + retrieval service | One SQLite file + markdown |
-| **Maintenance** | Re-embed on changes, tune thresholds | Agent self-heals via lint and enhance |
+| **Maintenance** | Re-embed on changes, tune thresholds | Agent self-heals via lint, enhance, and confidence tracking |
 | **Cost to start** | Embedding API calls for entire corpus | Zero (deterministic chunking is free) |
 | **Ideal scale** | Millions of documents | 100 - 10,000 high-signal documents |
 
@@ -131,10 +132,12 @@ Every operation uses **progressive loading** — the agent never pulls more than
 | `wicked-brain:read` | Progressive loading: depth 0 (stats), depth 1 (summary), depth 2 (full content) |
 | `wicked-brain:query` | Answer questions with source citations |
 | `wicked-brain:compile` | Synthesize wiki articles from chunks |
-| `wicked-brain:lint` | Find broken links, orphan chunks, inconsistencies; auto-fix where possible |
+| `wicked-brain:lint` | Find broken links, orphan chunks, inconsistencies, tag synonyms, low-confidence links; auto-fix where possible |
 | `wicked-brain:enhance` | Identify and fill knowledge gaps with inferred content |
 | `wicked-brain:memory` | Store and recall experiential learnings across sessions (working / episodic / semantic tiers) |
-| `wicked-brain:status` | Brain health, stats, orientation |
+| `wicked-brain:status` | Brain health, stats, convergence debt detection, contradiction hotspots |
+| `wicked-brain:confirm` | Confirm or contradict a brain link — adjusts confidence score and tracks evidence |
+| `wicked-brain:synonyms` | Manage search synonym mappings; auto-suggest from search misses and tag frequency |
 | `wicked-brain:server` | Manage the background search server (auto-triggered) |
 | `wicked-brain:configure` | Write brain-aware context into your CLI's config (CLAUDE.md, GEMINI.md, etc.) |
 | `wicked-brain:batch` | Generate scripts for bulk operations — avoids burning context on repetitive tool calls |

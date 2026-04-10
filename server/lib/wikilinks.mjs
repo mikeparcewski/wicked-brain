@@ -7,6 +7,7 @@ const KNOWN_RELS = new Set([
   "caused-by",
   "extends",
   "depends-on",
+  "questions",
 ]);
 
 export function parseWikilinks(text) {

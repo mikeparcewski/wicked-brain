@@ -54,7 +54,7 @@ test("parses typed relationship links", () => {
 });
 
 test("parses all known relationship types", () => {
-  const rels = ["contradicts", "supersedes", "supports", "caused-by", "extends", "depends-on"];
+  const rels = ["contradicts", "supersedes", "supports", "caused-by", "extends", "depends-on", "questions"];
   for (const rel of rels) {
     const result = parseWikilinks(`[[${rel}::some/target]]`);
     assert.equal(result.length, 1, `should parse ${rel} link`);
@@ -62,6 +62,17 @@ test("parses all known relationship types", () => {
     assert.equal(result[0].path, "some/target");
     assert.equal(result[0].brain, null);
   }
+});
+
+test("parses questions typed link", () => {
+  const result = parseWikilinks("This [[questions::wiki/concepts/tradeoff]] raises a concern.");
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0], {
+    brain: null,
+    path: "wiki/concepts/tradeoff",
+    rel: "questions",
+    raw: "[[questions::wiki/concepts/tradeoff]]",
+  });
 });
 
 test("distinguishes typed links from cross-brain links", () => {
