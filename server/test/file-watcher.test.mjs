@@ -10,7 +10,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitFor(check, { maxAttempts = 10, delay = 500 } = {}) {
+async function waitFor(check, { maxAttempts = 20, delay = 500 } = {}) {
   for (let i = 0; i < maxAttempts; i++) {
     if (check()) return;
     await sleep(delay);

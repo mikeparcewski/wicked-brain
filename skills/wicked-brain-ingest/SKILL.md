@@ -25,7 +25,7 @@ For the brain path default:
 
 ## Config
 
-Read `_meta/config.json` for brain path and server port.
+Read `{brain_path}/_meta/config.json` for brain path and server port.
 If it doesn't exist, trigger wicked-brain:init.
 
 ## Parameters
@@ -33,6 +33,20 @@ If it doesn't exist, trigger wicked-brain:init.
 - **source** (required): path to a file or directory to ingest
 
 ## Process
+
+### Step 0: Ensure server is running
+
+Before doing anything else, health-check the server:
+
+```bash
+curl -s -f -X POST http://localhost:{port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"health","params":{}}'
+```
+
+If this fails (connection refused or non-2xx), invoke `wicked-brain:server` to start it
+before continuing. Re-read `_meta/config.json` after the server starts to get the
+actual port it bound to.
 
 ### Step 1: Assess scope
 
@@ -169,9 +183,8 @@ Instead, write a batch script and run it. This preserves context and is dramatic
 
 ```javascript
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, renameSync } from "node:fs";
 import { join, extname, basename, relative } from "node:path";
-import { createHash } from "node:crypto";
 
 const BRAIN = "{brain_path}";
 const PORT = {port};
@@ -273,7 +286,6 @@ async function removeOldChunks(name) {
     }
   }
   // Archive the old directory
-  const { renameSync } = await import("node:fs");
   renameSync(chunkDir, `${chunkDir}.archived-${ts}`);
   console.log(`  Archived old chunks: ${name}`);
 }
@@ -345,17 +357,17 @@ function walk(dir, callback) {
 
 console.log(`Ingesting from ${SOURCE_DIR}...`);
 
+// Collect files first, then process serially so every ingestFile is awaited
+const textFiles = [];
 walk(SOURCE_DIR, (filePath) => {
   const ext = extname(filePath).toLowerCase();
-  if (TEXT_EXT.has(ext)) {
-    try { ingestFile(filePath); } catch (e) { console.error(`  Error: ${filePath}: ${e.message}`); }
-  } else if (BINARY_EXT.has(ext)) {
-    binaryFiles.push(filePath);
-  }
+  if (TEXT_EXT.has(ext)) textFiles.push(filePath);
+  else if (BINARY_EXT.has(ext)) binaryFiles.push(filePath);
 });
 
-// Wait for all index operations
-await new Promise(r => setTimeout(r, 1000));
+for (const filePath of textFiles) {
+  try { await ingestFile(filePath); } catch (e) { console.error(`  Error: ${filePath}: ${e.message}`); }
+}
 
 console.log(`\nDone: ${totalFiles} files, ${totalChunks} chunks indexed`);
 if (binaryFiles.length > 0) {

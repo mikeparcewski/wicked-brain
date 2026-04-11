@@ -168,8 +168,16 @@ export class SqliteSearch {
     }
   }
 
+  /** Extract YAML frontmatter block from content if present. Returns null if none. */
+  static #extractFrontmatter(content) {
+    const m = content.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
+    return m ? m[1] : null;
+  }
+
   index(doc) {
-    const { id, path, content, frontmatter = null } = doc;
+    const { id, path, content } = doc;
+    // Auto-extract frontmatter from content when not provided explicitly
+    const frontmatter = doc.frontmatter ?? SqliteSearch.#extractFrontmatter(content);
     const brainId = this.#brainId;
     const indexedAt = Date.now();
 
@@ -639,6 +647,78 @@ export class SqliteSearch {
     return Array.from(counts.entries())
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count);
+  }
+
+  /**
+   * Symbol lookup: FTS search for a symbol name, returning structured results
+   * with file path and position extracted from chunk frontmatter.
+   * Used as fallback when no LSP server is running.
+   */
+  symbols({ name, limit = 10 }) {
+    const escaped = escapeFtsQuery(name);
+    if (!escaped) return { results: [] };
+
+    const rows = this.#db.prepare(`
+      SELECT d.id, d.path, d.frontmatter, d.content
+      FROM documents_fts f
+      JOIN documents d ON d.id = f.id
+      WHERE documents_fts MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `).all(escaped, limit * 4); // overfetch — we may skip rows with no source_path
+
+    const seen = new Set();
+    const results = [];
+
+    for (const row of rows) {
+      if (results.length >= limit) break;
+      const fm = row.frontmatter || SqliteSearch.#extractFrontmatter(row.content) || "";
+      const sourcePathMatch = fm.match(/^source_path:\s*(.+)$/m);
+      const sourcePath = sourcePathMatch ? sourcePathMatch[1].trim() : null;
+      const key = `${sourcePath ?? row.path}::${name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({
+        id: key,
+        name,
+        type: "unknown",
+        file_path: sourcePath,
+        chunk_path: row.path,
+        line_start: null,
+      });
+    }
+
+    return { results };
+  }
+
+  /**
+   * Dependent files: find all files (by source_path) that mention the given name.
+   * Purely FTS-based — no LSP required.
+   */
+  dependents({ name, limit = 20 }) {
+    const escaped = escapeFtsQuery(name);
+    if (!escaped) return { files: [] };
+
+    const rows = this.#db.prepare(`
+      SELECT d.frontmatter, d.content, d.path
+      FROM documents_fts f
+      JOIN documents d ON d.id = f.id
+      WHERE documents_fts MATCH ?
+      LIMIT ?
+    `).all(escaped, limit * 5);
+
+    const files = new Map(); // source_path → {file_path, chunk_path}
+    for (const row of rows) {
+      if (files.size >= limit) break;
+      const fm = row.frontmatter || SqliteSearch.#extractFrontmatter(row.content) || "";
+      const m = fm.match(/^source_path:\s*(.+)$/m);
+      const sourcePath = m ? m[1].trim() : null;
+      if (sourcePath && !files.has(sourcePath)) {
+        files.set(sourcePath, row.path);
+      }
+    }
+
+    return { files: [...files.keys()] };
   }
 
   /**

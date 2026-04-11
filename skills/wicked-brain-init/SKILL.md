@@ -10,7 +10,7 @@ description: |
 
 # wicked-brain:init
 
-You initialize a new digital brain on the filesystem.
+You initialize a new digital brain on the filesystem and get it fully operational.
 
 ## Cross-Platform Notes
 
@@ -38,23 +38,16 @@ Ask these questions (provide defaults):
    - Default (Windows): `%USERPROFILE%\.wicked-brain`
 2. "What should this brain be called?" — Default: directory name
 
-### Step 2: Dispatch onboard agent (fire and continue)
+### Step 2: Check for existing brain
 
-Immediately dispatch the `wicked-brain-onboard` agent for the current project — don't wait for Steps 3–6 to finish first.
+If `{brain_path}/_meta/config.json` already exists, tell the user:
+"A brain already exists at `{brain_path}`. Do you want to re-initialize it (keeps existing chunks) or pick a different path?"
 
-Pass it:
-- `brain_path`: the path confirmed in Step 1
-- `project_path`: the current working directory
-
-**Sequencing rationale:** Onboard starts with a read-only scanning phase (Glob, Grep, Read across the project). That scanning takes meaningful time. Steps 3–6 below are fast — just creating a handful of files and directories. They will complete well before onboard finishes scanning and reaches its write phase (where it needs `brain_path` dirs to exist). So it is safe to fire onboard now and proceed immediately with Steps 3–6; the brain dirs will be in place long before onboard needs them.
-
-Continue with Steps 3–6 immediately after dispatching.
+Stop and wait for their answer before continuing.
 
 ### Step 3: Create directory structure
 
-Use your native Write/mkdir tools to create these directories and files.
-
-Directories to create (create each with its parent directories):
+Use your native Write tool to create these directories (write a `.gitkeep` placeholder in each):
 - `{brain_path}/raw`
 - `{brain_path}/chunks/extracted`
 - `{brain_path}/chunks/inferred`
@@ -99,21 +92,36 @@ Write to `{brain_path}/_meta/config.json`:
 }
 ```
 
+`server_port: 4242` is the *preferred* port. The server will find a free port starting
+from this value on startup and write the actual port back to this file. You do not
+need to find a free port manually.
+
 ### Step 6: Initialize the event log
 
 Use your Write tool to create an empty file at `{brain_path}/_meta/log.jsonl`.
 
-Shell equivalents if needed:
+### Step 7: Start the server
+
+Invoke `wicked-brain:server` to start the server against this brain path.
+The server will pick a free port and write it back to `_meta/config.json`.
+
 ```bash
-# macOS/Linux
-touch {brain_path}/_meta/log.jsonl
-```
-```powershell
-# Windows PowerShell
-New-Item -ItemType File -Force -Path "{brain_path}\_meta\log.jsonl"
+npx wicked-brain-server --brain {brain_path} &
 ```
 
-### Step 7: Confirm
+Wait for the health check to confirm it's up before continuing.
+
+### Step 8: Ingest the project
+
+Invoke `wicked-brain:ingest` with:
+- `brain_path`: `{brain_path}`
+- `source`: the current working directory
+
+This indexes the project files so the brain is immediately queryable.
+
+### Step 9: Confirm
 
 Tell the user:
-"Brain initialized at `{brain_path}`. Onboarding agent is running in the background to index the project."
+"Brain `{name}` is ready at `{brain_path}` — {N} files ingested, {M} chunks indexed.
+
+Run `/wicked-brain-compile` to synthesize wiki articles from the indexed content."

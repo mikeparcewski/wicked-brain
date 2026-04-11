@@ -788,3 +788,52 @@ test("migration 2 upgrades a v1 database to add confidence and evidence_count co
     try { unlinkSync(tmpPath + "-shm"); } catch {}
   }
 });
+
+test("symbols returns FTS results with source_path from frontmatter", () => {
+  const db = makeDb();
+  try {
+    const frontmatter = `---\nsource: UserEntity.java\nsource_path: /src/main/UserEntity.java\nsource_type: java\ncontains:\n  - entity\n---`;
+    db.index({ id: "chunks/extracted/UserEntity/chunk-001.md", path: "chunks/extracted/UserEntity/chunk-001.md", content: `${frontmatter}\n\npublic class UserEntity { String email; }` });
+    db.index({ id: "chunks/extracted/OrderEntity/chunk-001.md", path: "chunks/extracted/OrderEntity/chunk-001.md", content: "public class OrderEntity {}" });
+
+    const result = db.symbols({ name: "UserEntity", limit: 5 });
+    assert.ok(result.results.length >= 1, "should find at least one result");
+    const hit = result.results[0];
+    assert.equal(hit.file_path, "/src/main/UserEntity.java");
+    assert.ok(hit.id.includes("UserEntity"));
+  } finally {
+    db.close();
+  }
+});
+
+test("dependents returns unique source_path files mentioning the name", () => {
+  const db = makeDb();
+  try {
+    const fm1 = `---\nsource: UserService.java\nsource_path: /src/UserService.java\n---`;
+    const fm2 = `---\nsource: UserController.java\nsource_path: /src/UserController.java\n---`;
+    const fm3 = `---\nsource: OrderService.java\nsource_path: /src/OrderService.java\n---`;
+    db.index({ id: "c1", path: "c1.md", content: `${fm1}\n\nUserEntity repo = new UserEntity()` });
+    db.index({ id: "c2", path: "c2.md", content: `${fm2}\n\nUserEntity user = service.getUser()` });
+    db.index({ id: "c3", path: "c3.md", content: `${fm3}\n\nOrderEntity order = new OrderEntity()` });
+
+    const result = db.dependents({ name: "UserEntity", limit: 10 });
+    assert.ok(result.files.includes("/src/UserService.java"), "should include UserService");
+    assert.ok(result.files.includes("/src/UserController.java"), "should include UserController");
+    assert.ok(!result.files.includes("/src/OrderService.java"), "should not include OrderService");
+  } finally {
+    db.close();
+  }
+});
+
+test("index auto-extracts frontmatter from content", () => {
+  const db = makeDb();
+  try {
+    const content = `---\nsource: foo.md\nsource_path: /docs/foo.md\n---\n\nsome body text`;
+    db.index({ id: "doc1", path: "doc1.md", content });
+    // dependents relies on auto-extracted frontmatter
+    const result = db.dependents({ name: "body", limit: 5 });
+    assert.ok(result.files.includes("/docs/foo.md"), "auto-extracted source_path should be used");
+  } finally {
+    db.close();
+  }
+});
