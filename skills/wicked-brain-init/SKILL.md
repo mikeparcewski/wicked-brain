@@ -124,4 +124,4 @@ This indexes the project files so the brain is immediately queryable.
 Tell the user:
 "Brain `{name}` is ready at `{brain_path}` — {N} files ingested, {M} chunks indexed.
 
-Run `/wicked-brain-compile` to synthesize wiki articles from the indexed content."
+Run `wicked-brain:compile` to synthesize wiki articles from the indexed content."
