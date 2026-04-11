@@ -13,10 +13,18 @@ const RETRY_RESET_MS = 300000; // 5 minutes
 
 export class LspManager {
   #brainPath;
+  #sourcePath;
   #servers = new Map(); // key → { process, client, state, retries, startedAt, openFiles }
 
-  constructor(brainPath) {
+  /**
+   * @param {string} brainPath - Brain storage directory (used as fallback workspace root)
+   * @param {string} [sourcePath] - Actual source project root with tsconfig.json, go.mod, etc.
+   *   When provided, LSP servers are initialized with this as rootUri so they can find
+   *   project configuration files. Falls back to brainPath if not provided.
+   */
+  constructor(brainPath, sourcePath) {
     this.#brainPath = brainPath;
+    this.#sourcePath = sourcePath || brainPath;
   }
 
   /**
@@ -71,7 +79,7 @@ export class LspManager {
 
     const proc = spawn(config.command, config.args || [], {
       stdio: ["pipe", "pipe", "pipe"],
-      cwd: this.#brainPath,
+      cwd: this.#sourcePath,
     });
 
     const client = new RpcClient(proc.stdin, proc.stdout);
@@ -100,13 +108,12 @@ export class LspManager {
 
     // Initialize
     try {
-      const result = await client.request("initialize", {
+      const rootUri = pathToFileURL(resolve(this.#sourcePath)).href;
+      await client.request("initialize", {
         processId: process.pid,
         capabilities: {},
-        rootUri: pathToFileURL(resolve(this.#brainPath)).href,
-        workspaceFolders: [
-          { uri: pathToFileURL(resolve(this.#brainPath)).href, name: "brain" },
-        ],
+        rootUri,
+        workspaceFolders: [{ uri: rootUri, name: "project" }],
       });
       client.notify("initialized", {});
       entry.state = "ready";

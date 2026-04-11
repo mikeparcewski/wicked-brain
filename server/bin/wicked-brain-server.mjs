@@ -17,6 +17,9 @@ function getArg(name) {
 const brainPath = resolve(getArg("brain") || ".");
 const preferredPort = parseInt(getArg("port") || "4242", 10);
 const configPath = join(brainPath, "brain.json");
+// Source path for LSP workspace root — prefer --source flag, fall back to config, then brainPath
+const sourceArgRaw = getArg("source");
+const sourceArg = sourceArgRaw ? resolve(sourceArgRaw) : null;
 
 /** Find a free TCP port starting from `start`. */
 function findFreePort(start) {
@@ -57,8 +60,18 @@ const db = new SqliteSearch(dbPath, brainId);
 const pidPath = join(brainPath, "_meta", "server.pid");
 writeFileSync(pidPath, String(pid));
 
-// LSP client
-const lsp = new LspClient(brainPath, db);
+// Read project directories and source path from config (must happen before LspClient)
+const metaConfigPath = join(brainPath, "_meta", "config.json");
+let projects = [];
+let sourcePath = sourceArg;
+try {
+  const metaConfig = JSON.parse(readFileSync(metaConfigPath, "utf-8"));
+  projects = metaConfig.projects || [];
+  if (!sourcePath && metaConfig.source_path) sourcePath = resolve(metaConfig.source_path);
+} catch {}
+
+// LSP client — pass source path so language servers are rooted at the project, not the brain dir
+const lsp = new LspClient(brainPath, db, sourcePath);
 
 // Graceful shutdown
 async function shutdown() {
@@ -167,14 +180,6 @@ const server = createServer((req, res) => {
     }
   });
 });
-
-// Read project directories from config
-const metaConfigPath = join(brainPath, "_meta", "config.json");
-let projects = [];
-try {
-  const metaConfig = JSON.parse(readFileSync(metaConfigPath, "utf-8"));
-  projects = metaConfig.projects || [];
-} catch {}
 
 const watcher = new FileWatcher(brainPath, db, brainId, projects);
 

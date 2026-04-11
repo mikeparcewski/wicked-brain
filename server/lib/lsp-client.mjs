@@ -21,10 +21,10 @@ export class LspClient {
   #diagnostics = new Map(); // filePath → Diagnostic[]
   #diagnosticsSetup = new Set(); // server keys with diagnostics wired
 
-  constructor(brainPath, db) {
+  constructor(brainPath, db, sourcePath) {
     this.#brainPath = brainPath;
     this.#db = db;
-    this.#manager = new LspManager(brainPath);
+    this.#manager = new LspManager(brainPath, sourcePath);
     this.#userConfig = loadUserConfig(brainPath);
   }
 

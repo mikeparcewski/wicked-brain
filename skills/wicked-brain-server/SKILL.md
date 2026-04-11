@@ -47,9 +47,12 @@ For the brain path default:
       - Windows: `tasklist /FI "PID eq {pid}" 2>nul | findstr {pid}`
       - Or use Python: `python3 -c "import os; os.kill({pid}, 0)" 2>/dev/null || python -c "import os; os.kill({pid}, 0)"`
 
-   c. If the process is dead or no PID file, start the server:
+   c. If the process is dead or no PID file, start the server.
+      Also pass `--source` if `source_path` is set in `_meta/config.json`
+      (this roots LSP language servers at the ingested project so symbol
+      lookup and go-to-definition work correctly):
       ```bash
-      npx wicked-brain-server --brain {brain_path} --port {port} &
+      npx wicked-brain-server --brain {brain_path} --port {port} [--source {source_path}] &
       ```
       On Windows (PowerShell):
       ```powershell

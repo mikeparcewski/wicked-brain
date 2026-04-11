@@ -398,7 +398,34 @@ Archived files are invisible to the file watcher, so the server won't clean them
    - macOS/Linux: `mv "{brain_path}/chunks/extracted/{safe_name}" "{brain_path}/chunks/extracted/{safe_name}.archived-$(date +%s)"`
    - Windows: `Rename-Item "{brain_path}\chunks\extracted\{safe_name}" "{safe_name}.archived-{timestamp}"`
 
-### Step 5: Report to user
+### Step 5: Record source path
+
+After ingesting a directory, write the absolute source path to `_meta/config.json`
+so the brain server can use it as the LSP workspace root (enabling symbol lookup,
+go-to-definition, and diagnostics for the ingested project):
+
+```bash
+# Read current config, add source_path, write back
+python3 -c "
+import json, sys
+path = '{brain_path}/_meta/config.json'
+with open(path) as f: cfg = json.load(f)
+cfg['source_path'] = '{absolute_source_path}'
+with open(path, 'w') as f: json.dump(cfg, f, indent=2)
+print('source_path recorded')
+" 2>/dev/null || python -c "
+import json, sys
+path = '{brain_path}/_meta/config.json'
+with open(path) as f: cfg = json.load(f)
+cfg['source_path'] = '{absolute_source_path}'
+with open(path, 'w') as f: json.dump(cfg, f, indent=2)
+print('source_path recorded')
+"
+```
+
+Skip this step if the source is a single file rather than a project directory.
+
+### Step 6: Report to user
 
 After the subagent or batch script completes, summarize:
 - "{N} text files ingested, {M} chunks created"
