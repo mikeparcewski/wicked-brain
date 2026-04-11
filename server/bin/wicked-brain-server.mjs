@@ -86,18 +86,22 @@ const actions = {
   candidates: (p) => ({ candidates: db.candidates(p) }),
   symbols: async (p) => {
     // Prefer LSP workspace symbols (structured, language-aware)
-    const lspResult = await lsp.workspaceSymbols({ query: p.name || p.query || "" });
-    if (lspResult.symbols && lspResult.symbols.length > 0) {
-      return {
-        results: lspResult.symbols.map(s => ({
-          id: `${s.file}::${s.name}`,
-          name: s.name,
-          type: s.kind,
-          file_path: s.file,
-          line_start: s.line,
-        })),
-        source: "lsp",
-      };
+    try {
+      const lspResult = await lsp.workspaceSymbols({ query: p.name || p.query || "" });
+      if (lspResult.symbols && lspResult.symbols.length > 0) {
+        return {
+          results: lspResult.symbols.map(s => ({
+            id: `${s.file}::${s.name}`,
+            name: s.name,
+            type: s.kind,
+            file_path: s.file,
+            line_start: s.line,
+          })),
+          source: "lsp",
+        };
+      }
+    } catch {
+      // LSP unavailable or errored (e.g. no tsconfig.json) — fall through to FTS
     }
     // Fall back to FTS-based symbol search
     return { ...db.symbols(p), source: "fts" };

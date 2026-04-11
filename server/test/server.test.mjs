@@ -131,3 +131,20 @@ test("returns error for unknown action", async () => {
   assert.ok(result.error, "should return an error");
   assert.ok(result.error.includes("nonexistent_action"), "error should mention the action name");
 });
+
+test("symbols falls back to FTS when LSP errors (no tsconfig)", async () => {
+  // Index a chunk with source_path frontmatter — no TS project present in brain dir
+  await api(port, "index", {
+    id: "chunks/extracted/MyService/chunk-001.md",
+    path: "chunks/extracted/MyService/chunk-001.md",
+    content: "---\nsource: MyService.ts\nsource_path: /src/MyService.ts\nsource_type: ts\n---\n\nclass MyService { getValue() {} }",
+  });
+
+  const result = await api(port, "symbols", { name: "MyService", limit: 5 });
+  // Should not return an error — must fall back to FTS
+  assert.ok(!result.error, `symbols should not return an error: ${result.error}`);
+  assert.ok(Array.isArray(result.results), "should return a results array");
+  assert.equal(result.source, "fts", "source should be fts when LSP is unavailable");
+  assert.ok(result.results.length >= 1, "should find at least one FTS result");
+  assert.equal(result.results[0].file_path, "/src/MyService.ts");
+});
