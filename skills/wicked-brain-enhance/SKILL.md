@@ -24,8 +24,15 @@ For the brain path default:
 
 ## Config
 
-Read `_meta/config.json` for brain path and server port.
-If it doesn't exist, trigger wicked-brain:init.
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file for brain path and server port.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
 
 ## Process
 

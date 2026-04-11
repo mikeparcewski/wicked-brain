@@ -18,8 +18,23 @@ platform differences, alternatives are shown. Your native tools (Read, Write,
 Grep, Glob) work everywhere — prefer them over shell commands when possible.
 
 For the brain path default:
-- macOS/Linux: ~/.wicked-brain
-- Windows: %USERPROFILE%\.wicked-brain
+- macOS/Linux: `~/.wicked-brain/projects/{cwd_basename}`
+- Windows: `%USERPROFILE%\.wicked-brain\projects\{cwd_basename}`
+
+## Config
+
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file to get `brain_path` and `server_port`.
+
+If the calling skill already passed `brain_path`, use that directly instead of
+re-resolving.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
 
 ## When to use
 
@@ -48,7 +63,7 @@ For the brain path default:
       - Or use Python: `python3 -c "import os; os.kill({pid}, 0)" 2>/dev/null || python -c "import os; os.kill({pid}, 0)"`
 
    c. If the process is dead or no PID file, start the server.
-      Also pass `--source` if `source_path` is set in `_meta/config.json`
+      Also pass `--source` if `source_path` is set in `{brain_path}/_meta/config.json`
       (this roots LSP language servers at the ingested project so symbol
       lookup and go-to-definition work correctly):
       ```bash

@@ -171,7 +171,7 @@ and ask them to resolve manually before retrying.
 `server_port: 4242` is the *preferred starting port*, not the guaranteed port.
 When the server starts in Step 7 it probes from this value upward and writes
 the actual bound port back to this same file. After Step 7, always re-read
-`_meta/config.json` to get the real port — never hardcode `4242` in downstream
+`{target_path}/_meta/config.json` to get the real port — never hardcode `4242` in downstream
 calls. This matters especially when migrating while another brain is already
 running on 4242.
 

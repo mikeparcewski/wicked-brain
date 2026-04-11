@@ -40,8 +40,15 @@ whether the language server process is running and review its stderr logs.
 
 ## Config
 
-Read `_meta/config.json` for brain path and server port.
-If it doesn't exist, trigger wicked-brain:init.
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file for brain path and server port.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
 
 ## Prerequisites — Source Path
 
@@ -72,7 +79,7 @@ If `source_path` is **missing** — LSP will fail. Fix it before continuing.
 wicked-brain:ingest source=/path/to/project
 ```
 
-**Option B** — Write it manually to `_meta/config.json`, then restart the server:
+**Option B** — Write it manually to the resolved `{brain_path}/_meta/config.json` (from the Config section), then restart the server:
 ```bash
 # Read current config, add source_path, write back
 python3 -c "
@@ -269,7 +276,7 @@ If installation fails, report to the user:
 | `language_server_crashed` | The server crashed 3 times. Report to user, suggest checking the language server logs. |
 | `unsupported_language` | No known language server for this file extension. |
 | `lsp_timeout` | The language server took too long. May be initializing a large project. Retry once. |
-| `file_outside_workspace` | The file isn't under `source_path`. Check `_meta/config.json` — `source_path` must be the project root that contains the file. Set it and restart the server with `--source`. |
+| `file_outside_workspace` | The file isn't under `source_path`. Check the resolved `{brain_path}/_meta/config.json` — `source_path` must be the project root that contains the file. Set it and restart the server with `--source`. |
 
 ### Step 5: Use results
 

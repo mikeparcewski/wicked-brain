@@ -47,6 +47,30 @@ For the brain path default:
 - macOS/Linux: `~/.wicked-brain/projects/{project_name}`
 - Windows: `%USERPROFILE%\.wicked-brain\projects\{project_name}`
 
+## Resolving the brain config
+
+**This section is the canonical resolution logic. Other skills point here —
+keep it authoritative.** Never read a bare relative `_meta/config.json`: the
+model will resolve it against the current working directory and brain files
+will land in the project root.
+
+To locate the brain config for the current session:
+
+1. Compute `{cwd_basename}` — the basename of the current working directory,
+   lowercased, with non-alphanumerics replaced by hyphens.
+2. Try `~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first
+   (Windows: `%USERPROFILE%\.wicked-brain\projects\{cwd_basename}\_meta\config.json`).
+3. If that file doesn't exist, fall back to the legacy flat path
+   `~/.wicked-brain/_meta/config.json` (Windows:
+   `%USERPROFILE%\.wicked-brain\_meta\config.json`).
+4. If neither exists, trigger `wicked-brain:init`.
+5. Read the resolved file. It contains `brain_path` and `server_port` (and
+   optionally `source_path`). All subsequent operations use these values —
+   never hardcode the port or path.
+
+Any skill that needs to read, write, or reference `_meta/config.json` MUST use
+this resolution. Never compute `_meta/config.json` against the project's `cwd`.
+
 ## When to use
 
 - User explicitly asks to create/initialize a brain

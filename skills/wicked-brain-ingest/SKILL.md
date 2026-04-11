@@ -25,8 +25,15 @@ For the brain path default:
 
 ## Config
 
-Read `{brain_path}/_meta/config.json` for brain path and server port.
-If it doesn't exist, trigger wicked-brain:init.
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file for brain path and server port.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
 
 ## Parameters
 
@@ -45,7 +52,8 @@ curl -s -f -X POST http://localhost:{port}/api \
 ```
 
 If this fails (connection refused or non-2xx), invoke `wicked-brain:server` to start it
-before continuing. Re-read `_meta/config.json` after the server starts to get the
+before continuing. Re-read `{brain_path}/_meta/config.json` (the resolved
+config from the Config section above) after the server starts to get the
 actual port it bound to.
 
 ### Step 1: Assess scope
@@ -400,7 +408,7 @@ Archived files are invisible to the file watcher, so the server won't clean them
 
 ### Step 5: Record source path
 
-After ingesting a directory, write the absolute source path to `_meta/config.json`
+After ingesting a directory, write the absolute source path to the resolved `{brain_path}/_meta/config.json`
 so the brain server can use it as the LSP workspace root (enabling symbol lookup,
 go-to-definition, and diagnostics for the ingested project):
 
