@@ -116,6 +116,47 @@ test("returns stats", () => {
   }
 });
 
+test("memoryStats groups memories by type, tier, and age", () => {
+  const db = makeDb();
+  try {
+    db.index({
+      id: "m1",
+      path: "memory/decision-1.md",
+      content: "---\ntype: decision\ntier: semantic\n---\nChose JWT.",
+    });
+    db.index({
+      id: "m2",
+      path: "memory/pattern-1.md",
+      content: "---\ntype: pattern\ntier: working\n---\nAlways lint.",
+    });
+    db.index({
+      id: "m3",
+      path: "memory/decision-2.md",
+      content: "---\ntype: decision\ntier: episodic\n---\nPicked Postgres.",
+    });
+    db.index({
+      id: "c1",
+      path: "chunks/not-memory.md",
+      content: "---\ntype: decision\n---\nShould be ignored.",
+    });
+
+    const ms = db.memoryStats();
+    assert.equal(ms.total, 3);
+    assert.equal(ms.by_type.decision, 2);
+    assert.equal(ms.by_type.pattern, 1);
+    assert.equal(ms.by_tier.semantic, 1);
+    assert.equal(ms.by_tier.working, 1);
+    assert.equal(ms.by_tier.episodic, 1);
+    assert.equal(ms.by_age["<1d"], 3);
+
+    const stats = db.stats();
+    assert.equal(stats.memory_breakdown.total, 3);
+    assert.equal(stats.memory_breakdown.by_type.decision, 2);
+  } finally {
+    db.close();
+  }
+});
+
 test("reindex replaces all documents", () => {
   const db = makeDb();
   try {

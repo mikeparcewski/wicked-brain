@@ -421,7 +421,51 @@ export class SqliteSearch {
       // in-memory or inaccessible
     }
 
-    return { total, chunks, wiki, memory, last_indexed, db_size };
+    return {
+      total,
+      chunks,
+      wiki,
+      memory,
+      memory_breakdown: this.memoryStats(),
+      last_indexed,
+      db_size,
+    };
+  }
+
+  /**
+   * Breakdown of memory documents by type, tier, and age.
+   * Parses frontmatter from `memory/%` rows. Missing fields count as "unknown".
+   * Age buckets: <1d, 1-7d, 7-30d, 30-90d, >90d.
+   */
+  memoryStats() {
+    const rows = this.#db.prepare(`
+      SELECT frontmatter, indexed_at FROM documents WHERE path LIKE 'memory/%'
+    `).all();
+
+    const by_type = {};
+    const by_tier = {};
+    const by_age = { "<1d": 0, "1-7d": 0, "7-30d": 0, "30-90d": 0, ">90d": 0 };
+    const now = Date.now();
+    const DAY = 86400000;
+
+    for (const row of rows) {
+      const fm = row.frontmatter || "";
+      const typeMatch = fm.match(/^type:\s*(\S+)/m);
+      const tierMatch = fm.match(/^tier:\s*(\S+)/m);
+      const type = typeMatch ? typeMatch[1].replace(/["']/g, "") : "unknown";
+      const tier = tierMatch ? tierMatch[1].replace(/["']/g, "") : "unknown";
+      by_type[type] = (by_type[type] ?? 0) + 1;
+      by_tier[tier] = (by_tier[tier] ?? 0) + 1;
+
+      const age = now - (row.indexed_at ?? now);
+      if (age < DAY) by_age["<1d"]++;
+      else if (age < 7 * DAY) by_age["1-7d"]++;
+      else if (age < 30 * DAY) by_age["7-30d"]++;
+      else if (age < 90 * DAY) by_age["30-90d"]++;
+      else by_age[">90d"]++;
+    }
+
+    return { total: rows.length, by_type, by_tier, by_age };
   }
 
   health() {
