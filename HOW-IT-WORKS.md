@@ -63,7 +63,7 @@ There's nothing to deploy, no API keys to configure, no service to maintain. A d
 npx wicked-brain
 ```
 
-Skills are installed into their AI CLI. The first time they invoke any brain skill, the init skill walks them through setup. The server auto-starts when needed and auto-indexes when files change.
+Skills are installed into their AI CLI. The first time they invoke `wicked-brain:init`, it handles everything in one shot: creates the brain directory structure, starts the background server (on a free port — no port configuration required), and immediately ingests the current project. By the time init finishes, the brain is queryable. The server auto-reindexes when files change.
 
 **What the team manages:**
 - A directory of markdown files (git-committable, human-readable)
@@ -144,6 +144,25 @@ Returns: type signature, docstring, inferred return type
 Language servers are installed automatically if missing (e.g. `npm install -g typescript-language-server`). The LSP layer uses hand-rolled JSON-RPC — zero new dependencies beyond what the language server itself needs.
 
 **Why this matters:** An agent navigating a large codebase normally has to read many files to trace a type through several layers of abstraction. With LSP, it asks once and gets the answer. For deep codebases, this can reduce code-navigation token usage by 10-50x.
+
+**Symbol graph.** Beyond per-file queries, wicked-brain exposes workspace-level symbol lookup. Ask "where is `UserEntity` defined?" without knowing which file it lives in:
+
+```
+GET symbols?name=UserEntity
+     ↓
+LSP workspace/symbol query (all open language servers)
+     → falls back to FTS search of indexed chunks
+     ↓
+Returns: file path, line number, type (class / function / interface / …)
+
+GET dependents?name=UserEntity
+     ↓
+FTS search across all indexed chunks
+     ↓
+Returns: every source file that mentions the symbol
+```
+
+This is the foundation for multi-file patch commands — knowing which files need updating when a type or interface changes.
 
 ### 8. Multi-Brain Federation is Just Filesystem Permissions
 
