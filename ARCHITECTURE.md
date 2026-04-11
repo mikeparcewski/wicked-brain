@@ -66,7 +66,7 @@ graph LR
         memory["wicked-brain:memory<br/>working/episodic/semantic tiers"]
         confirm["wicked-brain:confirm<br/>strengthen/weaken link confidence"]
         synonyms["wicked-brain:synonyms<br/>manage search synonym map"]
-        init["wicked-brain:init<br/>setup + fires onboard agent"]
+        init["wicked-brain:init<br/>structure → server → ingest"]
         server["wicked-brain:server<br/>start/check/stop"]
         configure["wicked-brain:configure<br/>writes CLAUDE.md / GEMINI.md"]
         update["wicked-brain:update<br/>npm check + reinstall"]
@@ -97,7 +97,7 @@ A Node.js HTTP server (~300 lines) with a single `POST /api` endpoint. One runti
 
 | Action | Parameters | Returns |
 |---|---|---|
-| `health` | — | `{ status, uptime, docCount }` |
+| `health` | — | `{ status, uptime, brain_id }` |
 | `search` | `query, brain_id, limit, since, session_id` | Ranked results with snippets |
 | `federated_search` | `query, brain_paths, session_id` | Merged results across brains |
 | `index` | `id, path, content, frontmatter, brain_id` | `{ ok }` |
@@ -114,6 +114,9 @@ A Node.js HTTP server (~300 lines) with a single `POST /api` endpoint. One runti
 | `tag_frequency` | — | Tag counts from document frontmatter |
 | `search_misses` | `limit, since` | Queries that returned zero results |
 | `schemaVersion` | — | Current schema version integer |
+| `symbols` | `name, limit` | Symbol lookup — LSP `workspace/symbol` when running, FTS fallback. Returns `{ id, name, type, file_path, line_start }[]` |
+| `dependents` | `name, limit` | File paths that mention the named symbol (FTS-based, no LSP required) |
+| `refs` | `file, line, col` | All reference locations for the symbol at position (LSP-backed) |
 
 ### SQLite Schema
 
@@ -186,7 +189,7 @@ sequenceDiagram
     end
 ```
 
-Uses `fs.watch({ recursive: true })` on macOS and Windows. Falls back to 3-second polling on Linux where recursive watch is unsupported. Only watches `chunks/` and `wiki/` — `raw/` is not indexed directly.
+Uses `fs.watch({ recursive: true })` on macOS and Windows. Falls back to 3-second polling on Linux where recursive watch is unsupported. Watches `chunks/`, `wiki/`, and `memory/` — `raw/` is not indexed directly.
 
 ---
 
@@ -230,7 +233,7 @@ Language servers are auto-installed on first use if not found in PATH. Supported
 │   ├── topics/                   # Broader topic articles
 │   └── projects/                 # Per-project onboarding articles (from onboard agent)
 ├── _meta/
-│   ├── config.json               # Server port, brain path
+│   ├── config.json               # Brain path, server port (written by server on startup)
 │   ├── log.jsonl                 # Append-only event log
 │   └── server.pid                # Running server PID (absent when stopped)
 └── .brain.db                     # SQLite FTS5 index (rebuildable from markdown)

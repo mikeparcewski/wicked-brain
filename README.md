@@ -126,7 +126,7 @@ Every operation uses **progressive loading** — the agent never pulls more than
 
 | Skill | What it does |
 |---|---|
-| `wicked-brain:init` | Set up a new brain — creates directory structure, then onboards your project in parallel |
+| `wicked-brain:init` | Set up a new brain — creates structure, starts the server, and ingests your project in one shot |
 | `wicked-brain:ingest` | Add source files — text extracted deterministically, binary docs read via LLM vision |
 | `wicked-brain:search` | Parallel search across your brain and linked brains |
 | `wicked-brain:read` | Progressive loading: depth 0 (stats), depth 1 (summary), depth 2 (full content) |
