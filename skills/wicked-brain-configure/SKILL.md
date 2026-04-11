@@ -1,5 +1,5 @@
 ---
-name: wicked-brain-configure
+name: wicked-brain:configure
 description: Read brain state and write contextual instructions into the active CLI's agent config file. Run after onboarding, major ingests, or consolidation.
 ---
 

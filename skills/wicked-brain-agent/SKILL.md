@@ -1,5 +1,5 @@
 ---
-name: wicked-brain-agent
+name: wicked-brain:agent
 description: Factory skill for listing and dispatching wicked-brain agents. Agents enforce multi-step pipelines for consolidation, context assembly, session teardown, and project onboarding.
 ---
 
