@@ -18,9 +18,34 @@ Commands in this skill work on macOS, Linux, and Windows. When a command has
 platform differences, alternatives are shown. Your native tools (Read, Write,
 Grep, Glob) work everywhere — prefer them over shell commands when possible.
 
+## Per-project brains (important)
+
+**Each project gets its own brain under `~/.wicked-brain/projects/{project-name}/`.**
+Do NOT initialize a single monolithic brain at `~/.wicked-brain/` — that overwhelms
+the index, mixes unrelated content across clients/codebases, and makes federated
+search useless.
+
+The structure is:
+```
+~/.wicked-brain/                          # parent directory (not a brain)
+  projects/
+    my-app/                               # one brain per project
+      brain.json
+      chunks/
+      _meta/
+    client-site/                          # another project's brain
+      brain.json
+      ...
+```
+
+Project name defaults to the basename of the current working directory
+(lowercase, hyphens for spaces). A supervising "meta-brain" agent can watch
+`~/.wicked-brain/projects/*` and federate across all of them via
+`brain.json` links.
+
 For the brain path default:
-- macOS/Linux: ~/.wicked-brain
-- Windows: %USERPROFILE%\.wicked-brain
+- macOS/Linux: `~/.wicked-brain/projects/{project_name}`
+- Windows: `%USERPROFILE%\.wicked-brain\projects\{project_name}`
 
 ## When to use
 
@@ -31,12 +56,18 @@ For the brain path default:
 
 ### Step 1: Ask the user
 
-Ask these questions (provide defaults):
+Compute the default project name from the current working directory basename
+(lowercase, replace non-alphanumerics with hyphens). Then ask:
 
-1. "Where should your brain live?"
-   - Default (macOS/Linux): `~/.wicked-brain`
-   - Default (Windows): `%USERPROFILE%\.wicked-brain`
-2. "What should this brain be called?" — Default: directory name
+1. "What should this project's brain be called?" — Default: `{cwd_basename}`
+2. "Where should it live?" — Default:
+   - macOS/Linux: `~/.wicked-brain/projects/{project_name}`
+   - Windows: `%USERPROFILE%\.wicked-brain\projects\{project_name}`
+
+If the user supplies a path that is exactly `~/.wicked-brain` (the parent
+directory, not a project subdirectory), push back: explain the per-project
+convention and suggest `~/.wicked-brain/projects/{project_name}` instead.
+Only accept the flat path if the user explicitly insists.
 
 ### Step 2: Check for existing brain
 

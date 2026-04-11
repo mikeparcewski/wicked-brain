@@ -43,7 +43,7 @@ Two components:
 - All code and skills must work on macOS, Linux, and Windows.
 - No Unix-only shell features without Windows fallback.
 - Use `python3 -c "..." 2>/dev/null || python -c "..."` for cross-platform Python.
-- Brain path default: `~/.wicked-brain` (macOS/Linux), `%USERPROFILE%\.wicked-brain` (Windows).
+- Brain path default: `~/.wicked-brain/projects/{project-name}` (macOS/Linux), `%USERPROFILE%\.wicked-brain\projects\{project-name}` (Windows). Each project gets its own brain under the `projects/` subdirectory — never one monolithic brain at the parent path.
 
 ### Naming
 - Package: `wicked-brain` (skills + installer)
@@ -85,8 +85,12 @@ The `package.json` version does not need to be updated manually — the pipeline
 
 ## Brain Directory Structure
 
+Each project gets its own brain under `~/.wicked-brain/projects/{project-name}/`.
+Never initialize a single monolithic brain at `~/.wicked-brain/` — the parent
+directory is a container for per-project brains, not a brain itself.
+
 ```
-~/.wicked-brain/
+~/.wicked-brain/projects/{project-name}/
   brain.json              # Identity and brain links
   raw/                    # Source files
   chunks/extracted/       # Source-faithful extractions

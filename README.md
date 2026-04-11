@@ -159,10 +159,33 @@ Brains can link to other brains. A personal research brain can reference a team 
 
 When you search, wicked-brain dispatches parallel search agents across all accessible brains and merges the results. Access control is filesystem permissions — if you can read the directory, you can search it.
 
-## What's on Disk
+## Per-Project Brains
+
+**Each project gets its own brain.** `wicked-brain:init` creates a brain under
+`~/.wicked-brain/projects/{project-name}/` by default, where `{project-name}`
+is the basename of your current working directory. This keeps unrelated
+codebases, clients, and research domains from crowding a single index — and
+makes federated search across projects meaningful.
 
 ```
 ~/.wicked-brain/
+  projects/
+    my-app/              # one brain per project
+    client-site/
+    personal-research/
+```
+
+Multiple agents can work on different projects simultaneously without stepping
+on each other. A supervising "meta-brain" can watch `~/.wicked-brain/projects/*`
+and federate queries across all of them via `brain.json` links.
+
+If you really want one brain for everything, you can pass a custom path to
+`wicked-brain:init` — but you'll fight the index as it grows.
+
+## What's on Disk
+
+```
+~/.wicked-brain/projects/{project-name}/
   brain.json              # Identity and brain links
   raw/                    # Your source files
   chunks/
@@ -171,6 +194,7 @@ When you search, wicked-brain dispatches parallel search agents across all acces
   wiki/                   # Synthesized articles with [[backlinks]]
   _meta/
     log.jsonl             # Append-only event log
+    config.json           # Server port, source path
   .brain.db               # SQLite search index (auto-managed)
 ```
 
