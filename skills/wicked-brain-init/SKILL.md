@@ -69,9 +69,28 @@ directory, not a project subdirectory), push back: explain the per-project
 convention and suggest `~/.wicked-brain/projects/{project_name}` instead.
 Only accept the flat path if the user explicitly insists.
 
-### Step 2: Check for existing brain
+### Step 2: Check for existing brains
 
-If `{brain_path}/_meta/config.json` already exists, tell the user:
+#### 2a: Detect a flat brain at the parent path
+
+If `~/.wicked-brain/brain.json` exists (note: `brain.json` at the flat parent
+path, NOT inside a `projects/` subdirectory), this is a legacy flat brain from
+before v0.4.7. Stop and tell the user:
+
+"I found an existing flat brain at `~/.wicked-brain/`. The current layout puts
+each project under `~/.wicked-brain/projects/{name}/`. I can migrate the flat
+brain with `wicked-brain:migrate` before creating the new one. Migrate now?"
+
+If yes, invoke `wicked-brain:migrate` with `flat_path=~/.wicked-brain` and
+wait for it to complete before continuing.
+
+If no, confirm the user wants to keep the flat brain and proceed (accept the
+tradeoff: the new project brain will live under `projects/` but the old one
+stays at the flat path).
+
+#### 2b: Check target path
+
+If `{brain_path}/_meta/config.json` already exists at the chosen target, tell the user:
 "A brain already exists at `{brain_path}`. Do you want to re-initialize it (keeps existing chunks) or pick a different path?"
 
 Stop and wait for their answer before continuing.
@@ -123,9 +142,12 @@ Write to `{brain_path}/_meta/config.json`:
 }
 ```
 
-`server_port: 4242` is the *preferred* port. The server will find a free port starting
-from this value on startup and write the actual port back to this file. You do not
-need to find a free port manually.
+`server_port: 4242` is the *preferred* starting port, not the guaranteed port.
+When the server starts in Step 7, it probes from this value upward until it
+finds a free port, then writes the **actual** port back to this same file.
+If multiple project brains run at once, each gets a distinct port (4242, 4243,
+4244, ...). Always re-read `_meta/config.json` after the server starts to get
+the real port — never hardcode `4242` in downstream calls.
 
 ### Step 6: Initialize the event log
 
@@ -140,7 +162,22 @@ The server will pick a free port and write it back to `_meta/config.json`.
 npx wicked-brain-server --brain {brain_path} &
 ```
 
-Wait for the health check to confirm it's up before continuing.
+Do NOT pass `--port` unless the user specifies one — let the server pick a
+free port. After the process starts, **re-read `{brain_path}/_meta/config.json`**
+to get the actual `server_port` the server bound to. Use that port for the
+health check and all subsequent API calls.
+
+Then health-check to confirm it's up before continuing:
+
+```bash
+curl -s -X POST http://localhost:{actual_port}/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"health"}'
+```
+
+Verify the response includes `"brain_id"` matching this brain's id — this
+confirms you're talking to the right server (not an unrelated brain on the
+same machine).
 
 ### Step 8: Ingest the project
 

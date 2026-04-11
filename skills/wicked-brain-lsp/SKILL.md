@@ -53,11 +53,13 @@ Read `{brain_path}/_meta/config.json`. Look for a `source_path` key:
 
 ```json
 {
-  "brain_path": "/Users/me/.wicked-brain",
-  "server_port": 4243,
+  "brain_path": "/Users/me/.wicked-brain/projects/my-project",
+  "server_port": 4242,
   "source_path": "/Users/me/Projects/my-project"
 }
 ```
+
+(`server_port` is the preferred starting port — the server writes the actual bound port back to this field on startup.)
 
 If `source_path` is **present** — LSP is configured. Proceed with calls.
 
@@ -107,6 +109,78 @@ Symptoms that indicate missing or wrong `source_path`:
 - Any LSP call returns an error about workspace or project not found
 
 Check `source_path` in config. If it points at the brain directory (e.g., `~/.wicked-brain/...`) instead of the source project, that is wrong — the brain dir has no `tsconfig.json` or language config. Set it to the project root and restart.
+
+## Warming LSP (important — read this before calling lsp-workspace-symbols)
+
+**Language servers start lazily.** The brain server does NOT spawn language
+servers on startup — they only spawn when a file-specific LSP action runs
+against a file in `source_path` (`lsp-symbols`, `lsp-definition`, `lsp-hover`,
+`lsp-references`, `lsp-implementation`, `lsp-call-hierarchy-in`,
+`lsp-call-hierarchy-out`).
+
+`lsp-workspace-symbols` and `lsp-health` do NOT trigger server spawn. They
+only report on servers that are already running. If you call
+`lsp-workspace-symbols` on a fresh brain server, you will get:
+
+```json
+{"symbols":[],"error":"no_running_server"}
+```
+
+This does NOT mean "no symbols exist in the project." It means "no language
+server has been spawned yet." Do not report empty results to the user as
+authoritative when you see this error code.
+
+### Warm-up procedure
+
+Before calling `lsp-workspace-symbols` for the first time on any brain server:
+
+1. Pick a real source file in `source_path`. Prefer a main entry file — e.g.,
+   for TypeScript: `src/index.ts`, `src/main.ts`, or whichever file exists.
+   Use Glob against `{source_path}` to find one if unsure. Do NOT pass a file
+   that does not exist — the warm-up will silently fail.
+
+2. Call a file-specific action to trigger `ensureReady`:
+   ```bash
+   curl -s -X POST http://localhost:{port}/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"lsp-symbols","params":{"file":"{absolute_path_to_real_file}"}}'
+   ```
+
+3. Poll `lsp-health` until a server is `ready` (not `starting`):
+   ```bash
+   curl -s -X POST http://localhost:{port}/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"lsp-health"}'
+   ```
+   Expected ready response:
+   ```json
+   {"servers":{"typescript":{"status":"ready","uptime":1234}}}
+   ```
+   Retry up to 10 times with 500ms between attempts (5 seconds total). Large
+   projects can take several seconds to finish indexing.
+
+   **If 10 retries are exhausted without a `ready` state**, do NOT treat this
+   as success-with-empty-results. Check:
+   - `lsp-health` response — is the server in `starting` state? Extend the
+     poll to 30 retries (15 seconds) for very large projects.
+   - Is the server in `error` state? Read the `message` field and surface it
+     to the user. Common causes: missing `tsconfig.json` (wrong `source_path`),
+     language server binary not installed, or a crash loop (see
+     `language_server_crashed` in Step 4 below).
+   - Is the `servers` object still empty? The warm-up file action likely
+     failed silently — verify the file path exists and is inside `source_path`.
+
+4. Now `lsp-workspace-symbols` will return real results.
+
+### Interpreting `lsp-health` states
+
+| State | Meaning | Action |
+|-------|---------|--------|
+| empty `servers` object | No language server spawned yet | Follow warm-up procedure above |
+| `status: "starting"` | Server process spawned, still indexing | Wait and retry |
+| `status: "ready"` | Ready to serve queries | Proceed |
+| `status: "crashed"` | Crashed ≤3 times | Check diagnostics for the language server's stderr |
+| `status: "error"` with `No Project` message | Wrong `source_path` | See source_path prerequisites above |
 
 ## When to Use
 

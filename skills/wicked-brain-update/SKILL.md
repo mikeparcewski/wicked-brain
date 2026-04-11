@@ -30,17 +30,39 @@ For the brain path default:
 
 ## Process
 
-### Step 1: Check current version
+### Step 1: Check current installed version
 
-Read the installed server version:
+The `wicked-brain-server` binary lives inside the globally installed `wicked-brain` npm package. Read its version directly from the installed package:
+
 ```bash
-wicked-brain-server --version 2>/dev/null || npx wicked-brain-server --version 2>/dev/null || echo "not installed"
+npm list -g wicked-brain --json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    deps = d.get('dependencies', {})
+    v = deps.get('wicked-brain', {}).get('version', 'not installed')
+    print(v)
+except Exception:
+    print('not installed')
+" 2>/dev/null || npm list -g wicked-brain --json 2>/dev/null | python -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    deps = d.get('dependencies', {})
+    v = deps.get('wicked-brain', {}).get('version', 'not installed')
+    print(v)
+except Exception:
+    print('not installed')
+"
 ```
 
-If that doesn't work, check the package directly:
-```bash
-npm list -g wicked-brain-server --json 2>/dev/null | grep version
-```
+If the result is `not installed`, the package was never globally installed (the
+user may have been running via `npx` only). Treat this as "needs install" and
+proceed to Step 4.
+
+**Do NOT use `npx wicked-brain-server --version`** — it may return the version
+of a stale cached npx copy, not the globally installed one that actually runs
+when brain servers start.
 
 ### Step 2: Check latest version on npm
 
@@ -58,15 +80,45 @@ If an update is available, ask the user:
 
 ### Step 4: Update (if user approves)
 
-#### Update everything (skills + server)
+**Critical:** `npx wicked-brain@latest` only runs the *installer* — it refreshes
+the skill markdown files in your CLI's skills directory, but it does NOT update
+the globally installed `wicked-brain-server` binary. The skills will then expect
+features that the old server doesn't have, producing confusing errors.
 
-The server is bundled in the main package — one command updates both:
+Use `npm install -g` to update the actual binary:
 
 ```bash
-npx wicked-brain@latest
+npm install -g wicked-brain@latest 2>&1
 ```
 
-This re-runs the installer with the latest version, updating all skills across detected CLIs. The server binary updates automatically since it's part of the same package.
+On Windows PowerShell (no change needed):
+```powershell
+npm install -g wicked-brain@latest
+```
+
+If this fails with `EACCES` / permission denied:
+- macOS/Linux: `sudo npm install -g wicked-brain@latest`
+- Windows: re-run the shell as Administrator, or fix npm's global prefix per
+  npm docs. Do NOT silently skip — report the failure to the user and stop.
+
+After a successful `npm install -g`, also run the installer to refresh skill
+files in all detected CLIs (skills are copied from the installed package, not
+downloaded separately):
+
+```bash
+npx wicked-brain
+```
+
+### Step 4a: Verify the update landed
+
+Re-run the Step 1 version check. The version reported MUST match the latest
+version from Step 2. If it still shows the old version:
+
+1. Check `which wicked-brain-server` (macOS/Linux) or `where wicked-brain-server` (Windows) — the shell may have cached a path to a different installation.
+2. Clear npm's global cache: `npm cache clean --force`
+3. Check if a different Node.js version (nvm, fnm, volta) is pinning a stale copy.
+
+Do NOT proceed to Step 5 until version verification succeeds. Reporting a successful update while the binary is stale is the top failure mode of this skill.
 
 ### Step 5: Restart server if running
 
