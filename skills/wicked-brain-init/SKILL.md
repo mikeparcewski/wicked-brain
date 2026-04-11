@@ -80,13 +80,23 @@ this resolution. Never compute `_meta/config.json` against the project's `cwd`.
 
 ### Step 1: Ask the user
 
-Compute the default project name from the current working directory basename
-(lowercase, replace non-alphanumerics with hyphens). Then ask:
+**Ask in this exact order — do not reverse the questions:**
 
-1. "What should this project's brain be called?" — Default: `{cwd_basename}`
-2. "Where should it live?" — Default:
-   - macOS/Linux: `~/.wicked-brain/projects/{project_name}`
-   - Windows: `%USERPROFILE%\.wicked-brain\projects\{project_name}`
+First, compute `{cwd_basename}`: take the basename of the current working directory,
+lowercase it, and replace any non-alphanumeric characters with hyphens.
+
+Then ask **two questions, in order**:
+
+1. **"What should this project's brain be called?"**
+   - Default: `{cwd_basename}` (the current directory name, not the string "wicked-brain")
+   - Wait for the user's answer (or acceptance of default) before asking question 2.
+
+2. **"Where should it live?"**
+   - Default:
+     - macOS/Linux: `~/.wicked-brain/projects/{project_name}` (where `{project_name}` is the name from question 1)
+     - Windows: `%USERPROFILE%\.wicked-brain\projects\{project_name}`
+   - The default path MUST include the `projects/` subdirectory and the project name.
+     **Never default to just `~/.wicked-brain/`** — that is the parent container, not a brain.
 
 If the user supplies a path that is exactly `~/.wicked-brain` (the parent
 directory, not a project subdirectory), push back: explain the per-project
