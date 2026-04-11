@@ -43,6 +43,71 @@ whether the language server process is running and review its stderr logs.
 Read `_meta/config.json` for brain path and server port.
 If it doesn't exist, trigger wicked-brain:init.
 
+## Prerequisites — Source Path
+
+**LSP operates on the source project, not the brain directory.** The server must know where the ingested project lives to initialize language servers correctly. Without this, LSP calls will fail with "No Project" errors or return empty results.
+
+### Check if source_path is configured
+
+Read `{brain_path}/_meta/config.json`. Look for a `source_path` key:
+
+```json
+{
+  "brain_path": "/Users/me/.wicked-brain",
+  "server_port": 4243,
+  "source_path": "/Users/me/Projects/my-project"
+}
+```
+
+If `source_path` is **present** — LSP is configured. Proceed with calls.
+
+If `source_path` is **missing** — LSP will fail. Fix it before continuing.
+
+### Fix: set source_path
+
+**Option A** — Re-ingest the project directory (recommended, sets source_path automatically):
+```
+wicked-brain:ingest source=/path/to/project
+```
+
+**Option B** — Write it manually to `_meta/config.json`, then restart the server:
+```bash
+# Read current config, add source_path, write back
+python3 -c "
+import json
+path = '{brain_path}/_meta/config.json'
+with open(path) as f: cfg = json.load(f)
+cfg['source_path'] = '/absolute/path/to/project'
+with open(path, 'w') as f: json.dump(cfg, f, indent=2)
+print('source_path set')
+" 2>/dev/null || python -c "
+import json
+path = '{brain_path}/_meta/config.json'
+with open(path) as f: cfg = json.load(f)
+cfg['source_path'] = '/absolute/path/to/project'
+with open(path, 'w') as f: json.dump(cfg, f, indent=2)
+print('source_path set')
+"
+# Then restart the server with --source:
+npx wicked-brain-server --brain {brain_path} --port {port} --source /absolute/path/to/project &
+```
+
+**Option C** — Restart server with `--source` flag (does not persist to config):
+```bash
+npx wicked-brain-server --brain {brain_path} --port {port} --source /absolute/path/to/project &
+```
+
+Wait 2 seconds after restarting, then verify with `lsp-health`.
+
+### Diagnosing "No Project" / empty results
+
+Symptoms that indicate missing or wrong `source_path`:
+- `lsp-workspace-symbols` returns `{"symbols":[]}` for any query
+- `lsp-health` shows `{"typescript":{"status":"error","message":"No Project"}}` or similar
+- Any LSP call returns an error about workspace or project not found
+
+Check `source_path` in config. If it points at the brain directory (e.g., `~/.wicked-brain/...`) instead of the source project, that is wrong — the brain dir has no `tsconfig.json` or language config. Set it to the project root and restart.
+
 ## When to Use
 
 | You want to... | Action | Example |
@@ -130,7 +195,7 @@ If installation fails, report to the user:
 | `language_server_crashed` | The server crashed 3 times. Report to user, suggest checking the language server logs. |
 | `unsupported_language` | No known language server for this file extension. |
 | `lsp_timeout` | The language server took too long. May be initializing a large project. Retry once. |
-| `file_outside_workspace` | The file isn't in a registered project. Use `wicked-brain:onboard` to register the project first. |
+| `file_outside_workspace` | The file isn't under `source_path`. Check `_meta/config.json` — `source_path` must be the project root that contains the file. Set it and restart the server with `--source`. |
 
 ### Step 5: Use results
 
