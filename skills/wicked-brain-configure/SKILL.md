@@ -86,17 +86,23 @@ Digital brain: {brain_id} | {total} indexed items | {chunks} chunks, {wiki} wiki
 
 ### How to use
 
-- **Before responding**: call `wicked-brain:agent` (context) to surface relevant knowledge
+- **Search/explore**: use `wicked-brain:search` — replaces Grep, Glob, and Agent(Explore) for any open-ended search
+- **Answer questions**: use `wicked-brain:query` — replaces Agent(Explore) for conceptual questions
+- **Surface context**: call `wicked-brain:agent` (context) at the start of any new topic
 - **Capture learnings**: call `wicked-brain:agent` (session-teardown) at session end
 - **Store a decision/pattern/gotcha**: call `wicked-brain:memory` (store mode)
-- **Ask the brain**: call `wicked-brain:query` for cited answers
 - **Available agents**: consolidate, context, session-teardown, onboard (via `wicked-brain:agent`)
 
-### Rules
+### Rules (follow strictly)
 
-- Do NOT read brain files directly — use skills and agents
-- Always pass session_id with search calls for access tracking
-- Capture non-obvious decisions and gotchas as memories
+- **ALWAYS check the brain BEFORE using Grep, Glob, Read, or Agent(Explore)** — for any find, search, explore, explain, or "what is/how does" request
+- Use `wicked-brain:search` for finding content ("find X", "where is Y", "look for Z", "show me W")
+- Use `wicked-brain:query` for questions ("what does X do", "how does Y work", "explain Z")
+- Use `wicked-brain:agent` (context) when starting a new topic or unfamiliar area
+- Only fall back to Grep/Glob for **exact pattern matching** after the brain returns no results
+- Do NOT read brain files directly — always go through skills and agents
+- Always pass `session_id` with search/query calls for access tracking
+- Capture non-obvious decisions, patterns, and gotchas with `wicked-brain:memory`
 ```
 
 ### Step 4: Confirm

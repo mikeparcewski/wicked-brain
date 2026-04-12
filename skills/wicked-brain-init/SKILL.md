@@ -221,9 +221,16 @@ Invoke `wicked-brain:ingest` with:
 
 This indexes the project files so the brain is immediately queryable.
 
-### Step 9: Confirm
+### Step 9: Configure the CLI
+
+Invoke `wicked-brain:configure` to write routing instructions into the active
+CLI's agent config (CLAUDE.md, GEMINI.md, etc.). This is what makes the brain
+the default for search and exploration — do not skip this step.
+
+### Step 10: Confirm
 
 Tell the user:
 "Brain `{name}` is ready at `{brain_path}` — {N} files ingested, {M} chunks indexed.
+CLI configured to route search and explore requests through the brain.
 
 Run `wicked-brain:compile` to synthesize wiki articles from the indexed content."

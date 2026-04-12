@@ -4,9 +4,13 @@ description: |
   Search the digital brain for relevant content. Dispatches parallel search
   subagents across local and linked brains. Returns results at depth 0 with
   deeper hints.
+
+  Use instead of Grep/Glob/Agent(Explore) for any open-ended search or
+  exploration: "find X", "search for Y", "look for Z", "where is W used",
+  "show me anything about X", "explore Y", "what files relate to Z".
   
-  Use when: "search brain for", "find in brain", "brain search", or when
-  looking for specific content across the knowledge base.
+  Only fall back to Grep/Glob for exact symbol or pattern lookup when the
+  brain returns no results.
 ---
 
 # wicked-brain:search

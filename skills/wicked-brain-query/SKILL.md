@@ -3,9 +3,12 @@ name: wicked-brain:query
 description: |
   Answer questions by searching and synthesizing brain content. Dispatches a
   query subagent that searches, reads, follows links, and produces a cited answer.
-  
-  Use when: user asks a question that could be answered from brain content,
-  "ask the brain", "brain query", "what does my brain say about".
+
+  Use instead of Agent(Explore) or reading files directly for any conceptual
+  question: "what does X do", "how does Y work", "explain Z", "tell me about W",
+  "why does X happen", "give me context on Y", or any question that could be
+  answered from indexed knowledge. Always try this before exploring the codebase
+  manually.
 ---
 
 # wicked-brain:query
