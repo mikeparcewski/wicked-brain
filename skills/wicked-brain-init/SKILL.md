@@ -80,15 +80,32 @@ this resolution. Never compute `_meta/config.json` against the project's `cwd`.
 
 ### Step 1: Ask the user
 
-**Ask in this exact order — do not reverse the questions:**
+**Ask in this exact order — do not reverse the questions.**
 
-First, compute `{cwd_basename}`: take the basename of the current working directory,
-lowercase it, and replace any non-alphanumeric characters with hyphens.
+First, compute `{cwd_basename}`:
+
+```bash
+# macOS/Linux
+basename "$PWD"
+# Windows PowerShell
+Split-Path -Leaf (Get-Location)
+```
+
+This gives you the name of **the project the user is currently working in** — the repo or
+directory they are about to index. It has nothing to do with wicked-brain, the skill name,
+or any installed tool. For example:
+
+- User is in `/Users/alice/Projects/wicked-bus` → default name is `wicked-bus`
+- User is in `/home/bob/work/my-api` → default name is `my-api`
+- User is in `/Users/mike/Projects/wicked-brain` → default name is `wicked-brain` (only
+  correct if they are literally indexing the wicked-brain repo itself)
+
+Lowercase the result and replace non-alphanumeric characters with hyphens.
 
 Then ask **two questions, in order**:
 
 1. **"What should this project's brain be called?"**
-   - Default: `{cwd_basename}` (the current directory name, not the string "wicked-brain")
+   - Default: `{cwd_basename}` — computed above from the actual current working directory
    - Wait for the user's answer (or acceptance of default) before asking question 2.
 
 2. **"Where should it live?"**
