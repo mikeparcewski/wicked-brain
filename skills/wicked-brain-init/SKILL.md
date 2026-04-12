@@ -120,24 +120,59 @@ directory, not a project subdirectory), push back: explain the per-project
 convention and suggest `~/.wicked-brain/projects/{project_name}` instead.
 Only accept the flat path if the user explicitly insists.
 
+### The `projects/` infix is mandatory — do not invent alternate layouts
+
+The ONLY valid brain path under the default container is
+`~/.wicked-brain/projects/{name}/`. Common misreadings to avoid:
+
+- ❌ `~/.wicked-brain/{name}/` — missing the `projects/` segment. Not valid.
+- ❌ `~/.{name}-brain/` — sibling directory. Not the convention.
+- ❌ `~/.wicked-brain/projects/{name}/projects/{subname}/` — nested brains. Not supported.
+
+If the user asks "why not `~/.wicked-brain/{name}`?" the answer is: the `projects/`
+segment is a deliberate namespace. The parent `~/.wicked-brain/` is a container
+that may hold other metadata (linked brain indexes, federation config, etc.),
+and every brain lives under `projects/` to keep that clean.
+
+Do not improvise alternate layouts when you hit an obstacle. If the documented
+path is occupied, invoke the migration flow (Step 2a) — do not pick a sibling
+directory or a nested path.
+
 ### Step 2: Check for existing brains
 
 #### 2a: Detect a flat brain at the parent path
 
-If `~/.wicked-brain/brain.json` exists (note: `brain.json` at the flat parent
-path, NOT inside a `projects/` subdirectory), this is a legacy flat brain from
-before v0.4.7. Stop and tell the user:
+**Check first, before anything else:** does `~/.wicked-brain/brain.json` exist?
+(That is `brain.json` at the flat parent path, NOT inside `projects/`.) If yes,
+this is a legacy flat brain from before v0.4.7 and you **MUST STOP** the init
+flow and resolve it before continuing.
 
-"I found an existing flat brain at `~/.wicked-brain/`. The current layout puts
-each project under `~/.wicked-brain/projects/{name}/`. I can migrate the flat
-brain with `wicked-brain:migrate` before creating the new one. Migrate now?"
+Read `~/.wicked-brain/brain.json` to find the existing brain's name, then tell
+the user exactly this (substituting the real name):
 
-If yes, invoke `wicked-brain:migrate` with `flat_path=~/.wicked-brain` and
-wait for it to complete before continuing.
+> "Heads up — there's already a legacy flat brain at `~/.wicked-brain/` named
+> `{existing_name}`. The current layout puts each project under
+> `~/.wicked-brain/projects/{name}/`, so I can't just create a new brain at the
+> parent path without clobbering it. You have two options:
+>
+> 1. **Migrate** the existing `{existing_name}` brain to
+>    `~/.wicked-brain/projects/{existing_name}/` first, then create the new
+>    `{project_name}` brain alongside it. Recommended.
+> 2. **Keep** the flat `{existing_name}` brain where it is and create the new
+>    brain at `~/.wicked-brain/projects/{project_name}/`. This works but leaves
+>    the old brain in a legacy layout.
+>
+> Which do you want?"
 
-If no, confirm the user wants to keep the flat brain and proceed (accept the
-tradeoff: the new project brain will live under `projects/` but the old one
-stays at the flat path).
+Do NOT propose any other options. Do NOT suggest a sibling directory like
+`~/.wicked-bus-brain`. Do NOT suggest nesting inside the existing brain. Do NOT
+proceed with overwriting `~/.wicked-brain/brain.json` under any circumstances.
+
+If the user picks option 1, invoke `wicked-brain:migrate` with
+`flat_path=~/.wicked-brain` and wait for it to complete before continuing.
+
+If the user picks option 2, proceed with the new brain at
+`~/.wicked-brain/projects/{project_name}/` — the flat brain stays untouched.
 
 #### 2b: Check target path
 
