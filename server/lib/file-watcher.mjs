@@ -36,26 +36,33 @@ export class FileWatcher {
   }
 
   start() {
+    const brainDirs = ["chunks", "wiki", "memory"];
+
     // Build initial hash map
-    this.#scanAndHash("chunks");
-    this.#scanAndHash("wiki");
-    this.#scanAndHash("memory");
+    for (const dir of brainDirs) this.#scanAndHash(dir);
 
     // Watch directories
-    for (const dir of ["chunks", "wiki", "memory"]) {
-      const absDir = join(this.#brainPath, dir);
-      if (!existsSync(absDir)) continue;
+    const unwatched = [];
+    for (const dir of brainDirs) {
+      if (!this.#tryWatch(dir)) unwatched.push(dir);
+    }
 
-      try {
-        const watcher = watch(absDir, { recursive: true }, (eventType, filename) => {
-          if (!filename || !filename.endsWith(".md")) return;
-          const relPath = normalizePath(`${dir}/${filename}`);
-          this.#debounce(relPath, () => this.#handleChange(relPath));
-        });
-        this.#watchers.push(watcher);
-      } catch {
-        // recursive watch not supported on this platform (Linux) — fall back to polling
-      }
+    // Retry directories that were missing at startup (check every 3s, stop after 30s)
+    if (unwatched.length > 0) {
+      const pending = new Set(unwatched);
+      let elapsed = 0;
+      const retryInterval = setInterval(() => {
+        elapsed += 3000;
+        for (const dir of pending) {
+          if (this.#tryWatch(dir)) {
+            this.#scanAndHash(dir);
+            pending.delete(dir);
+          }
+        }
+        if (pending.size === 0 || elapsed >= 30000) clearInterval(retryInterval);
+      }, 3000);
+      // Don't keep the process alive just for retries
+      retryInterval.unref();
     }
 
     // Watch registered project directories
@@ -81,6 +88,24 @@ export class FileWatcher {
       this.#startPolling();
     } else {
       console.log(`File watcher active on chunks/, wiki/, and memory/`);
+    }
+  }
+
+  /** Try to set up fs.watch for a brain subdirectory. Returns true on success. */
+  #tryWatch(dir) {
+    const absDir = join(this.#brainPath, dir);
+    if (!existsSync(absDir)) return false;
+    try {
+      const watcher = watch(absDir, { recursive: true }, (eventType, filename) => {
+        if (!filename || !filename.endsWith(".md")) return;
+        const relPath = normalizePath(`${dir}/${filename}`);
+        this.#debounce(relPath, () => this.#handleChange(relPath));
+      });
+      this.#watchers.push(watcher);
+      return true;
+    } catch {
+      // recursive watch not supported (Linux) — polling fallback handles it
+      return false;
     }
   }
 

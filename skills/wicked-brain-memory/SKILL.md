@@ -17,7 +17,7 @@ Store and recall experiential learnings in the brain's memory system.
 - Uses `curl` for server API calls (available on Windows 10+, macOS, Linux)
 - File writes use agent-native tools (Write/Edit), not shell commands
 - Path separator: always use forward slashes in `contains:` and `path` fields
-- Brain path default: `~/.wicked-brain` (macOS/Linux), `%USERPROFILE%\.wicked-brain` (Windows)
+- Brain path default: `~/.wicked-brain/projects/{project-name}` (macOS/Linux), `%USERPROFILE%\.wicked-brain\projects\{project-name}` (Windows)
 
 ## Config
 

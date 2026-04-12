@@ -189,17 +189,18 @@ Use your native Write tool to create these directories (write a `.gitkeep` place
 - `{brain_path}/chunks/inferred`
 - `{brain_path}/wiki/concepts`
 - `{brain_path}/wiki/topics`
+- `{brain_path}/memory`
 - `{brain_path}/_meta`
 
 Shell equivalents if needed:
 ```bash
 # macOS/Linux
 mkdir -p {brain_path}/raw {brain_path}/chunks/extracted {brain_path}/chunks/inferred \
-  {brain_path}/wiki/concepts {brain_path}/wiki/topics {brain_path}/_meta
+  {brain_path}/wiki/concepts {brain_path}/wiki/topics {brain_path}/memory {brain_path}/_meta
 ```
 ```powershell
 # Windows PowerShell
-New-Item -ItemType Directory -Force -Path "{brain_path}\raw","{brain_path}\chunks\extracted","{brain_path}\chunks\inferred","{brain_path}\wiki\concepts","{brain_path}\wiki\topics","{brain_path}\_meta"
+New-Item -ItemType Directory -Force -Path "{brain_path}\raw","{brain_path}\chunks\extracted","{brain_path}\chunks\inferred","{brain_path}\wiki\concepts","{brain_path}\wiki\topics","{brain_path}\memory","{brain_path}\_meta"
 ```
 
 ### Step 4: Write brain.json
