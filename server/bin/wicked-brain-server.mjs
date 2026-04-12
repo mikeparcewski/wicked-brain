@@ -6,6 +6,7 @@ import { argv, pid, exit } from "node:process";
 import { FileWatcher } from "../lib/file-watcher.mjs";
 import { SqliteSearch } from "../lib/sqlite-search.mjs";
 import { LspClient } from "../lib/lsp-client.mjs";
+import { emitEvent, waitForBus } from "../lib/bus.mjs";
 
 // Parse args
 const args = argv.slice(2);
@@ -88,11 +89,38 @@ process.on("SIGINT", () => shutdown());
 // Action dispatch
 const actions = {
   health: () => db.health(),
-  search: (p) => db.search(p),
-  federated_search: (p) => db.federatedSearch(p),
-  index: (p) => db.index(p),
-  remove: (p) => db.remove(p.id),
-  reindex: (p) => db.reindex(p.docs),
+  search: (p) => {
+    const result = db.search(p);
+    emitEvent("wicked.search.executed", "brain.search", {
+      query: p.query, result_count: result.total_matches, brain_id: brainId,
+    });
+    return result;
+  },
+  federated_search: (p) => {
+    const result = db.federatedSearch(p);
+    emitEvent("wicked.search.executed", "brain.search", {
+      query: p.query, federated: true, brain_id: brainId,
+    });
+    return result;
+  },
+  index: (p) => {
+    db.index(p);
+    emitEvent("wicked.chunk.indexed", "brain.chunk", {
+      id: p.id, path: p.path, brain_id: brainId,
+    });
+  },
+  remove: (p) => {
+    db.remove(p.id);
+    emitEvent("wicked.chunk.removed", "brain.chunk", {
+      id: p.id, brain_id: brainId,
+    });
+  },
+  reindex: (p) => {
+    db.reindex(p.docs);
+    emitEvent("wicked.brain.reindexed", "brain", {
+      doc_count: p.docs.length, brain_id: brainId,
+    });
+  },
   backlinks: (p) => ({ links: db.backlinks(p.id) }),
   forward_links: (p) => ({ links: db.forwardLinks(p.id) }),
   stats: () => db.stats(),
@@ -125,7 +153,13 @@ const actions = {
   access_log: (p) => db.accessLog(p.id),
   recent_memories: (p) => ({ memories: db.recentMemories(p) }),
   contradictions: () => ({ links: db.contradictions() }),
-  confirm_link: (p) => db.confirmLink(p.source_id, p.target_path, p.verdict),
+  confirm_link: (p) => {
+    const result = db.confirmLink(p.source_id, p.target_path, p.verdict);
+    emitEvent("wicked.link.confirmed", "brain.link", {
+      source_id: p.source_id, target_path: p.target_path, verdict: p.verdict, brain_id: brainId,
+    });
+    return result;
+  },
   link_health: () => db.linkHealth(),
   tag_frequency: () => ({ tags: db.tagFrequency() }),
   search_misses: (p) => ({ misses: db.searchMisses(p) }),
@@ -201,7 +235,11 @@ try {
   console.error(`Warning: could not write port to config: ${err.message}`);
 }
 
-server.listen(port, () => {
+server.listen(port, async () => {
   console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
   watcher.start();
+  await waitForBus();
+  emitEvent("wicked.server.started", "brain.system", {
+    brain_id: brainId, port, pid,
+  });
 });

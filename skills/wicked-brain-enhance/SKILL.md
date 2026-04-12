@@ -137,7 +137,21 @@ Only synthesize connections and summaries from what already exists.}
 Index each new chunk via the server API.
 Append to log.jsonl for each chunk written.
 
-## Step 5: Report
+## Step 5: Emit bus events
+
+For each inferred chunk created, emit:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.chunk.enhanced" \
+  --domain "wicked-brain" \
+  --subdomain "brain.chunk" \
+  --payload '{"path":"{chunk_path}","brain_id":"{brain_id}","topic":"{topic}","confidence":0.6}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
+## Step 6: Report
 
 State what gaps were identified and how many inferred chunks were created.
 ```

@@ -83,7 +83,21 @@ If **dry_run**: report the file path, current tag count, and proposed new tags.
 
 If not dry_run: update the `contains:` field in the YAML frontmatter in-place using the Edit tool. The server's file watcher will detect the change and re-index.
 
-### Step 5: Summary
+### Step 5: Emit bus event
+
+After all files are updated (not in dry_run mode), emit a single summary event:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.tag.backfilled" \
+  --domain "wicked-brain" \
+  --subdomain "brain.chunk" \
+  --payload '{"files_updated":{N},"files_scanned":{total},"brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
+### Step 6: Summary
 
 Report:
 - Total files scanned

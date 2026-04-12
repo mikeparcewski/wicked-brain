@@ -177,7 +177,19 @@ Sources:
 - {path}: {one-line description of what it contributed}
 - {path}: {one-line description}
 
-## Step 5: Log search effectiveness
+## Step 5: Emit bus event
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.query.executed" \
+  --domain "wicked-brain" \
+  --subdomain "brain.query" \
+  --payload '{"question":"{question}","sources_found":{count},"brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
+## Step 6: Log search effectiveness
 
 If evidence was insufficient to answer the question fully, append a
 search-miss event to the brain's log:

@@ -246,7 +246,19 @@ Delete the flat `_meta/` directory:
 
 The flat path is now a pure container with only `projects/` beneath it.
 
-### Step 10: Report
+### Step 10: Emit bus event
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.schema.migrated" \
+  --domain "wicked-brain" \
+  --subdomain "brain.system" \
+  --payload '{"from":"{flat_path}","to":"{target_path}","brain_id":"{brain_id}","doc_count":{N}}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
+### Step 11: Report
 
 Tell the user:
 

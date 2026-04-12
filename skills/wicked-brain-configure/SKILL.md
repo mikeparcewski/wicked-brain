@@ -105,7 +105,19 @@ Digital brain: {brain_id} | {total} indexed items | {chunks} chunks, {wiki} wiki
 - Capture non-obvious decisions, patterns, and gotchas with `wicked-brain:memory`
 ```
 
-### Step 4: Confirm
+### Step 4: Emit bus event
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.config.updated" \
+  --domain "wicked-brain" \
+  --subdomain "brain.system" \
+  --payload '{"config_file":"{path}","platform":"{detected_platform}","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
+### Step 5: Confirm
 
 Report what was written and where:
 - Config file: {path}

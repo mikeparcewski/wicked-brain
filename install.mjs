@@ -126,6 +126,31 @@ if (installHooks) {
   }
 }
 
+// Register as a wicked-bus provider if bus is available
+try {
+  const { openDb, resolveDbPath, register } = await import("wicked-bus");
+  const busDbPath = resolveDbPath();
+  const busDb = openDb(busDbPath);
+  try {
+    register(busDb, {
+      plugin: "wicked-brain",
+      role: "provider",
+      filter: "wicked.*",
+    });
+    console.log("\nwicked-bus: registered wicked-brain as provider");
+  } catch (err) {
+    // Already registered or other non-fatal issue
+    if (err.message && err.message.includes("UNIQUE")) {
+      console.log("\nwicked-bus: wicked-brain already registered as provider");
+    } else {
+      console.log(`\nwicked-bus: could not register (${err.message})`);
+    }
+  }
+  busDb.close();
+} catch {
+  console.log("\nwicked-bus: not available (install wicked-bus to enable event integration)");
+}
+
 // Server binary is bundled — npx wicked-brain-server works automatically
 // Skills reference it as: npx wicked-brain-server --brain {path} --port {port}
 console.log("\nServer: bundled (use 'npx wicked-brain-server' to start)");

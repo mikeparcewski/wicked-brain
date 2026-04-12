@@ -215,7 +215,21 @@ Append to `{brain_path}/_meta/log.jsonl` for each article:
 {"ts":"{ISO}","op":"write","path":"{article_path}","author":"llm:compile","content_hash":"{hash}"}
 ```
 
-## Step 7: Report
+## Step 7: Emit bus events
+
+For each article written or updated, emit:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.article.compiled" \
+  --domain "wicked-brain" \
+  --subdomain "brain.wiki" \
+  --payload '{"path":"{article_path}","brain_id":"{brain_id}","source_chunk_count":{N},"persona":"{synthesis_persona}"}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
+## Step 8: Report
 
 State how many articles were created/updated and what concepts they cover.
 ```

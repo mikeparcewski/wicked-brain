@@ -154,6 +154,18 @@ Append to `{brain_path}/_meta/log.jsonl`:
 {"ts":"{ISO}","op":"memory_store","path":"memory/{safe_name}.md","type":"{type}","tier":"working","author":"agent:memory"}
 ```
 
+### Step 7: Emit bus event
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.memory.stored" \
+  --domain "wicked-brain" \
+  --subdomain "brain.memory" \
+  --payload '{"path":"memory/{safe_name}.md","type":"{type}","tier":"working","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
 ## Recall Mode
 
 ### Progressive loading

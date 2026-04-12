@@ -58,6 +58,30 @@ context or produce incomplete results.
 
 If the host CLI does not support subagent dispatch, fall back to inline execution — run the pipeline steps directly in the current context.
 
+## Bus Events
+
+When dispatching an agent, emit:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.agent.dispatched" \
+  --domain "wicked-brain" \
+  --subdomain "brain.agent" \
+  --payload '{"agent":"{agent_name}","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+The consolidate agent should also emit `wicked.brain.consolidated` on completion:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.brain.consolidated" \
+  --domain "wicked-brain" \
+  --subdomain "brain" \
+  --payload '{"brain_id":"{brain_id}","archived":{N},"promoted":{M},"merged":{P}}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
 ## Cross-Platform Notes
 
 - Agent definitions are portable markdown — they work on all platforms

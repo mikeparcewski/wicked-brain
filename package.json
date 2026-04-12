@@ -31,7 +31,8 @@
     "wicked-brain-server": "./server/bin/wicked-brain-server.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^12.0.0"
+    "better-sqlite3": "^12.0.0",
+    "wicked-bus": "^1.0.0"
   },
   "files": [
     "install.mjs",

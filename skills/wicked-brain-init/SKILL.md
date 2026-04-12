@@ -280,7 +280,21 @@ Invoke `wicked-brain:configure` to write routing instructions into the active
 CLI's agent config (CLAUDE.md, GEMINI.md, etc.). This is what makes the brain
 the default for search and exploration — do not skip this step.
 
-### Step 10: Confirm
+### Step 10: Emit bus event
+
+If wicked-bus is available, emit an initialization event:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.brain.initialized" \
+  --domain "wicked-brain" \
+  --subdomain "brain" \
+  --payload '{"brain_id":"{id}","brain_path":"{brain_path}","name":"{name}"}' 2>/dev/null || true
+```
+
+This is fire-and-forget — if the bus is not installed, the command silently fails.
+
+### Step 11: Confirm
 
 Tell the user:
 "Brain `{name}` is ready at `{brain_path}` — {N} files ingested, {M} chunks indexed.

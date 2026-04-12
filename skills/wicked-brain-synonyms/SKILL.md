@@ -138,3 +138,17 @@ Ask: "Apply all, apply some (specify numbers), or cancel?"
 
 Only write to `synonyms.json` after explicit user approval. Merge approved
 suggestions with any existing entries using the same add-synonym logic above.
+
+## Bus Events
+
+After any write to `synonyms.json` (add, remove, or auto-suggest apply), emit:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.synonym.updated" \
+  --domain "wicked-brain" \
+  --subdomain "brain.taxonomy" \
+  --payload '{"operation":"{add|remove|auto-apply}","term":"{term}","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.

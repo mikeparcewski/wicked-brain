@@ -88,7 +88,19 @@ Append to `{brain_path}/_meta/log.jsonl`:
 {"ts":"{ISO}","op":"memory_forget","path":"{path}","id":"{id}","mode":"{mode}","reason":"{reason}","author":"agent:forget"}
 ```
 
-### Step 6: Report
+### Step 6: Emit bus event
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.memory.archived" \
+  --domain "wicked-brain" \
+  --subdomain "brain.memory" \
+  --payload '{"path":"{path}","id":"{id}","mode":"{mode}","reason":"{reason}"}' 2>/dev/null || true
+```
+
+Fire-and-forget — if the bus is not installed, silently skip.
+
+### Step 7: Report
 
 Report: path, id, previous frontmatter type/tier (if memory), archive filename,
 and whether index removal succeeded. Always surface the archive path so the
