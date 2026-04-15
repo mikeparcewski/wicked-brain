@@ -16,6 +16,15 @@ function getArg(name) {
   return idx !== -1 && args[idx + 1] ? args[idx + 1] : null;
 }
 
+// --version / -v: print root package.json version and exit.
+// Resolves relative to this file so the published install reads its own manifest.
+if (args.includes("--version") || args.includes("-v")) {
+  const pkgUrl = new URL("../../package.json", import.meta.url);
+  const pkg = JSON.parse(readFileSync(pkgUrl, "utf-8"));
+  console.log(pkg.version);
+  exit(0);
+}
+
 const brainPath = resolve(getArg("brain") || ".");
 const preferredPort = parseInt(getArg("port") || "4242", 10);
 const configPath = join(brainPath, "brain.json");

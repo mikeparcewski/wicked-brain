@@ -60,9 +60,12 @@ If the result is `not installed`, the package was never globally installed (the
 user may have been running via `npx` only). Treat this as "needs install" and
 proceed to Step 4.
 
-**Do NOT use `npx wicked-brain-server --version`** — it may return the version
-of a stale cached npx copy, not the globally installed one that actually runs
-when brain servers start.
+`wicked-brain-server --version` (v0.8.0+) prints the installed version directly.
+It's safe to call the binary by its installed path — e.g.
+`$(npm config get prefix)/bin/wicked-brain-server --version`. **Avoid
+`npx wicked-brain-server --version`** — npx may resolve to a cached copy that
+isn't the globally installed one that actually runs when brain servers start,
+so the number it reports can lie about what will serve requests.
 
 ### Step 2: Check latest version on npm
 
