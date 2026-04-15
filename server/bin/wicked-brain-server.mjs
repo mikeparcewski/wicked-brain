@@ -27,26 +27,41 @@ if (args.includes("--version") || args.includes("-v")) {
 
 const brainPath = resolve(getArg("brain") || ".");
 const preferredPort = parseInt(getArg("port") || "4242", 10);
+// Explicit --port means "bind this exact port or fail" — no probe.
+const portExplicit = args.includes("--port");
 const configPath = join(brainPath, "brain.json");
 // Source path for LSP workspace root — prefer --source flag, fall back to config, then brainPath
 const sourceArgRaw = getArg("source");
 const sourceArg = sourceArgRaw ? resolve(sourceArgRaw) : null;
 
-/** Find a free TCP port starting from `start`. */
-function findFreePort(start) {
+/**
+ * Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real
+ * server instance so the bind semantics (dual-stack IPv4+IPv6) match the
+ * eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only
+ * conflict and produce a false "free" result.
+ */
+function listenWithProbe(server, startPort, maxProbe) {
   return new Promise((resolve, reject) => {
-    const tryPort = (p) => {
-      const probe = createServer();
-      probe.once("error", (err) => {
-        if (err.code === "EADDRINUSE") tryPort(p + 1);
-        else reject(err);
-      });
-      probe.once("listening", () => {
-        probe.close(() => resolve(p));
-      });
-      probe.listen(p, "127.0.0.1");
+    let p = startPort;
+    const attempt = () => {
+      const onError = (err) => {
+        server.off("listening", onListen);
+        if (err.code === "EADDRINUSE" && p < startPort + maxProbe - 1) {
+          p += 1;
+          attempt();
+          return;
+        }
+        reject(err);
+      };
+      const onListen = () => {
+        server.off("error", onError);
+        resolve(p);
+      };
+      server.once("error", onError);
+      server.once("listening", onListen);
+      server.listen(p);
     };
-    tryPort(start);
+    attempt();
   });
 }
 
@@ -239,9 +254,13 @@ watcher.onFileChange((relPath, absPath, content, eventType) => {
   lsp.handleFileChange(relPath, absPath, content, eventType);
 });
 
-const port = await findFreePort(preferredPort);
+// Bind the real server. Probe upward on EADDRINUSE unless the user passed
+// --port explicitly (in which case bind that port or fail loudly).
+const port = await listenWithProbe(server, preferredPort, portExplicit ? 1 : 20);
 
-// Write actual port back to config so skills can always find the server
+// Write actual bound port back to config so skills can always find the server.
+// Must happen AFTER listen succeeds — a pre-listen write would leave a stale
+// value if the bind failed.
 try {
   let metaConfig = {};
   try { metaConfig = JSON.parse(readFileSync(metaConfigPath, "utf-8")); } catch {}
@@ -251,18 +270,16 @@ try {
   console.error(`Warning: could not write port to config: ${err.message}`);
 }
 
-server.listen(port, async () => {
-  console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
-  watcher.start();
-  const busReady = await waitForBus();
-  emitEvent("wicked.server.started", "brain.system", {
-    brain_id: brainId, port, pid,
-  });
-  if (busReady) {
-    try {
-      memorySubscriber = await startMemorySubscriber({ brainPath, brainId, db });
-    } catch (err) {
-      console.error(`[memory-subscriber] failed to start: ${err.message}`);
-    }
-  }
+console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
+watcher.start();
+const busReady = await waitForBus();
+emitEvent("wicked.server.started", "brain.system", {
+  brain_id: brainId, port, pid,
 });
+if (busReady) {
+  try {
+    memorySubscriber = await startMemorySubscriber({ brainPath, brainId, db });
+  } catch (err) {
+    console.error(`[memory-subscriber] failed to start: ${err.message}`);
+  }
+}
