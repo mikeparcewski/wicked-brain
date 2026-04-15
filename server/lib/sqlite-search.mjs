@@ -24,6 +24,44 @@ function escapeFtsQuery(query) {
 /** Weight factor for backlink count in search ranking (PageRank-lite). */
 const BACKLINK_WEIGHT = 0.5;
 
+/**
+ * Additive boost applied to FTS5 BM25 score when a query term appears as a
+ * substring of the document's path. BM25 scores in SQLite FTS5 are negative
+ * (more negative = more relevant), so we SUBTRACT this value to push path
+ * matches ahead. Addresses the case where a query term matches a module/file
+ * name but the chunk body has only sparse mentions: a dense body chunk in an
+ * unrelated file can have a very negative BM25, so a multiplicative boost on
+ * the sparse-but-path-matching chunk's weaker score is insufficient. A flat
+ * additive bonus larger than the typical BM25 magnitude reliably promotes it.
+ */
+const PATH_MATCH_BOOST = 20;
+
+/**
+ * Overfetch multiplier for path-name boost re-ranking. We pull this many times
+ * the requested limit from FTS so that boosted rows below the BM25 cutoff can
+ * still be promoted into the top N.
+ */
+const PATH_BOOST_OVERFETCH = 5;
+
+/** Tokenize a free-text query the same way we want to match against paths:
+ *  lowercase, split on non-word (underscores preserved). */
+function tokenizeQueryForPath(query) {
+  return query
+    .toLowerCase()
+    .split(/[^\w]+/)
+    .filter(Boolean);
+}
+
+/** Returns true if any query term appears as a substring of the lowercased path. */
+function pathMatchesQuery(path, terms) {
+  if (!path || terms.length === 0) return false;
+  const lowered = path.toLowerCase();
+  for (const term of terms) {
+    if (lowered.includes(term)) return true;
+  }
+  return false;
+}
+
 /** Weight factor for average backlink confidence in search ranking. */
 const CONFIDENCE_WEIGHT = 0.3;
 
@@ -267,7 +305,11 @@ export class SqliteSearch {
     const sinceClause = since ? `AND d.indexed_at >= ?` : "";
     const sinceParams = since ? [new Date(since).getTime()] : [];
 
-    const rows = this.#db
+    // Overfetch so the path-name boost can promote rows that sit below the
+    // raw BM25 cutoff. We re-rank in JS, then slice to the requested limit.
+    const fetchLimit = (limit + offset) * PATH_BOOST_OVERFETCH;
+
+    const rawRows = this.#db
       .prepare(`
         SELECT
           d.id,
@@ -277,7 +319,8 @@ export class SqliteSearch {
           SUBSTR(d.content, 1, 1000) AS raw_content,
           COALESCE(link_count.cnt, 0) AS backlink_count,
           COALESCE(ac.cnt, 0) AS access_count,
-          COALESCE(link_conf.avg_conf, 0.5) AS avg_backlink_confidence
+          COALESCE(link_conf.avg_conf, 0.5) AS avg_backlink_confidence,
+          (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}) - (COALESCE(ac.cnt, 0) * ${SEARCH_ACCESS_WEIGHT}) - (COALESCE(link_conf.avg_conf, 0.5) * ${CONFIDENCE_WEIGHT})) AS composite_score
         FROM documents_fts f
         JOIN documents d ON d.id = f.id
         LEFT JOIN (
@@ -297,15 +340,28 @@ export class SqliteSearch {
         ) ac ON d.id = ac.doc_id
         WHERE documents_fts MATCH ?
         ${sinceClause}
-        ORDER BY (f.rank - (COALESCE(link_count.cnt, 0) * ${BACKLINK_WEIGHT}) - (COALESCE(ac.cnt, 0) * ${SEARCH_ACCESS_WEIGHT}) - (COALESCE(link_conf.avg_conf, 0.5) * ${CONFIDENCE_WEIGHT}))
-        LIMIT ? OFFSET ?
+        ORDER BY composite_score
+        LIMIT ?
       `)
-      .all(escaped, ...sinceParams, limit, offset)
-      .map((row) => {
-        const body_excerpt = extractBodyExcerpt(row.raw_content ?? "");
-        delete row.raw_content;
-        return { ...row, body_excerpt };
-      });
+      .all(escaped, ...sinceParams, fetchLimit);
+
+    // Path-name boost: if any query term appears in the path, multiply the
+    // (negative) composite score by PATH_MATCH_BOOST so it sorts higher.
+    const queryTerms = tokenizeQueryForPath(query);
+    for (const row of rawRows) {
+      row.boosted_score = pathMatchesQuery(row.path, queryTerms)
+        ? row.composite_score - PATH_MATCH_BOOST
+        : row.composite_score;
+    }
+    rawRows.sort((a, b) => a.boosted_score - b.boosted_score);
+
+    const rows = rawRows.slice(offset, offset + limit).map((row) => {
+      const body_excerpt = extractBodyExcerpt(row.raw_content ?? "");
+      delete row.raw_content;
+      delete row.composite_score;
+      delete row.boosted_score;
+      return { ...row, body_excerpt };
+    });
 
     const countRow = this.#db
       .prepare(

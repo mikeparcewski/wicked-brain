@@ -878,3 +878,32 @@ test("index auto-extracts frontmatter from content", () => {
     db.close();
   }
 });
+
+test("path-name boost ranks path-matching chunks above denser body-only chunks", () => {
+  const db = makeDb();
+  try {
+    // Dense chunk: many mentions of chain_id in the body, but path is unrelated.
+    const dense = `# Notes\n\n${"chain_id is important. ".repeat(40)}`;
+    db.index({ id: "dense", path: "notes/generic.md", content: dense });
+
+    // Path-matching chunk: path contains the query term, body mentions it once.
+    const sparse = `# Kanban module\n\nThis module uses chain_id internally.`;
+    db.index({
+      id: "pathmatch",
+      path: "chunks/extracted/scripts-kanban-chain_id.py/chunk-001.md",
+      content: sparse,
+    });
+
+    const result = db.search({ query: "chain_id", limit: 10 });
+    assert.ok(result.results.length >= 2, "expected both chunks in results");
+    const ids = result.results.map((r) => r.id);
+    const pathIdx = ids.indexOf("pathmatch");
+    const denseIdx = ids.indexOf("dense");
+    assert.ok(
+      pathIdx !== -1 && pathIdx < denseIdx,
+      `path-matching chunk should outrank dense chunk: got order ${ids.join(", ")}`
+    );
+  } finally {
+    db.close();
+  }
+});
