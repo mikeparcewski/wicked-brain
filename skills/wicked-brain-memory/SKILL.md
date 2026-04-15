@@ -35,10 +35,12 @@ project root.
 
 - **mode** (required): `store` or `recall`
 - **content** (store mode): the memory content to store
-- **type** (store mode, optional): `decision`, `pattern`, `preference`, `gotcha`, or `discovery`. Auto-detected if omitted.
+- **type** (store mode, optional): `decision`, `pattern` (alias: `procedural`), `preference`, `gotcha`, or `discovery`. Auto-detected if omitted. `procedural` is an input alias only — storage frontmatter always writes `type: pattern`.
 - **ttl_days** (store mode, optional): number of days before this memory expires. Defaults by type.
+- **importance** (store mode, optional): `low`, `medium`, or `high`. Overrides the type default. Bands: low = 1-3, medium = 4-6, high = 7-10. Used to derive the initial tier (see Step 2b).
+- **tier** (store mode, optional): explicit tier override (`working`, `episodic`, `semantic`). Takes precedence over `importance`.
 - **query** (recall mode): search term for finding memories
-- **filter_type** (recall mode, optional): filter by memory type
+- **filter_type** (recall mode, optional): filter by memory type. `procedural` is normalized to `pattern`.
 - **filter_tier** (recall mode, optional): filter by tier (`working`, `episodic`, `semantic`)
 
 ## Store Mode
@@ -47,10 +49,14 @@ project root.
 
 If type is not provided, classify the content:
 - Contains "decided", "chose", "will use", "going with" → `decision`
-- Contains "pattern", "always", "tends to", "convention" → `pattern`
+- Contains "pattern", "always", "tends to", "convention" → `pattern` (if the caller explicitly passed `type: procedural`, normalize to `pattern` before continuing)
 - Contains "prefer", "like", "want", "should always" → `preference`
 - Contains "watch out", "careful", "gotcha", "trap", "bug" → `gotcha`
 - Otherwise → `discovery`
+
+#### Type aliases
+
+- `procedural` → `pattern` (normalize on input; storage always writes `type: pattern`)
 
 ### Step 2: Apply type defaults
 
@@ -62,7 +68,14 @@ If type is not provided, classify the content:
 | gotcha | 5 | 30 |
 | discovery | 4 | 14 |
 
-Agent-provided overrides take precedence.
+Agent-provided overrides take precedence. An explicit `importance` arg overrides the type default.
+
+### Step 2b: Resolve initial tier from importance
+
+- If `tier` is explicitly passed → use that, skip the rest.
+- Else if `importance` is `high` (or numeric importance >= 7) → `semantic`
+- Else if `importance` is `low` (or numeric importance <= 3) → `working`
+- Else (medium, or 4-6) → `episodic`
 
 ### Step 3: Generate tags with synonym expansion
 
@@ -88,7 +101,7 @@ Write to `{brain_path}/memory/{safe_name}.md`:
 ```yaml
 ---
 type: {detected or provided type}
-tier: working
+tier: {resolved tier from Step 2b}
 confidence: 0.5
 importance: {from type defaults or override}
 ttl_days: {from type defaults or override, null if permanent}
@@ -112,14 +125,14 @@ indexed_at: "{ISO 8601 timestamp}"
 - **episodic**: Specific events or decisions from past sessions. Medium longevity. Use for "we decided X on date Y" or "this happened in project Z".
 - **semantic**: Generalized patterns and facts extracted from experience. Permanent by default. Use for stable conventions, recurring patterns, and distilled knowledge that transcends any single session.
 
-New memories always start at `tier: working`. Consolidation (wicked-brain:consolidate) promotes them to `episodic` or `semantic` based on access frequency and age.
+New memories start at the tier resolved from importance (default `episodic` for medium importance, `working` for low, `semantic` for high). Consolidation (wicked-brain:consolidate) still promotes them across tiers based on access frequency and age.
 
 #### Complete example
 
 ```yaml
 ---
 type: decision
-tier: working
+tier: semantic
 confidence: 0.9
 importance: 7
 ttl_days: null
@@ -151,7 +164,7 @@ The server's file watcher will auto-index this file.
 Append to `{brain_path}/_meta/log.jsonl`:
 
 ```json
-{"ts":"{ISO}","op":"memory_store","path":"memory/{safe_name}.md","type":"{type}","tier":"working","author":"agent:memory"}
+{"ts":"{ISO}","op":"memory_store","path":"memory/{safe_name}.md","type":"{type}","tier":"{resolved tier}","author":"agent:memory"}
 ```
 
 ### Step 7: Emit bus event
@@ -161,7 +174,7 @@ npx wicked-bus emit \
   --type "wicked.memory.stored" \
   --domain "wicked-brain" \
   --subdomain "brain.memory" \
-  --payload '{"path":"memory/{safe_name}.md","type":"{type}","tier":"working","brain_id":"{brain_id}"}' 2>/dev/null || true
+  --payload '{"path":"memory/{safe_name}.md","type":"{type}","tier":"{resolved tier}","brain_id":"{brain_id}"}' 2>/dev/null || true
 ```
 
 Fire-and-forget — if the bus is not installed, silently skip.
@@ -187,7 +200,7 @@ consolidation. Use a consistent session_id for the entire conversation.
 
 ### Step 2: Filter results
 
-Filter to paths starting with `memory/`. If filter_type or filter_tier provided, read frontmatter and filter accordingly.
+Filter to paths starting with `memory/`. If filter_type or filter_tier provided, read frontmatter and filter accordingly. Normalize `filter_type: procedural` to `pattern` before matching, so it matches memories stored with `type: pattern`.
 
 ### Step 3: Apply tier weighting
 
