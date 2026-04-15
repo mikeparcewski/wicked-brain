@@ -10,23 +10,31 @@
 
 import { writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { subscribe } from "wicked-bus";
 import { getBusDb, isBusAvailable, emitEvent } from "./bus.mjs";
 import { promoteFact } from "./memory-promoter.mjs";
 
 /**
  * Start the auto-memorize subscriber.
  * Returns the subscription handle (with .stop()) or null if the bus is unavailable.
+ * Dynamic-imports wicked-bus so the server still loads when the package is absent
+ * (matches the graceful-degradation pattern used by bus.mjs).
  *
  * @param {object} opts
  * @param {string} opts.brainPath  absolute brain directory
  * @param {string} opts.brainId
  * @param {object} opts.db         brain SqliteSearch instance (for findByContentHash)
  */
-export function startMemorySubscriber({ brainPath, brainId, db }) {
+export async function startMemorySubscriber({ brainPath, brainId, db }) {
   if (!isBusAvailable()) return null;
   const busDb = getBusDb();
   if (!busDb) return null;
+
+  let subscribe;
+  try {
+    ({ subscribe } = await import("wicked-bus"));
+  } catch {
+    return null;
+  }
 
   const memoryDir = join(brainPath, "memory");
 

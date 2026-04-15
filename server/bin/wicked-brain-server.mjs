@@ -251,7 +251,7 @@ server.listen(port, async () => {
   });
   if (busReady) {
     try {
-      memorySubscriber = startMemorySubscriber({ brainPath, brainId, db });
+      memorySubscriber = await startMemorySubscriber({ brainPath, brainId, db });
     } catch (err) {
       console.error(`[memory-subscriber] failed to start: ${err.message}`);
     }
