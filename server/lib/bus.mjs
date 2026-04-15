@@ -65,6 +65,16 @@ export function busAvailable() {
   return available;
 }
 
+/** Alias for busAvailable() — preferred name going forward. */
+export function isBusAvailable() {
+  return available;
+}
+
+/** Returns the open bus DB handle, or null if unavailable. Reuses the connection opened at init. */
+export function getBusDb() {
+  return available ? busDb : null;
+}
+
 /**
  * Wait for bus initialization to complete.
  * Only needed if you must know availability before the first emit.

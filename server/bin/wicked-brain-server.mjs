@@ -7,6 +7,7 @@ import { FileWatcher } from "../lib/file-watcher.mjs";
 import { SqliteSearch } from "../lib/sqlite-search.mjs";
 import { LspClient } from "../lib/lsp-client.mjs";
 import { emitEvent, waitForBus } from "../lib/bus.mjs";
+import { startMemorySubscriber } from "../lib/memory-subscriber.mjs";
 
 // Parse args
 const args = argv.slice(2);
@@ -74,11 +75,17 @@ try {
 // LSP client — pass source path so language servers are rooted at the project, not the brain dir
 const lsp = new LspClient(brainPath, db, sourcePath);
 
+// Auto-memorize subscriber handle (set after bus init in server.listen callback)
+let memorySubscriber = null;
+
 // Graceful shutdown
 async function shutdown() {
   console.log("Shutting down...");
   try { unlinkSync(pidPath); } catch {}
   watcher.stop();
+  if (memorySubscriber) {
+    try { await memorySubscriber.stop(); } catch {}
+  }
   await lsp.shutdown();
   db.close();
   exit(0);
@@ -238,8 +245,15 @@ try {
 server.listen(port, async () => {
   console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
   watcher.start();
-  await waitForBus();
+  const busReady = await waitForBus();
   emitEvent("wicked.server.started", "brain.system", {
     brain_id: brainId, port, pid,
   });
+  if (busReady) {
+    try {
+      memorySubscriber = startMemorySubscriber({ brainPath, brainId, db });
+    } catch (err) {
+      console.error(`[memory-subscriber] failed to start: ${err.message}`);
+    }
+  }
 });

@@ -59,7 +59,8 @@ export class SqliteSearch {
         content TEXT NOT NULL,
         frontmatter TEXT,
         brain_id TEXT NOT NULL,
-        indexed_at INTEGER NOT NULL
+        indexed_at INTEGER NOT NULL,
+        content_hash TEXT
       );
 
       CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
@@ -153,9 +154,27 @@ export class SqliteSearch {
       currentVersion = 2;
     }
 
+    // Migration 3: add content_hash column + index for memory dedup
+    if (currentVersion < 3) {
+      try { this.#db.prepare(`SELECT content_hash FROM documents LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE documents ADD COLUMN content_hash TEXT`);
+      }
+      this.#db.exec(`CREATE INDEX IF NOT EXISTS idx_documents_content_hash ON documents(content_hash)`);
+      currentVersion = 3;
+    }
+
     // Persist the current version
     this.#db.exec(`DELETE FROM _schema_version`);
     this.#db.prepare(`INSERT INTO _schema_version (version) VALUES (?)`).run(currentVersion);
+  }
+
+  /** Extract a single field value from a raw frontmatter string (no YAML dep). */
+  #extractFrontmatterField(frontmatterStr, fieldName) {
+    if (!frontmatterStr) return null;
+    const re = new RegExp(`^${fieldName}:\\s*(.+)$`, "m");
+    const m = frontmatterStr.match(re);
+    if (!m) return null;
+    return m[1].trim().replace(/^["']|["']$/g, "");
   }
 
   /** Returns the current schema version number. */
@@ -180,16 +199,18 @@ export class SqliteSearch {
     const frontmatter = doc.frontmatter ?? SqliteSearch.#extractFrontmatter(content);
     const brainId = this.#brainId;
     const indexedAt = Date.now();
+    const contentHash = this.#extractFrontmatterField(frontmatter, "content_hash");
 
     const upsertDoc = this.#db.prepare(`
-      INSERT INTO documents (id, path, content, frontmatter, brain_id, indexed_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO documents (id, path, content, frontmatter, brain_id, indexed_at, content_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         path = excluded.path,
         content = excluded.content,
         frontmatter = excluded.frontmatter,
         brain_id = excluded.brain_id,
-        indexed_at = excluded.indexed_at
+        indexed_at = excluded.indexed_at,
+        content_hash = excluded.content_hash
     `);
 
     const deleteFts = this.#db.prepare(`DELETE FROM documents_fts WHERE id = ?`);
@@ -205,7 +226,7 @@ export class SqliteSearch {
     `);
 
     const run = this.#db.transaction(() => {
-      upsertDoc.run(id, path, content, frontmatter, brainId, indexedAt);
+      upsertDoc.run(id, path, content, frontmatter, brainId, indexedAt, contentHash);
       deleteFts.run(id);
       insertFts.run(id, path, content, brainId);
       deleteLinks.run(id);
@@ -781,6 +802,18 @@ export class SqliteSearch {
       ORDER BY searched_at DESC
       LIMIT ?
     `).all(...sinceParams, limit);
+  }
+
+  /**
+   * Find the first document with a matching content_hash, or null.
+   * Used by the auto-memorize subscriber for dedup.
+   */
+  findByContentHash(hash) {
+    if (!hash) return null;
+    const row = this.#db.prepare(`
+      SELECT id, path FROM documents WHERE content_hash = ? LIMIT 1
+    `).get(hash);
+    return row || null;
   }
 
   close() {

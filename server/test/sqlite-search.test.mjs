@@ -808,7 +808,7 @@ test("migration 2 upgrades a v1 database to add confidence and evidence_count co
     const db = new SqliteSearch(tmpPath, "test-brain");
     try {
       const version = db.schemaVersion();
-      assert.equal(version, 2, "Schema version should be 2 after migration");
+      assert.ok(version >= 2, "Schema version should be >= 2 after migration");
 
       // confidence and evidence_count should exist — confirmLink should work
       db.index({ id: "t1", path: "t1.md", content: "See [[target.md]]" });
