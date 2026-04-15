@@ -323,12 +323,14 @@ async function ingestFile(filePath) {
     // Note: These keywords are for FTS indexing. The LLM-based ingest
     // generates richer synonym-expanded tags in the contains: field.
     // This batch script extracts basic keywords only.
+    // Replace non-word chars with space (not empty) so adjacent tokens don't glue.
+    // Preserve underscores so snake_case identifiers survive. Floor at 4 chars so
+    // short domain terms like 'task', 'hook', 'crew' aren't dropped.
+    const cleaned = chunks[i].toLowerCase().replace(/[^a-z0-9_\s-]/g, " ");
+    const tokens = cleaned.split(/\s+/).filter(Boolean);
     const keywords = [...new Set(
-      chunks[i].toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .split(/\s+/)
-        .filter(w => w.length > 5 && !STOP.has(w))
-    )].slice(0, 10);
+      tokens.filter(w => w.length >= 4 && !STOP.has(w))
+    )].slice(0, 12);
 
     const frontmatter = [
       "---",
