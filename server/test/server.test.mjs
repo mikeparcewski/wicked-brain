@@ -36,8 +36,14 @@ before(async () => {
     stdio: "pipe",
   });
 
-  serverProcess.stderr.on("data", (d) => {
-    // suppress or log warnings
+  // Capture stderr so a crashed spawn surfaces its error on test failure
+  // instead of looking like a generic ECONNREFUSED. Printed on process exit.
+  let stderrBuf = "";
+  serverProcess.stderr.on("data", (d) => { stderrBuf += d.toString(); });
+  serverProcess.on("exit", (code) => {
+    if (code !== null && code !== 0 && stderrBuf) {
+      process.stderr.write(`[server.test] spawned server exited ${code}:\n${stderrBuf}\n`);
+    }
   });
 
   // Wait ~1.5s for server to start
