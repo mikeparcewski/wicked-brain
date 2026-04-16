@@ -88,10 +88,19 @@ Digital brain: {brain_id} | {total} indexed items | {chunks} chunks, {wiki} wiki
 
 - **Search/explore**: use `wicked-brain:search` — replaces Grep, Glob, and Agent(Explore) for any open-ended search
 - **Answer questions**: use `wicked-brain:query` — replaces Agent(Explore) for conceptual questions
+- **Wiki catalog**: use `wicked-brain:read` at depth 0/1 to browse wiki articles progressively
 - **Surface context**: call `wicked-brain:agent` (context) at the start of any new topic
 - **Capture learnings**: call `wicked-brain:agent` (session-teardown) at session end
 - **Store a decision/pattern/gotcha**: call `wicked-brain:memory` (store mode)
 - **Available agents**: consolidate, context, session-teardown, onboard (via `wicked-brain:agent`)
+
+### Search result source types
+
+Brain search/query results include `source_type` and `path` fields:
+
+- **`wiki`** — Synthesized knowledge. Read deeper with `wicked-brain:read {path} depth=2`.
+- **`chunk`** — Raw indexed content. The search excerpt is usually sufficient.
+- **`memory`** — Experiential learnings. Compact; excerpt is usually enough.
 
 ### Rules (follow strictly)
 
@@ -103,6 +112,7 @@ Digital brain: {brain_id} | {total} indexed items | {chunks} chunks, {wiki} wiki
 - Do NOT read brain files directly — always go through skills and agents
 - Always pass `session_id` with search/query calls for access tracking
 - Capture non-obvious decisions, patterns, and gotchas with `wicked-brain:memory`
+- When search results include `source_type: wiki`, follow up with `wicked-brain:read` at depth 1-2
 ```
 
 ### Step 4: Emit bus event
