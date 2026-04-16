@@ -32,6 +32,7 @@ test("indexes a new .md file when written", async () => {
   watcher.start();
 
   try {
+    await sleep(300); // let watcher attach before file operations
     writeFileSync(join(brainPath, "chunks", "extracted", "note1.md"), "Hello world from watcher test");
 
     await waitFor(() => db.search({ query: "watcher" }).results.length > 0);
