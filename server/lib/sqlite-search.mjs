@@ -12,6 +12,19 @@ function extractBodyExcerpt(content, maxLen = 300) {
   return body.trim().slice(0, maxLen);
 }
 
+/**
+ * Derives the source type from a document path.
+ * - Paths starting with "wiki/" → "wiki"
+ * - Paths starting with "memory/" or "memories/" → "memory"
+ * - Everything else → "chunk"
+ */
+export function deriveSourceType(path) {
+  const normalized = (path ?? "").replace(/\\/g, "/");
+  if (normalized.startsWith("wiki/")) return "wiki";
+  if (normalized.startsWith("memory/") || normalized.startsWith("memories/")) return "memory";
+  return "chunk";
+}
+
 function escapeFtsQuery(query) {
   return query
     .trim()
@@ -357,10 +370,11 @@ export class SqliteSearch {
 
     const rows = rawRows.slice(offset, offset + limit).map((row) => {
       const body_excerpt = extractBodyExcerpt(row.raw_content ?? "");
+      const source_type = deriveSourceType(row.path);
       delete row.raw_content;
       delete row.composite_score;
       delete row.boosted_score;
-      return { ...row, body_excerpt };
+      return { ...row, source_type, body_excerpt };
     });
 
     const countRow = this.#db
@@ -427,7 +441,7 @@ export class SqliteSearch {
               LIMIT ?
             `)
             .all(escaped, limit);
-          allResults.push(...rows);
+          allResults.push(...rows.map((r) => ({ ...r, source_type: deriveSourceType(r.path) })));
         } finally {
           this.#db.prepare(`DETACH DATABASE ${attached}`).run();
         }
@@ -870,6 +884,83 @@ export class SqliteSearch {
       SELECT id, path FROM documents WHERE content_hash = ? LIMIT 1
     `).get(hash);
     return row || null;
+  }
+
+  /**
+   * List wiki articles with metadata (no full content).
+   * Optional FTS5 keyword filter.
+   * @param {object} opts
+   * @param {string|null} [opts.query] - Optional FTS5 query to filter articles
+   * @param {number} [opts.limit=50]
+   * @returns {{ articles: Array<{ path: string, title: string|null, description: string|null, tags: string[], word_count: number }> }}
+   */
+  wikiList({ query = null, limit = 50 } = {}) {
+    let rows;
+
+    if (query) {
+      const escaped = escapeFtsQuery(query);
+      if (!escaped) return { articles: [] };
+
+      rows = this.#db.prepare(`
+        SELECT d.path, d.frontmatter, d.content
+        FROM documents_fts f
+        JOIN documents d ON d.id = f.id
+        WHERE documents_fts MATCH ?
+          AND d.path LIKE 'wiki/%'
+        ORDER BY rank
+        LIMIT ?
+      `).all(escaped, limit);
+    } else {
+      rows = this.#db.prepare(`
+        SELECT path, frontmatter, content
+        FROM documents
+        WHERE path LIKE 'wiki/%'
+        ORDER BY path
+        LIMIT ?
+      `).all(limit);
+    }
+
+    const articles = rows.map((row) => {
+      const fm = row.frontmatter || SqliteSearch.#extractFrontmatter(row.content) || "";
+      const title = this.#extractFrontmatterField(fm, "title") || null;
+      const description = this.#extractFrontmatterField(fm, "description") || null;
+      const tags = this.#parseTags(fm);
+      const word_count = (row.content || "").split(/\s+/).filter(Boolean).length;
+      return { path: row.path, title, description, tags, word_count };
+    });
+
+    return { articles };
+  }
+
+  /**
+   * Parse tags from frontmatter string.
+   * Supports space-separated inline, JSON array, and YAML block list formats.
+   */
+  #parseTags(fm) {
+    if (!fm) return [];
+
+    // Inline: tags: tag1 tag2 tag3  or  tags: ["tag1","tag2"]
+    const inlineMatch = fm.match(/^tags:[ \t]+(\S.*)$/m);
+    if (inlineMatch) {
+      const raw = inlineMatch[1].trim();
+      if (raw.startsWith("[")) {
+        try {
+          return JSON.parse(raw).map(String);
+        } catch {
+          return raw.replace(/[\[\]"]/g, "").split(/[\s,]+/).filter(Boolean);
+        }
+      }
+      return raw.split(/\s+/).filter(Boolean);
+    }
+
+    // YAML block list
+    const blockMatch = fm.match(/^tags:\s*\n((?:\s+-\s+.+\n?)+)/m);
+    if (blockMatch) {
+      const listLines = blockMatch[1].match(/^\s+-\s+(.+)$/gm) || [];
+      return listLines.map((line) => line.replace(/^\s+-\s+/, "").trim()).filter(Boolean);
+    }
+
+    return [];
   }
 
   close() {

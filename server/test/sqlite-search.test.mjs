@@ -4,7 +4,7 @@ import { unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { SqliteSearch } from "../lib/sqlite-search.mjs";
+import { SqliteSearch, deriveSourceType } from "../lib/sqlite-search.mjs";
 
 // Use in-memory databases for testing
 let db;
@@ -903,6 +903,150 @@ test("path-name boost ranks path-matching chunks above denser body-only chunks",
       pathIdx !== -1 && pathIdx < denseIdx,
       `path-matching chunk should outrank dense chunk: got order ${ids.join(", ")}`
     );
+  } finally {
+    db.close();
+  }
+});
+
+test("deriveSourceType returns correct types", () => {
+  assert.equal(deriveSourceType("wiki/some-article.md"), "wiki");
+  assert.equal(deriveSourceType("wiki/nested/article.md"), "wiki");
+  assert.equal(deriveSourceType("memory/decision-001.md"), "memory");
+  assert.equal(deriveSourceType("memories/pattern-002.md"), "memory");
+  assert.equal(deriveSourceType("chunks/extracted/foo.md"), "chunk");
+  assert.equal(deriveSourceType("chunks/inferred/bar.md"), "chunk");
+  assert.equal(deriveSourceType("notes/hello.md"), "chunk");
+  assert.equal(deriveSourceType(null), "chunk");
+  assert.equal(deriveSourceType(undefined), "chunk");
+  // Windows-style backslashes should be normalized
+  assert.equal(deriveSourceType("wiki\\article.md"), "wiki");
+  assert.equal(deriveSourceType("memory\\decision.md"), "memory");
+});
+
+test("search results include source_type and path fields", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "w1", path: "wiki/concepts.md", content: "Concept article about testing" });
+    db.index({ id: "m1", path: "memory/decision-001.md", content: "Decision about testing approach" });
+    db.index({ id: "m2", path: "memories/pattern-001.md", content: "Pattern for testing utilities" });
+    db.index({ id: "c1", path: "chunks/extracted/foo.md", content: "Extracted chunk about testing" });
+
+    const result = db.search({ query: "testing" });
+    assert.equal(result.results.length, 4);
+
+    const byId = Object.fromEntries(result.results.map((r) => [r.id, r]));
+
+    assert.equal(byId.w1.source_type, "wiki");
+    assert.equal(byId.w1.path, "wiki/concepts.md");
+
+    assert.equal(byId.m1.source_type, "memory");
+    assert.equal(byId.m1.path, "memory/decision-001.md");
+
+    assert.equal(byId.m2.source_type, "memory");
+    assert.equal(byId.m2.path, "memories/pattern-001.md");
+
+    assert.equal(byId.c1.source_type, "chunk");
+    assert.equal(byId.c1.path, "chunks/extracted/foo.md");
+  } finally {
+    db.close();
+  }
+});
+
+// ── wiki_list tests ──────────────────────────────────────────────────────
+
+test("wikiList returns all wiki docs when no query given", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "wiki1", path: "wiki/event-bus.md", content: "---\ntitle: Event Bus\ndescription: How the event bus works\ntags: bus events\n---\nThe event bus is a core component." });
+    db.index({ id: "wiki2", path: "wiki/sqlite.md", content: "---\ntitle: SQLite\ntags: database sql\n---\nSQLite is a lightweight database engine." });
+    db.index({ id: "chunk1", path: "chunks/extracted/note.md", content: "This is a chunk, not a wiki article." });
+
+    const result = db.wikiList();
+    assert.equal(result.articles.length, 2);
+    const paths = result.articles.map((a) => a.path);
+    assert.ok(paths.includes("wiki/event-bus.md"));
+    assert.ok(paths.includes("wiki/sqlite.md"));
+    assert.ok(!paths.includes("chunks/extracted/note.md"), "non-wiki doc should be excluded");
+  } finally {
+    db.close();
+  }
+});
+
+test("wikiList with query filters to matching wiki docs", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "wiki1", path: "wiki/event-bus.md", content: "---\ntitle: Event Bus\n---\nThe event bus handles message routing." });
+    db.index({ id: "wiki2", path: "wiki/sqlite.md", content: "---\ntitle: SQLite\n---\nSQLite is a lightweight database engine." });
+    db.index({ id: "chunk1", path: "chunks/extracted/bus-note.md", content: "A chunk about the event bus." });
+
+    const result = db.wikiList({ query: "event bus" });
+    assert.equal(result.articles.length, 1);
+    assert.equal(result.articles[0].path, "wiki/event-bus.md");
+  } finally {
+    db.close();
+  }
+});
+
+test("wikiList excludes non-wiki documents", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "chunk1", path: "chunks/extracted/alpha.md", content: "Alpha content about databases." });
+    db.index({ id: "chunk2", path: "chunks/inferred/beta.md", content: "Beta content about databases." });
+    db.index({ id: "raw1", path: "raw/gamma.md", content: "Gamma raw file about databases." });
+
+    const result = db.wikiList();
+    assert.equal(result.articles.length, 0);
+
+    const filtered = db.wikiList({ query: "databases" });
+    assert.equal(filtered.articles.length, 0);
+  } finally {
+    db.close();
+  }
+});
+
+test("wikiList parses frontmatter title, description, and tags", () => {
+  const db = makeDb();
+  try {
+    // Space-separated tags
+    db.index({ id: "wiki1", path: "wiki/one.md", content: "---\ntitle: Article One\ndescription: The first article\ntags: alpha beta gamma\n---\nBody text here with several words." });
+
+    // JSON array tags
+    db.index({ id: "wiki2", path: "wiki/two.md", content: '---\ntitle: Article Two\ntags: ["delta", "epsilon"]\n---\nMore body text.' });
+
+    // YAML block list tags
+    db.index({ id: "wiki3", path: "wiki/three.md", content: "---\ntitle: Article Three\ntags:\n  - zeta\n  - eta\n---\nYet more text." });
+
+    const result = db.wikiList();
+    assert.equal(result.articles.length, 3);
+
+    const one = result.articles.find((a) => a.path === "wiki/one.md");
+    assert.equal(one.title, "Article One");
+    assert.equal(one.description, "The first article");
+    assert.deepEqual(one.tags, ["alpha", "beta", "gamma"]);
+    assert.ok(one.word_count > 0, "word_count should be positive");
+
+    const two = result.articles.find((a) => a.path === "wiki/two.md");
+    assert.equal(two.title, "Article Two");
+    assert.deepEqual(two.tags, ["delta", "epsilon"]);
+    assert.equal(two.description, null);
+
+    const three = result.articles.find((a) => a.path === "wiki/three.md");
+    assert.equal(three.title, "Article Three");
+    assert.deepEqual(three.tags, ["zeta", "eta"]);
+  } finally {
+    db.close();
+  }
+});
+
+test("wikiList returns word_count for each article", () => {
+  const db = makeDb();
+  try {
+    db.index({ id: "wiki1", path: "wiki/counting.md", content: "---\ntitle: Word Count Test\n---\none two three four five" });
+
+    const result = db.wikiList();
+    assert.equal(result.articles.length, 1);
+    // Frontmatter lines + body words — the whole content is split on whitespace
+    assert.ok(result.articles[0].word_count > 0);
   } finally {
     db.close();
   }

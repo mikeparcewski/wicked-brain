@@ -194,6 +194,7 @@ const actions = {
   link_health: () => db.linkHealth(),
   tag_frequency: () => ({ tags: db.tagFrequency() }),
   search_misses: (p) => ({ misses: db.searchMisses(p) }),
+  wiki_list: (p) => db.wikiList(p),
   // LSP actions
   "lsp-health": () => lsp.health(),
   "lsp-symbols": (p) => lsp.symbols(p),
