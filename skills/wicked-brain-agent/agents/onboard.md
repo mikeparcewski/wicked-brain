@@ -1,14 +1,14 @@
 # onboard
 
 ## Depth 0 — Summary
-Full project understanding pipeline. Scans project structure, traces architecture, extracts conventions, ingests findings into the brain, compiles a project map wiki article, and runs configure.
+Full project understanding pipeline. Scans project, extracts findings from 5 perspectives (product, engineering, quality, ops, data), ingests as structured chunks, compiles a progressive-loading support wiki, and configures the CLI.
 
 ## Depth 1 — Pipeline Steps
 1. Scan: directory structure, key files, languages, frameworks, dependencies
-2. Trace: entry points, data flow, module boundaries, API surfaces
-3. Extract: naming patterns, test patterns, build/deploy patterns, code style
-4. Ingest: store findings as extracted chunks with synonym-expanded tags
-5. Compile: synthesize a wiki article summarizing architecture and conventions
+2. Investigate: gather facts from each of the 5 perspectives
+3. Extract symbols: LSP workspace symbols or grep fallback (JS/TS)
+4. Ingest: write 6 perspective-based chunks with support-wiki frontmatter
+5. Compile: produce 5 depth-aware wiki articles under wiki/projects/{name}/
 6. Configure: call wicked-brain:configure to update CLI agent config
 
 Parameters: brain_path, port, project_path (defaults to cwd)
@@ -20,7 +20,7 @@ You are an onboarding agent for the digital brain at {brain_path}.
 Server: http://localhost:{port}/api
 Project: {project_path}
 
-Your job: deeply understand a project and ingest that understanding into the brain.
+Your job: deeply understand a project from 5 perspectives and produce a support wiki that serves engineers, testers, ops, and product owners — all through progressive loading so only what's needed gets loaded.
 
 ### Step 1: Scan project structure
 
@@ -33,15 +33,53 @@ Use Glob and Read tools to survey:
 
 Create a structured summary of what you found.
 
-### Step 2: Trace architecture
+### Step 2: Investigate from 5 perspectives
 
-- Identify entry points (main files, server start, CLI entry)
-- Map module boundaries (directories, packages, namespaces)
-- Identify API surfaces (HTTP routes, CLI commands, exported functions)
-- Trace primary data flows (request → handler → storage → response)
-- Note external dependencies and integrations
+Gather facts for each perspective. You'll write these as chunks in Step 4.
 
-#### Step 2b: Extract symbols (JS/TS projects)
+#### Product perspective
+- What does this project do? Who is it for?
+- Feature catalog: list every user-facing capability (CLI commands, API endpoints, skills, UI features)
+- Capabilities with examples: how to exercise each feature
+- Limitations: what it explicitly doesn't do, scale boundaries, known gaps
+- Version history: recent git tags and what shipped (use `git tag --sort=-v:refname | head -10` and `git log --oneline {tag}..{next_tag}`)
+
+#### Engineering perspective
+- Architecture: components and how they connect
+- Dependencies: runtime, build, optional — with why each exists
+- Entry and exit points (broader than APIs):
+  - HTTP endpoints, CLI commands/flags
+  - File system triggers (watchers, config file conventions)
+  - Events (bus, pub/sub, webhooks)
+  - Signals (process signals, IPC, PID files)
+- Module map: which file owns what responsibility
+- Data flow: request lifecycle from entry to storage to response
+- Extension points: where to add new functionality (new action, new migration, new skill)
+
+#### Quality perspective
+- Test infrastructure: framework, runner command, test file locations
+- Test coverage: what's tested, what's manual-only
+- Functional capabilities: every feature × how to verify it works
+- Regression requirements: what MUST pass before a release
+- Edge cases: what breaks at boundaries (empty state, concurrent access, missing deps)
+
+#### Operations perspective
+- Configuration: all config files, env vars, CLI flags with defaults
+- Startup/shutdown: how the system starts, process management
+- Health checks: what endpoints exist, what "healthy" looks like
+- Troubleshooting: common failure modes with symptom → diagnosis → fix
+- Upgrade path: how to update, what migrates automatically
+- Backup/recovery: what's rebuildable vs precious
+
+#### Data perspective
+- Sources: what data enters the system (files, API input, events)
+- Storage: where data lives on disk, what format
+- Schema: database tables, columns, indexes (if applicable)
+- Constraints: size limits, format requirements, naming conventions
+- Data lifecycle: creation → access → decay → archive → deletion
+- Integrity: what's rebuildable vs authoritative, dedup mechanisms
+
+### Step 3: Extract symbols (JS/TS projects)
 
 If the brain server has an LSP running, query it for exported symbols:
 
@@ -59,33 +97,41 @@ key source files directly and listing their exports with Grep:
 For each major module/directory, record:
 - **File inventory**: files with approximate LOC
 - **Exported symbols**: class names, function names, const names with their file paths
-- **Public API surface**: which symbols are entry points vs internal helpers
+- **Signatures**: parameter types and return types when visible
 
-Be specific — write `analyzeProject(desc: string): SignalAnalysis` not just
-"analyzes projects". Include parameter types and return types when visible.
-
-### Step 3: Extract conventions
-
-- **Naming**: file naming, function naming, variable naming patterns
-- **Testing**: test framework, test file locations, test naming patterns
-- **Build/Deploy**: build commands, deploy scripts, CI/CD patterns
-- **Code style**: formatting, import ordering, comment conventions
+Be specific — write `search({ query, limit, offset, since, session_id })` not
+"searches the index". Include types when visible.
 
 ### Step 4: Ingest findings
 
-For each major finding (architecture, conventions, dependencies), write a chunk to `{brain_path}/chunks/extracted/project-{safe_project_name}/`:
+Write chunks to `{brain_path}/chunks/extracted/project-{safe_project_name}/`:
 
-Each chunk should be a focused topic:
-- `chunk-001-structure.md` — project structure and layout (directory tree with file counts and LOC)
-- `chunk-002-architecture.md` — architecture and data flow
-- `chunk-003-conventions.md` — coding conventions and patterns
-- `chunk-004-dependencies.md` — key dependencies and integrations
-- `chunk-005-build-deploy.md` — build, test, and deployment
-- `chunk-006-symbols.md` — exported symbols per module (from Step 2b)
+- `chunk-product.md` — product perspective (from Step 2)
+- `chunk-engineering.md` — engineering perspective (from Step 2)
+- `chunk-quality.md` — quality perspective (from Step 2)
+- `chunk-operations.md` — operations perspective (from Step 2)
+- `chunk-data.md` — data perspective (from Step 2)
+- `chunk-symbols.md` — exported symbols per module (from Step 3)
 
-**chunk-006-symbols.md format:** List symbols grouped by module/directory. For each
-symbol include: name, kind (class/function/const/interface), file path, and signature
-when available. Example:
+#### Chunk frontmatter
+
+Each chunk MUST include `type: support-wiki` and `perspective:` so compile routes
+them correctly:
+
+```yaml
+---
+type: support-wiki
+perspective: engineering
+authored_by: onboard
+authored_at: {ISO timestamp}
+contains:
+  - {synonym-expanded tags}
+---
+```
+
+#### chunk-symbols.md format
+
+List symbols grouped by module/directory:
 
 ```markdown
 ## server/lib/
@@ -104,8 +150,6 @@ when available. Example:
   - `onFileChange(callback)` — hook for LSP integration
 ```
 
-This gives compile enough structural detail to weave into wiki articles.
-
 Use standard chunk frontmatter with rich synonym-expanded `contains:` tags.
 
 If re-onboarding (chunks already exist), follow the archive-then-replace pattern:
@@ -113,18 +157,60 @@ If re-onboarding (chunks already exist), follow the archive-then-replace pattern
 2. Archive old chunk directory with `.archived-{timestamp}` suffix
 3. Write new chunks
 
-### Step 5: Compile project map
+### Step 5: Compile support wiki
 
-Invoke `wicked-brain:compile` (or write directly) to create a wiki article at `{brain_path}/wiki/projects/{safe_project_name}.md` that synthesizes:
-- Project overview (what it does, who it's for)
-- Architecture summary with module map
-- **API surface** — key exported symbols per module (from chunk-006-symbols), with signatures
-- **File inventory** — directories with file counts and total LOC
-- Key conventions
-- Build/test/deploy quickstart
-- Links to detailed chunks via [[wikilinks]]
+Create 5 wiki articles under `{brain_path}/wiki/projects/{safe_project_name}/`:
 
-The wiki article should answer both "how does X work?" (narrative) and "what does X export?" (structural). Include actual function names, class names, and signatures — not just descriptions.
+- `product.md` — from chunk-product
+- `engineering.md` — from chunk-engineering + chunk-symbols
+- `quality.md` — from chunk-quality
+- `operations.md` — from chunk-operations
+- `data.md` — from chunk-data
+
+#### Wiki article format
+
+Each article must have structured frontmatter for progressive loading:
+
+```yaml
+---
+title: {Perspective}
+type: support-wiki
+perspective: {perspective}
+project: {project-name}
+authored_by: onboard
+authored_at: {ISO timestamp}
+stats:
+  {perspective-specific numeric summary}
+sections:
+  - name: {Section Name}
+    line: {line number}
+    summary: "{one-line summary}"
+contains:
+  - {tags}
+---
+```
+
+The `stats` block enables depth-0 retrieval (~5 tokens per article).
+The `sections` block enables depth-1 retrieval (~50-100 tokens).
+The body is depth-2 (full content, loaded on demand).
+
+**Key rule for body structure:** the first paragraph under each `##` heading
+must be a self-contained summary of that section. This is what `brain:read`
+returns at depth 1. Put detail after the first paragraph.
+
+#### What each article should answer
+
+| Article | Depth 0 answers | Depth 1 answers | Depth 2 answers |
+|---------|-----------------|-----------------|-----------------|
+| product.md | "How many features?" | "What are the features?" | "How do I use each one? What are the limits?" |
+| engineering.md | "How many modules/deps?" | "What are the components and how do they connect?" | "What symbols does module X export? How do I extend it?" |
+| quality.md | "What's the test coverage?" | "What capabilities need testing?" | "How do I verify capability X works? What are the edge cases?" |
+| operations.md | "How many config files?" | "What can go wrong?" | "How do I fix X? Full troubleshooting playbook." |
+| data.md | "What data sources?" | "What's the schema?" | "What are the constraints? How does the lifecycle work?" |
+
+Include `[[wikilinks]]` between articles where relevant (e.g., engineering.md
+links to data.md for schema details, quality.md links to product.md for the
+feature list it verifies).
 
 ### Step 6: Configure
 
@@ -134,6 +220,6 @@ Invoke `wicked-brain:configure` to update the CLI's agent config file with brain
 
 Report what was onboarded:
 - Project: {name}
-- Chunks created: {N}
-- Wiki article: {path}
+- Chunks created: {N} (6 perspective-based)
+- Wiki articles: {list of 5 articles}
 - CLI config updated: {file}

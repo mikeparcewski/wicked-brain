@@ -66,6 +66,48 @@ Shell fallback:
 - macOS/Linux: `find {brain_path}/chunks/extracted -name "*.md" -type f 2>/dev/null`
 - Windows: `Get-ChildItem -Recurse -Filter "*.md" "{brain_path}\chunks\extracted" 2>nul`
 
+## Step 1b: Route support-wiki chunks
+
+Check if any chunks have `type: support-wiki` in their frontmatter. Use Grep:
+- macOS/Linux: `grep -rl "type: support-wiki" {brain_path}/chunks/extracted/ 2>/dev/null`
+- Windows: `findstr /s /m "type: support-wiki" "{brain_path}\chunks\extracted\*.md" 2>nul`
+
+If found, handle them separately from concept chunks:
+
+1. Group by `perspective` field (product, engineering, quality, operations, data)
+2. For each perspective, also pull in `chunk-symbols.md` if it exists (feeds into engineering)
+3. Write to `{brain_path}/wiki/projects/{project-name}/{perspective}.md` (NOT to `wiki/concepts/`)
+4. Use **structured assembly** for symbol-heavy sections (engineering symbols, data schema, quality capability matrix) — list the actual content from chunks, don't narrativize it
+5. Use **narrative synthesis** for context sections (product overview, engineering architecture, ops troubleshooting)
+6. Generate structured frontmatter with `stats` and `sections` blocks:
+
+```yaml
+---
+title: {Perspective}
+type: support-wiki
+perspective: {perspective}
+project: {project-name}
+authored_by: compile
+authored_at: {ISO timestamp}
+stats:
+  {count key items — e.g., components: 4, test_files: 10, config_files: 3}
+sections:
+  - name: {Section Name}
+    line: {line number in body}
+    summary: "{one-line summary of this section}"
+source_chunks:
+  - {chunk-path}
+contains:
+  - {tags}
+---
+```
+
+**Key formatting rule:** the first paragraph under each `##` heading must be a
+self-contained summary. `brain:read` at depth 1 returns section headings + first
+paragraphs, so these summaries are what agents see before deciding to load full content.
+
+After writing support-wiki articles, continue to Step 2 for any remaining non-support-wiki chunks.
+
 ## Step 2: Find uncovered chunks
 
 For each chunk directory, check if a wiki article references those chunks.
