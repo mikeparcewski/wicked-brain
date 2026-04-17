@@ -18,7 +18,8 @@
     "directory": "server"
   },
   "bin": {
-    "wicked-brain-server": "./bin/wicked-brain-server.mjs"
+    "wicked-brain-server": "./bin/wicked-brain-server.mjs",
+    "wicked-brain-onboard-wiki": "./bin/onboard-wiki.mjs"
   },
   "files": [
     "bin/",
@@ -27,7 +28,11 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "start": "node bin/wicked-brain-server.mjs"
+    "start": "node bin/wicked-brain-server.mjs",
+    "gen:wiki": "node scripts/gen-wiki.mjs",
+    "gen:wiki:check": "node scripts/gen-wiki.mjs --check",
+    "lint:wiki": "node scripts/lint-wiki.mjs",
+    "lint:wiki:strict": "node scripts/lint-wiki.mjs --strict"
   },
   "dependencies": {
     "better-sqlite3": "^12.0.0",

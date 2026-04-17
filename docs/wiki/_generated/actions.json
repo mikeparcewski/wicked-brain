@@ -1,0 +1,441 @@
+{
+  "generated_at": "2026-04-17",
+  "source": "server/bin/wicked-brain-server.mjs",
+  "canonical_id": "CONTRACT-API",
+  "count": 36,
+  "actions": [
+    {
+      "name": "health",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "health"
+        }
+      ]
+    },
+    {
+      "name": "search",
+      "async": false,
+      "params": [
+        "query"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "search"
+        }
+      ]
+    },
+    {
+      "name": "federated_search",
+      "async": false,
+      "params": [
+        "query"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "federatedSearch"
+        }
+      ]
+    },
+    {
+      "name": "index",
+      "async": false,
+      "params": [
+        "id",
+        "path"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "index"
+        }
+      ]
+    },
+    {
+      "name": "remove",
+      "async": false,
+      "params": [
+        "id"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "remove"
+        }
+      ]
+    },
+    {
+      "name": "reindex",
+      "async": false,
+      "params": [
+        "docs"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "reindex"
+        }
+      ]
+    },
+    {
+      "name": "backlinks",
+      "async": false,
+      "params": [
+        "id"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "backlinks"
+        }
+      ]
+    },
+    {
+      "name": "forward_links",
+      "async": false,
+      "params": [
+        "id"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "forwardLinks"
+        }
+      ]
+    },
+    {
+      "name": "get_document",
+      "async": false,
+      "params": [
+        "id",
+        "path"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "getDocument"
+        },
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "getDocumentByPath"
+        }
+      ]
+    },
+    {
+      "name": "list_docs",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "listDocuments"
+        }
+      ]
+    },
+    {
+      "name": "stats",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "stats"
+        }
+      ]
+    },
+    {
+      "name": "memory_stats",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "memoryStats"
+        }
+      ]
+    },
+    {
+      "name": "candidates",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "candidates"
+        }
+      ]
+    },
+    {
+      "name": "symbols",
+      "async": true,
+      "params": [
+        "name",
+        "query"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "symbols"
+        },
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "workspaceSymbols"
+        }
+      ]
+    },
+    {
+      "name": "dependents",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "dependents"
+        }
+      ]
+    },
+    {
+      "name": "refs",
+      "async": true,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "references"
+        }
+      ]
+    },
+    {
+      "name": "access_log",
+      "async": false,
+      "params": [
+        "id"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "accessLog"
+        }
+      ]
+    },
+    {
+      "name": "recent_memories",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "recentMemories"
+        }
+      ]
+    },
+    {
+      "name": "contradictions",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "contradictions"
+        }
+      ]
+    },
+    {
+      "name": "confirm_link",
+      "async": false,
+      "params": [
+        "source_id",
+        "target_path",
+        "verdict"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "confirmLink"
+        }
+      ]
+    },
+    {
+      "name": "link_health",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "linkHealth"
+        }
+      ]
+    },
+    {
+      "name": "tag_frequency",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "tagFrequency"
+        }
+      ]
+    },
+    {
+      "name": "search_misses",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "searchMisses"
+        }
+      ]
+    },
+    {
+      "name": "wiki_list",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "wikiList"
+        }
+      ]
+    },
+    {
+      "name": "lsp-health",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "health"
+        }
+      ]
+    },
+    {
+      "name": "lsp-symbols",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "symbols"
+        }
+      ]
+    },
+    {
+      "name": "lsp-definition",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "definition"
+        }
+      ]
+    },
+    {
+      "name": "lsp-references",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "references"
+        }
+      ]
+    },
+    {
+      "name": "lsp-hover",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "hover"
+        }
+      ]
+    },
+    {
+      "name": "lsp-implementation",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "implementation"
+        }
+      ]
+    },
+    {
+      "name": "lsp-workspace-symbols",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "workspaceSymbols"
+        }
+      ]
+    },
+    {
+      "name": "lsp-call-hierarchy-in",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "callHierarchyIn"
+        }
+      ]
+    },
+    {
+      "name": "lsp-call-hierarchy-out",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "callHierarchyOut"
+        }
+      ]
+    },
+    {
+      "name": "lsp-diagnostics",
+      "async": false,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/lsp-client.mjs",
+          "method": "diagnostics"
+        }
+      ]
+    },
+    {
+      "name": "reonboard",
+      "async": true,
+      "params": [],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "reindex"
+        }
+      ]
+    },
+    {
+      "name": "purge_brain",
+      "async": true,
+      "params": [
+        "confirm"
+      ],
+      "impls": [
+        {
+          "target": "server/lib/sqlite-search.mjs",
+          "method": "reindex"
+        }
+      ]
+    }
+  ]
+}

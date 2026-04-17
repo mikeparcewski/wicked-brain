@@ -1,0 +1,281 @@
+{
+  "generated_at": "2026-04-17",
+  "source_roots": [
+    "server/lib",
+    "server/bin"
+  ],
+  "canonical_id": "MAP-FILES",
+  "count": 25,
+  "files": [
+    {
+      "path": "server/bin/onboard-wiki.mjs",
+      "purpose": "wicked-brain-onboard-wiki",
+      "exports": [],
+      "imports": [
+        "../lib/onboard-wiki.mjs"
+      ]
+    },
+    {
+      "path": "server/bin/wicked-brain-server.mjs",
+      "purpose": "Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real server instance so the bind semantics (dual-stack IPv4+IPv6) match the eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only conflict and produce a false \"free\" result.",
+      "exports": [],
+      "imports": [
+        "../lib/brain-walker.mjs",
+        "../lib/bus.mjs",
+        "../lib/file-watcher.mjs",
+        "../lib/lsp-client.mjs",
+        "../lib/memory-subscriber.mjs",
+        "../lib/onboard-wiki.mjs",
+        "../lib/sqlite-search.mjs",
+        "../lib/viewer-page.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/brain-walker.mjs",
+      "purpose": "Walk a brain path and surface every authored `.md` file under the content subdirectories (chunks/, wiki/, memory/). Deliberately excludes `_meta/`, `raw/`, `.brain.db`, and any dotfile/dotdir. Paths returned are relative to the brain path and use forward slashes per INV-PATHS-FORWARD.",
+      "exports": [
+        "purgeBrainContent",
+        "walkBrainContent"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/bus.mjs",
+      "purpose": "wicked-bus integration for wicked-brain-server.",
+      "exports": [
+        "busAvailable",
+        "emitEvent",
+        "getBusDb",
+        "isBusAvailable",
+        "waitForBus"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/canonical-registry.mjs",
+      "purpose": "Canonical registry: maps canonical IDs (e.g. \"INV-PATHS-FORWARD\") to the single page that owns them. Detects violations of the \"one page per ID\" rule and broken references.",
+      "exports": [
+        "buildRegistry",
+        "findBrokenReferences",
+        "loadWikiEntries"
+      ],
+      "imports": [
+        "./frontmatter.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/detect-mode.mjs",
+      "purpose": "Pure classifier. Takes shallow scan inputs, returns mode verdict.",
+      "exports": [
+        "classifyRepo",
+        "defaultWikiRoots",
+        "detectRepoMode"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/file-watcher.mjs",
+      "purpose": "Try to set up fs.watch for a brain subdirectory. Returns true on success.",
+      "exports": [
+        "FileWatcher"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/frontmatter.mjs",
+      "purpose": "Minimal YAML-subset frontmatter parser.",
+      "exports": [
+        "extractFrontmatter",
+        "getField",
+        "parseFrontmatter",
+        "parseFrontmatterBlock",
+        "serializeFrontmatterBlock"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/gen-contract-api.mjs",
+      "purpose": "Contract API generator.",
+      "exports": [
+        "extractActions",
+        "renderActionsJson",
+        "renderContractApi"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/gen-contract-schema.mjs",
+      "purpose": "Contract schema generator.",
+      "exports": [
+        "extractSchema",
+        "renderContractSchema",
+        "renderSchemaJson"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/gen-file-map.mjs",
+      "purpose": "File-map generator.",
+      "exports": [
+        "buildFileRecord",
+        "renderFileMap",
+        "renderFileMapJson"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/lint-wiki.mjs",
+      "purpose": "Wiki linter.",
+      "exports": [
+        "formatFindings",
+        "lintExitCode",
+        "ruleBrokenReference",
+        "ruleDuplicateCanonicalFor",
+        "ruleLongPageLowRefs",
+        "ruleMissingCanonicalPurpose",
+        "runLintRules"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/lsp-client.mjs",
+      "purpose": "LSP Client — orchestrates language server actions, file sync, and caching. Uses LspManager for server lifecycle and RpcClient for protocol.",
+      "exports": [
+        "LspClient"
+      ],
+      "imports": [
+        "./lsp-helpers.mjs",
+        "./lsp-manager.mjs",
+        "./lsp-servers.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/lsp-helpers.mjs",
+      "purpose": "LSP helpers — normalization, symbol kind mapping, and chunk building. Split from lsp-client.mjs to keep files under 300 lines.",
+      "exports": [
+        "buildDiagnosticsChunk",
+        "buildSymbolChunk",
+        "normalizeLocations",
+        "normalizeSymbols",
+        "severityName",
+        "symbolKindName"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/lsp-manager.mjs",
+      "purpose": "Manages language server processes — spawn, health check, crash recovery, shutdown.",
+      "exports": [
+        "LspManager"
+      ],
+      "imports": [
+        "./lsp-protocol.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/lsp-protocol.mjs",
+      "purpose": "LSP JSON-RPC protocol over stdio. Handles Content-Length framing, request/response matching, and notifications.",
+      "exports": [
+        "MessageReader",
+        "RpcClient",
+        "writeMessage"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/lsp-servers.mjs",
+      "purpose": "Known language servers map — 40+ servers covering 70+ extensions. Extensible via {brainPath}/_meta/lsp.json.",
+      "exports": [
+        "KNOWN_SERVERS",
+        "getKnownExtensions",
+        "loadUserConfig",
+        "resolveServer"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/memory-promoter.mjs",
+      "purpose": "Promotion policy for auto-memorizing wicked.fact.extracted bus events.",
+      "exports": [
+        "computeContentHash",
+        "promoteFact",
+        "slugify"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/memory-subscriber.mjs",
+      "purpose": "Auto-memorize subscriber: bridges wicked-bus fact events into brain memories.",
+      "exports": [
+        "renderMemoryFile",
+        "startMemorySubscriber"
+      ],
+      "imports": [
+        "./bus.mjs",
+        "./memory-promoter.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/mode-config.mjs",
+      "purpose": "Validate a mode.json body. Returns { ok, errors } — does not throw. Kept in lockstep with mode.schema.json. The schema is the canonical documentation; this is the runtime enforcement.",
+      "exports": [
+        "MODE_FILE_PATH",
+        "diffMode",
+        "readModeFile",
+        "validateMode",
+        "writeModeFile"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/onboard-wiki.mjs",
+      "purpose": "Onboard-wiki orchestrator.",
+      "exports": [
+        "formatOnboardResult",
+        "runOnboardWiki"
+      ],
+      "imports": [
+        "./detect-mode.mjs",
+        "./mode-config.mjs",
+        "./stamp-pointer.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/sqlite-search.mjs",
+      "purpose": "Extracts body text from a document, stripping YAML frontmatter. Falls back to the raw content if no frontmatter is detected.",
+      "exports": [
+        "SqliteSearch",
+        "deriveSourceType"
+      ],
+      "imports": [
+        "./frontmatter.mjs",
+        "./wikilinks.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/stamp-pointer.mjs",
+      "purpose": "CLAUDE.md / AGENTS.md contributor-wiki pointer stamping.",
+      "exports": [
+        "buildSection",
+        "stampWikiPointer"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/viewer-page.mjs",
+      "purpose": "Read-only HTML viewer for a wicked-brain instance.",
+      "exports": [
+        "renderViewerHtml"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/wikilinks.mjs",
+      "purpose": "",
+      "exports": [
+        "parseWikilinks"
+      ],
+      "imports": []
+    }
+  ]
+}

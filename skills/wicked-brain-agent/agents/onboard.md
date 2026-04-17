@@ -4,6 +4,7 @@
 Full project understanding pipeline. Scans project, extracts findings from 5 perspectives (product, engineering, quality, ops, data), ingests as structured chunks, compiles a progressive-loading support wiki, and configures the CLI.
 
 ## Depth 1 — Pipeline Steps
+0. Detect: run `wicked-brain-onboard-wiki` to classify repo mode, write `.wicked-brain/mode.json`, and stamp the contributor-wiki pointer into CLAUDE.md / AGENTS.md if present
 1. Scan: directory structure, key files, languages, frameworks, dependencies
 2. Investigate: gather facts from each of the 5 perspectives
 3. Extract symbols: LSP workspace symbols or grep fallback (JS/TS)
@@ -21,6 +22,30 @@ Server: http://localhost:{port}/api
 Project: {project_path}
 
 Your job: deeply understand a project from 5 perspectives and produce a support wiki that serves engineers, testers, ops, and product owners — all through progressive loading so only what's needed gets loaded.
+
+### Step 0: Detect repo mode and stamp wiki pointer
+
+Before scanning, classify the repo and establish the contributor-wiki location.
+This runs the `wicked-brain-onboard-wiki` CLI (bundled with `wicked-brain-server`),
+which:
+
+- Runs mode detection (code / content / mixed / unknown).
+- Writes `.wicked-brain/mode.json` unless an `override:true` file is already there.
+- Stamps `Contributor wiki: ./<path>` into `CLAUDE.md` and/or `AGENTS.md` if either exists.
+
+```bash
+npx wicked-brain-onboard-wiki --repo-root "{project_path}" 2>&1 || \
+  node "{wicked_brain_install}/server/bin/onboard-wiki.mjs" --repo-root "{project_path}"
+```
+
+Capture the output — the reported mode drives how Step 2 interprets the 5
+perspectives (content-mode repos put more weight on product/data, less on
+engineering specifics). If the file reports `override:true`, respect it and
+report the preserved mode rather than forcing a rewrite.
+
+If neither `CLAUDE.md` nor `AGENTS.md` exists, the CLI reports `absent` for
+both — surface that in the summary so the user can decide whether to create
+one. Do NOT create either file yourself unless the user asks.
 
 ### Step 1: Scan project structure
 

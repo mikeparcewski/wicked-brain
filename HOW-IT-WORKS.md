@@ -127,6 +127,14 @@ Every search is logged against a session ID. The server tracks which documents e
 
 This means the search results you see on day 30 are better than day 1 — not because you re-indexed anything, but because the access patterns tell the brain what's actually useful.
 
+### 5c. Canonical Collapse Stops False Evidence Boosting
+
+When the same fact lives at multiple paths — source + wiki copy, translations, versioned docs, two pages both claiming to be canonical for the same ID — naïve FTS returns each copy as a separate result. To an agent, three hits on the same sentence look like three independent pieces of evidence. They aren't. That's *false results boosting*, and it quietly poisons agent confidence.
+
+wicked-brain collapses duplicates at search time using four signals: `content_hash` (identical bytes), `canonical_for` (rival canonical claimants), `translation_of`, and `version_of`. The collapse runs as union-find over the overfetched result set, so if rows are related transitively — A and B share a content hash, B and C share a canonical ID — all three collapse into one survivor. Absorbed rows appear on the survivor as `also_found_in` so you still know the alternate locations exist.
+
+A page that **references** a canonical ID doesn't collapse into the canonical owner. Only pages that **claim** the same ID are treated as rivals. Reference is citation; claim is ownership.
+
 ### 6. Code Intelligence Without a Plugin
 
 wicked-brain includes an LSP (Language Server Protocol) client. This means your agent can ask any language server — TypeScript, Python, Rust, Go, Java — for hover information, go-to-definition, diagnostics, and completions, without a browser, without an IDE plugin, and without reading the entire codebase.
@@ -183,6 +191,16 @@ A client-specific brain inherits from a company-standards brain. A personal rese
 
 Federated search dispatches parallel subagents — one per accessible brain — and merges results. SQLite's `ATTACH DATABASE` makes cross-brain queries sub-millisecond.
 
+### 9. There's a Browser Too (If You Want One)
+
+Everything described so far assumes an agent is driving. But the server also exposes a read-only HTML viewer at `GET /` — a single-page app with a Search tab and a Wiki tab, source-type filter chips, and a deep-link URL pattern (`#<path>`).
+
+This exists because "let me just browse it" is a legitimate need that tool-calling makes awkward. Typing a search query into a browser input is faster than constructing a skill invocation. Scanning a grid of wiki cards is easier than asking an agent to list them.
+
+The viewer is vanilla HTML/CSS/JS — no framework, no build, one file per brain server. All data comes from the same `POST /api` the skills use, so there's no second source of truth. Destructive actions (re-onboard, purge) are available in the header but require typed confirmation; the server-side `--read-only` flag turns them off entirely for shared / exposed brains.
+
+No auth. Localhost-only, same-machine trust. A CLI-only install leaves it disabled-in-spirit (you'd never hit the URL) but the endpoint still serves — which means a quick `open http://localhost:4242/` always works when you want to see what's in there.
+
 ## What The Numbers Show
 
 We tested with 608 indexed documents (a codebase + AI engineering bootcamp materials) and four different personas:
@@ -213,13 +231,12 @@ Embedding model API                 (nothing)
 Vector database service             SQLite file
 Chunking pipeline                   Agent splits on headings
 Embedding pipeline                  (nothing)
-Retrieval service                   curl localhost
+Retrieval service                   curl localhost (POST /api)
 Re-ranking model                    Agent reasons about relevance
 Orchestration layer                 Skills (markdown)
-Admin dashboard                     ls -la
+Admin dashboard                     GET / (vanilla HTML, read-only)
 ─────────────────────               ──────────────
-~5,000+ lines of code               ~300 lines JS
-10+ dependencies                    1 dependency
+10+ dependencies                    1 runtime dependency
 3+ services to deploy               1 auto-starting process
 Dedicated infrastructure            Your laptop
 Monthly embedding costs             $0

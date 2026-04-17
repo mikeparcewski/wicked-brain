@@ -8,6 +8,10 @@ import { SqliteSearch } from "../lib/sqlite-search.mjs";
 import { LspClient } from "../lib/lsp-client.mjs";
 import { emitEvent, waitForBus } from "../lib/bus.mjs";
 import { startMemorySubscriber } from "../lib/memory-subscriber.mjs";
+import { renderViewerHtml } from "../lib/viewer-page.mjs";
+import { walkBrainContent, purgeBrainContent } from "../lib/brain-walker.mjs";
+import { runOnboardWiki } from "../lib/onboard-wiki.mjs";
+import { readFile as readFileAsync } from "node:fs/promises";
 
 // Parse args
 const args = argv.slice(2);
@@ -29,6 +33,10 @@ const brainPath = resolve(getArg("brain") || ".");
 const preferredPort = parseInt(getArg("port") || "4242", 10);
 // Explicit --port means "bind this exact port or fail" — no probe.
 const portExplicit = args.includes("--port");
+// Read-only mode disables write + destructive actions at the API layer.
+// Intended for shared / exposed brains where only search and read should
+// be reachable. Default is off to preserve the existing ingest story.
+const readOnly = args.includes("--read-only");
 const configPath = join(brainPath, "brain.json");
 // Source path for LSP workspace root — prefer --source flag, fall back to config, then brainPath
 const sourceArgRaw = getArg("source");
@@ -119,7 +127,7 @@ process.on("SIGINT", () => shutdown());
 
 // Action dispatch
 const actions = {
-  health: () => db.health(),
+  health: () => ({ ...db.health(), read_only: readOnly }),
   search: (p) => {
     const result = db.search(p);
     emitEvent("wicked.search.executed", "brain.search", {
@@ -154,6 +162,10 @@ const actions = {
   },
   backlinks: (p) => ({ links: db.backlinks(p.id) }),
   forward_links: (p) => ({ links: db.forwardLinks(p.id) }),
+  get_document: (p) => ({
+    document: p.id ? db.getDocument(p.id) : p.path ? db.getDocumentByPath(p.path) : null,
+  }),
+  list_docs: (p = {}) => db.listDocuments(p),
   stats: () => db.stats(),
   memory_stats: () => db.memoryStats(),
   candidates: (p) => ({ candidates: db.candidates(p) }),
@@ -206,13 +218,76 @@ const actions = {
   "lsp-call-hierarchy-in": (p) => lsp.callHierarchyIn(p),
   "lsp-call-hierarchy-out": (p) => lsp.callHierarchyOut(p),
   "lsp-diagnostics": (p) => lsp.diagnostics(p),
+  reonboard: async () => {
+    // Detect mode + stamp the CLAUDE.md/AGENTS.md pointer, then rebuild the
+    // search index from whatever content is on disk in this brain. Does NOT
+    // re-write chunks or wiki — authored content is preserved.
+    const onboardTarget = sourceArg ?? brainPath;
+    const onboard = await runOnboardWiki(onboardTarget).catch(() => null);
+    const entries = await walkBrainContent(brainPath);
+    const docs = [];
+    for (const entry of entries) {
+      const content = await readFileAsync(entry.abs, "utf8");
+      docs.push({ id: entry.rel, path: entry.rel, content });
+    }
+    db.reindex(docs);
+    emitEvent("wicked.brain.reonboarded", "brain", {
+      brain_id: brainId,
+      indexed: docs.length,
+      mode: onboard?.detection?.mode ?? null,
+    });
+    return {
+      indexed: docs.length,
+      onboard: onboard
+        ? {
+            mode: onboard.detection.mode,
+            wiki_root: onboard.wiki_root,
+            mode_write: onboard.mode_write.action,
+            stamps: onboard.stamps,
+          }
+        : { skipped: true },
+    };
+  },
+  purge_brain: async (p = {}) => {
+    // Destructive. Wipes chunks/, wiki/, and memory/ content and clears the
+    // SQLite index. Requires p.confirm === "DELETE" to execute — typed
+    // confirmation from the UI keeps accidental clicks from being catastrophic.
+    if (p.confirm !== "DELETE") {
+      return { error: 'confirmation missing: pass {"confirm":"DELETE"}' };
+    }
+    const removed = await purgeBrainContent(brainPath);
+    db.reindex([]);
+    emitEvent("wicked.brain.purged", "brain", { brain_id: brainId, removed });
+    return { removed };
+  },
 };
+
+// Actions that mutate state. Blocked when the server was started with
+// `--read-only`, plus the two destructive newcomers. The list is explicit
+// rather than heuristic so additions are deliberate.
+const WRITE_ACTIONS = new Set([
+  "index",
+  "remove",
+  "reindex",
+  "confirm_link",
+  "reonboard",
+  "purge_brain",
+]);
 
 // HTTP server
 const server = createServer((req, res) => {
+  // Read-only viewer at GET /
+  if (req.method === "GET" && (req.url === "/" || req.url.startsWith("/?") || req.url.startsWith("/#"))) {
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(renderViewerHtml({ brainId }));
+    return;
+  }
   if (req.method !== "POST" || req.url !== "/api") {
     res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not found. Use POST /api" }));
+    res.end(JSON.stringify({ error: "Not found. Use POST /api or GET /" }));
     return;
   }
   let body = "";
@@ -224,6 +299,11 @@ const server = createServer((req, res) => {
       if (!handler) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: `Unknown action: ${action}` }));
+        return;
+      }
+      if (readOnly && WRITE_ACTIONS.has(action)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: `Action blocked in --read-only mode: ${action}` }));
         return;
       }
       // Handle both sync and async results

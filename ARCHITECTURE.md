@@ -21,9 +21,11 @@ graph TB
 
     subgraph Server["wicked-brain-server (Node.js)"]
         API["POST /api"]
-        DB["SQLite FTS5<br/>+ WAL + Porter stemmer<br/>+ Typed links + Access log"]
+        VIEW["GET /<br/>HTML viewer<br/>(read-only)"]
+        DB["SQLite FTS5<br/>+ WAL + Porter stemmer<br/>+ Typed links + Access log<br/>+ canonical_ownership"]
         FW["File watcher<br/>(auto-reindex)"]
         MIG["Schema migrations<br/>(auto on start)"]
+        RO["--read-only<br/>(blocks write actions)"]
     end
 
     subgraph Brain["Brain Directory (~/.wicked-brain)"]
@@ -39,13 +41,19 @@ graph TB
         Other["gopls · jdtls · …"]
     end
 
+    Browser["Browser (you)"]
+
     CLI --> Skills
     S1 -->|"Agent tools<br/>(Read/Write/Grep/Glob)"| Brain
     S2 -->|"Agent tools"| Brain
     S1 -->|"curl localhost"| API
     S2 -->|"curl localhost"| API
     S3 -->|"JSON-RPC (stdio)"| LSP
+    Browser -->|"GET /"| VIEW
+    Browser -->|"POST /api<br/>(read-only usage)"| API
+    VIEW --> API
     API --> DB
+    RO -.gates.-> API
     FW -->|watches| Files
     FW -->|reindexes| DB
     MIG --> DB
@@ -91,7 +99,7 @@ graph LR
 
 ## Component: Search Server
 
-A Node.js HTTP server (~300 lines) with a single `POST /api` endpoint. One runtime dependency: `better-sqlite3`.
+A Node.js HTTP server with two endpoints: `POST /api` (JSON action dispatch) and `GET /` (read-only HTML viewer). One runtime dependency: `better-sqlite3`. The LSP layer is hand-rolled JSON-RPC with zero new deps; the viewer is vanilla HTML/CSS/JS with no build. Start with `--read-only` to gate write + destructive actions at the API layer.
 
 ### API Actions
 
@@ -129,6 +137,11 @@ erDiagram
         TEXT frontmatter
         TEXT brain_id
         TEXT indexed_at
+        TEXT content_hash
+        TEXT canonical_for "JSON array"
+        TEXT refs "JSON array"
+        TEXT translation_of
+        TEXT version_of
     }
     documents_fts {
         TEXT id
@@ -146,6 +159,12 @@ erDiagram
         REAL confidence "DEFAULT 0.5"
         INTEGER evidence_count "DEFAULT 0"
     }
+    canonical_ownership {
+        TEXT canonical_id PK
+        TEXT doc_id FK
+        TEXT path
+        TEXT brain_id
+    }
     access_log {
         TEXT doc_id FK
         TEXT session_id
@@ -160,6 +179,7 @@ erDiagram
     documents ||--o{ links : "has"
     documents ||--o{ access_log : "accessed via"
     documents ||--|| documents_fts : "indexed in"
+    documents ||--o{ canonical_ownership : "owns IDs"
 ```
 
 **Notes:**
@@ -168,7 +188,25 @@ erDiagram
 - `links.confidence` starts at 0.5, increases with `confirm_link` confirmations (+0.1), decreases with contradictions (-0.2), clamped to [0.0, 1.0]
 - `access_log` drives session diversity ranking — documents accessed this session are deprioritized in favor of unseen related content
 - `search_misses` tracks queries that returned zero results, enabling synonym auto-suggestion
-- Schema is versioned (currently v2); migrations run automatically on server start — existing databases upgrade without manual intervention
+- `canonical_ownership` tracks who owns each canonical ID (INV-`*`, CONTRACT-`*`, RECIPE-`*`, etc.) — first-claimant-wins via PRIMARY KEY conflict; the lint surfaces duplicates at authoring time
+- Schema is versioned (currently v5); migrations run automatically on server start — existing databases upgrade without manual intervention
+
+### Canonical Collapse (search correctness)
+
+Search results get inflated when the same content lives at multiple paths — source + wiki copy, translated versions, versioned docs, or two pages both claiming to be canonical for the same ID. Without deduplication, three copies of the same fact look like three independent pieces of evidence.
+
+The server's `search` action collapses duplicates before returning results using union-find over four axes:
+
+| Axis | Key | When it fires |
+|---|---|---|
+| Content hash | `content_hash` frontmatter field | Identical content at different paths |
+| Canonical ID | `canonical_for: [...]` array | Rival claimants of the same canonical ID |
+| Translation | `translation_of: <path>` or the doc's own path | Same doc across locales (`en/intro.md`, `ja/intro.md`) |
+| Version | `version_of: <path>` or the doc's own path | Same doc across versions (`v1/intro.md`, `v2/intro.md`) |
+
+The surviving row is the best-scoring member of each collapse group. Absorbed rows are surfaced on the survivor as `also_found_in: [{ id, path, brain_id, score }, …]` (capped at 5), so the user still sees that alternate locations exist without the score inflation.
+
+A page that **references** a canonical ID (`references: [INV-X]`) is *not* collapsed into the canonical owner — only pages that **claim** the same `canonical_for` ID are rivals.
 
 ### File Watcher
 

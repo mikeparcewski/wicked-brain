@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { parseWikilinks } from "./wikilinks.mjs";
+import { parseFrontmatterBlock } from "./frontmatter.mjs";
 import { statSync } from "node:fs";
 
 /**
@@ -23,6 +24,148 @@ export function deriveSourceType(path) {
   if (normalized.startsWith("wiki/")) return "wiki";
   if (normalized.startsWith("memory/") || normalized.startsWith("memories/")) return "memory";
   return "chunk";
+}
+
+/**
+ * Collapse duplicate rows so the hit list doesn't inflate identical content.
+ * Input: rows pre-sorted best-to-worst by boosted_score.
+ *
+ * Two collapse dimensions:
+ *   - content_hash: rows with the same non-null hash are the same content at
+ *     different paths (source + rendered copy, etc.).
+ *   - canonical_for: rows that both claim the same canonical ID are rivals.
+ *     A page *referencing* an ID does not participate — only rows that
+ *     themselves claim a canonical ID collapse on that axis.
+ *
+ * Uses union-find so transitive collapse works: if row A shares a
+ * content_hash with B, and B shares a canonical_for ID with C, then A, B,
+ * and C end up in the same group with one survivor.
+ *
+ * Survivor per group is the first row encountered (which is the best-scoring
+ * row since input is pre-sorted). Absorbed rows are surfaced on
+ * `also_found_in` on the survivor, capped at `maxAlsoFoundIn`. Returns
+ * surviving rows in original score order.
+ */
+function collapseDuplicates(rows, { maxAlsoFoundIn = 5 } = {}) {
+  const parent = new Array(rows.length);
+  for (let i = 0; i < rows.length; i++) parent[i] = i;
+
+  const find = (i) => {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
+  };
+  const union = (a, b) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb);
+  };
+
+  // Pass 1: for each collapse key, union every row that carries it.
+  const keyFirst = new Map();
+  for (let i = 0; i < rows.length; i++) {
+    for (const k of collapseKeysFor(rows[i])) {
+      if (keyFirst.has(k)) union(i, keyFirst.get(k));
+      else keyFirst.set(k, i);
+    }
+  }
+
+  // Pass 2: group by root. Since rows are pre-sorted by score and roots
+  // always point at the lowest-index member, the first row to appear in
+  // each group is the survivor.
+  const out = [];
+  const survivorByRoot = new Map();
+  for (let i = 0; i < rows.length; i++) {
+    const root = find(i);
+    if (!survivorByRoot.has(root)) {
+      rows[i].also_found_in = [];
+      survivorByRoot.set(root, rows[i]);
+      out.push(rows[i]);
+      continue;
+    }
+    const survivor = survivorByRoot.get(root);
+    if (survivor.also_found_in.length < maxAlsoFoundIn) {
+      survivor.also_found_in.push({
+        id: rows[i].id,
+        path: rows[i].path,
+        brain_id: rows[i].brain_id,
+        score: rows[i].boosted_score,
+      });
+    }
+  }
+  return out;
+}
+
+function collapseKeysFor(row) {
+  const keys = [];
+  if (row.content_hash) keys.push(`hash:${row.content_hash}`);
+  if (row.canonical_for) {
+    try {
+      const ids = JSON.parse(row.canonical_for);
+      if (Array.isArray(ids)) {
+        for (const id of ids) keys.push(`canon:${id}`);
+      }
+    } catch {
+      // Malformed JSON — skip canonical collapse for this row.
+    }
+  }
+  // Translation/version collapse: the anchor is the path of the original
+  // (i.e. translation_of / version_of) or the doc's own path if it IS the
+  // original. A doc that declares translation_of: X and the original doc
+  // with path=X both produce the same trans-group key and collapse.
+  if (row.translation_of) {
+    keys.push(`trans:${row.translation_of}`);
+  } else if (row.path) {
+    keys.push(`trans:${row.path}`);
+  }
+  if (row.version_of) {
+    keys.push(`ver:${row.version_of}`);
+  } else if (row.path) {
+    keys.push(`ver:${row.path}`);
+  }
+  return keys;
+}
+
+/**
+ * Build the WHERE clause needed to restrict documents by derived source_type.
+ * Returns { where: string|null, params: string[] }.
+ *
+ * source_type is derived from the path prefix (deriveSourceType), not stored
+ * as a column — so the clause is a combination of LIKE patterns. The "chunk"
+ * type is defined as "anything that isn't wiki or memory," so it becomes
+ * a negation.
+ */
+function buildSourceTypeClauses(types) {
+  if (!types || !types.length) return { where: null, params: [] };
+  const wanted = new Set(types.map(String));
+  const ors = [];
+  const params = [];
+  if (wanted.has("wiki")) {
+    ors.push("path LIKE ?");
+    params.push("wiki/%");
+  }
+  if (wanted.has("memory")) {
+    ors.push("path LIKE ?");
+    ors.push("path LIKE ?");
+    params.push("memory/%");
+    params.push("memories/%");
+  }
+  if (wanted.has("chunk")) {
+    // Anything that's NOT wiki/ memory/ memories/.
+    ors.push("(path NOT LIKE ? AND path NOT LIKE ? AND path NOT LIKE ?)");
+    params.push("wiki/%", "memory/%", "memories/%");
+  }
+  if (!ors.length) return { where: null, params: [] };
+  return { where: `(${ors.join(" OR ")})`, params };
+}
+
+function normalizeFrontmatterList(value) {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map(String).filter((s) => s.length > 0);
+  if (typeof value === "string" && value.length > 0) return [value];
+  return [];
 }
 
 function escapeFtsQuery(query) {
@@ -111,8 +254,20 @@ export class SqliteSearch {
         frontmatter TEXT,
         brain_id TEXT NOT NULL,
         indexed_at INTEGER NOT NULL,
-        content_hash TEXT
+        content_hash TEXT,
+        canonical_for TEXT,
+        refs TEXT,
+        translation_of TEXT,
+        version_of TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS canonical_ownership (
+        canonical_id TEXT PRIMARY KEY,
+        doc_id TEXT NOT NULL,
+        path TEXT NOT NULL,
+        brain_id TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_canonical_doc ON canonical_ownership(doc_id);
 
       CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
         id,
@@ -214,6 +369,39 @@ export class SqliteSearch {
       currentVersion = 3;
     }
 
+    // Migration 4: add canonical_for + refs columns, canonical_ownership table
+    // (renamed from 'references' because it's a SQL reserved word)
+    if (currentVersion < 4) {
+      try { this.#db.prepare(`SELECT canonical_for FROM documents LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE documents ADD COLUMN canonical_for TEXT`);
+      }
+      try { this.#db.prepare(`SELECT refs FROM documents LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE documents ADD COLUMN refs TEXT`);
+      }
+      this.#db.exec(`
+        CREATE TABLE IF NOT EXISTS canonical_ownership (
+          canonical_id TEXT PRIMARY KEY,
+          doc_id TEXT NOT NULL,
+          path TEXT NOT NULL,
+          brain_id TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_canonical_doc ON canonical_ownership(doc_id);
+      `);
+      currentVersion = 4;
+    }
+
+    // Migration 5: add translation_of + version_of columns for locale/version
+    // collapse in content-mode repos.
+    if (currentVersion < 5) {
+      try { this.#db.prepare(`SELECT translation_of FROM documents LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE documents ADD COLUMN translation_of TEXT`);
+      }
+      try { this.#db.prepare(`SELECT version_of FROM documents LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE documents ADD COLUMN version_of TEXT`);
+      }
+      currentVersion = 5;
+    }
+
     // Persist the current version
     this.#db.exec(`DELETE FROM _schema_version`);
     this.#db.prepare(`INSERT INTO _schema_version (version) VALUES (?)`).run(currentVersion);
@@ -252,16 +440,36 @@ export class SqliteSearch {
     const indexedAt = Date.now();
     const contentHash = this.#extractFrontmatterField(frontmatter, "content_hash");
 
+    // Parse frontmatter once (safely) for structured fields like canonical_for/references.
+    // Falls back to empty data on parse errors — malformed frontmatter should not
+    // block ingest of the rest of the document.
+    let fmData = {};
+    if (frontmatter) {
+      try { fmData = parseFrontmatterBlock(frontmatter); } catch { fmData = {}; }
+    }
+    const canonicalFor = normalizeFrontmatterList(fmData.canonical_for);
+    const refs = normalizeFrontmatterList(fmData.references);
+    const canonicalForJson = canonicalFor.length ? JSON.stringify(canonicalFor) : null;
+    const refsJson = refs.length ? JSON.stringify(refs) : null;
+    const translationOf = typeof fmData.translation_of === "string" && fmData.translation_of.length
+      ? fmData.translation_of : null;
+    const versionOf = typeof fmData.version_of === "string" && fmData.version_of.length
+      ? fmData.version_of : null;
+
     const upsertDoc = this.#db.prepare(`
-      INSERT INTO documents (id, path, content, frontmatter, brain_id, indexed_at, content_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO documents (id, path, content, frontmatter, brain_id, indexed_at, content_hash, canonical_for, refs, translation_of, version_of)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         path = excluded.path,
         content = excluded.content,
         frontmatter = excluded.frontmatter,
         brain_id = excluded.brain_id,
         indexed_at = excluded.indexed_at,
-        content_hash = excluded.content_hash
+        content_hash = excluded.content_hash,
+        canonical_for = excluded.canonical_for,
+        refs = excluded.refs,
+        translation_of = excluded.translation_of,
+        version_of = excluded.version_of
     `);
 
     const deleteFts = this.#db.prepare(`DELETE FROM documents_fts WHERE id = ?`);
@@ -276,14 +484,27 @@ export class SqliteSearch {
       VALUES (?, ?, ?, ?, ?, ?)
     `);
 
+    // Canonical ownership is maintained first-claimant-wins. A doc may register
+    // several IDs in one call, but a second doc claiming an already-owned ID is
+    // ignored at the SQL layer (PRIMARY KEY conflict). Lint surfaces the dup.
+    const deleteOwnership = this.#db.prepare(`DELETE FROM canonical_ownership WHERE doc_id = ?`);
+    const insertOwnership = this.#db.prepare(`
+      INSERT OR IGNORE INTO canonical_ownership (canonical_id, doc_id, path, brain_id)
+      VALUES (?, ?, ?, ?)
+    `);
+
     const run = this.#db.transaction(() => {
-      upsertDoc.run(id, path, content, frontmatter, brainId, indexedAt, contentHash);
+      upsertDoc.run(id, path, content, frontmatter, brainId, indexedAt, contentHash, canonicalForJson, refsJson, translationOf, versionOf);
       deleteFts.run(id);
       insertFts.run(id, path, content, brainId);
       deleteLinks.run(id);
       const wikilinks = parseWikilinks(content);
       for (const link of wikilinks) {
         insertLink.run(id, brainId, link.path, link.brain, link.rel || null, link.raw);
+      }
+      deleteOwnership.run(id);
+      for (const canonicalId of canonicalFor) {
+        insertOwnership.run(canonicalId, id, path, brainId);
       }
     });
 
@@ -295,6 +516,7 @@ export class SqliteSearch {
       this.#db.prepare(`DELETE FROM documents WHERE id = ?`).run(id);
       this.#db.prepare(`DELETE FROM documents_fts WHERE id = ?`).run(id);
       this.#db.prepare(`DELETE FROM links WHERE source_id = ?`).run(id);
+      this.#db.prepare(`DELETE FROM canonical_ownership WHERE doc_id = ?`).run(id);
     });
     run();
   }
@@ -304,11 +526,97 @@ export class SqliteSearch {
       this.#db.exec(`DELETE FROM documents`);
       this.#db.exec(`DELETE FROM documents_fts`);
       this.#db.exec(`DELETE FROM links`);
+      this.#db.exec(`DELETE FROM canonical_ownership`);
       for (const doc of docs) {
         this.index(doc);
       }
     });
     run();
+  }
+
+  /**
+   * Fetch a document by id with canonical_for and refs parsed from JSON.
+   * Returns null when absent.
+   */
+  getDocument(id) {
+    const row = this.#db
+      .prepare(`SELECT id, path, content, frontmatter, brain_id, indexed_at, content_hash, canonical_for, refs FROM documents WHERE id = ?`)
+      .get(id);
+    return this.#hydrateDocumentRow(row);
+  }
+
+  /**
+   * Fetch a document by its stored path. Convenience for callers (like the
+   * viewer) that only know the path — wiki pages, search results, etc.
+   */
+  getDocumentByPath(path) {
+    const row = this.#db
+      .prepare(`SELECT id, path, content, frontmatter, brain_id, indexed_at, content_hash, canonical_for, refs FROM documents WHERE path = ? LIMIT 1`)
+      .get(path);
+    return this.#hydrateDocumentRow(row);
+  }
+
+  #hydrateDocumentRow(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      path: row.path,
+      content: row.content,
+      frontmatter: row.frontmatter,
+      brain_id: row.brain_id,
+      indexed_at: row.indexed_at,
+      content_hash: row.content_hash,
+      canonical_for: row.canonical_for ? JSON.parse(row.canonical_for) : [],
+      references: row.refs ? JSON.parse(row.refs) : [],
+    };
+  }
+
+  /**
+   * List documents without a search query, most-recent-first. Supports
+   * source_type filtering so browse-mode in the viewer can mirror what
+   * search returns (minus the snippet and score).
+   *
+   * Params:
+   *   source_types — array of "wiki" | "chunk" | "memory". Null/empty = all.
+   *   limit, offset — standard paging.
+   */
+  listDocuments({ source_types = null, limit = 50, offset = 0 } = {}) {
+    const clauses = [];
+    const typeClauses = buildSourceTypeClauses(source_types);
+    if (typeClauses.where) clauses.push(typeClauses.where);
+    const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const rows = this.#db.prepare(`
+      SELECT id, path, content, brain_id, indexed_at, content_hash, canonical_for, refs
+      FROM documents
+      ${whereSql}
+      ORDER BY indexed_at DESC
+      LIMIT ? OFFSET ?
+    `).all(...typeClauses.params, limit, offset);
+    const totalRow = this.#db.prepare(`
+      SELECT COUNT(*) AS cnt FROM documents ${whereSql}
+    `).get(...typeClauses.params);
+    return {
+      results: rows.map((row) => ({
+        id: row.id,
+        path: row.path,
+        brain_id: row.brain_id,
+        indexed_at: row.indexed_at,
+        content_hash: row.content_hash,
+        canonical_for: row.canonical_for ? JSON.parse(row.canonical_for) : [],
+        source_type: deriveSourceType(row.path),
+        body_excerpt: extractBodyExcerpt(row.content ?? ""),
+      })),
+      total: totalRow ? totalRow.cnt : 0,
+      showing: rows.length,
+    };
+  }
+
+  /** Return the path of the document canonical for a given ID, or null. */
+  canonicalOwner(canonicalId) {
+    const row = this.#db
+      .prepare(`SELECT doc_id, path, brain_id FROM canonical_ownership WHERE canonical_id = ?`)
+      .get(canonicalId);
+    return row ? { doc_id: row.doc_id, path: row.path, brain_id: row.brain_id } : null;
   }
 
   search({ query, limit = 10, offset = 0, since = null, session_id = null }) {
@@ -328,6 +636,10 @@ export class SqliteSearch {
           d.id,
           d.path,
           d.brain_id,
+          d.content_hash,
+          d.canonical_for,
+          d.translation_of,
+          d.version_of,
           snippet(documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet,
           SUBSTR(d.content, 1, 1000) AS raw_content,
           COALESCE(link_count.cnt, 0) AS backlink_count,
@@ -368,13 +680,24 @@ export class SqliteSearch {
     }
     rawRows.sort((a, b) => a.boosted_score - b.boosted_score);
 
-    const rows = rawRows.slice(offset, offset + limit).map((row) => {
+    // Collapse duplicates so identical content (same content_hash) and
+    // rival claimants of the same canonical_for ID don't inflate the hit
+    // list. Survivor of each collapse group is the best-scoring row;
+    // absorbed rows are surfaced on `also_found_in`.
+    const collapsed = collapseDuplicates(rawRows);
+
+    const rows = collapsed.slice(offset, offset + limit).map((row) => {
       const body_excerpt = extractBodyExcerpt(row.raw_content ?? "");
       const source_type = deriveSourceType(row.path);
+      const canonical_for = row.canonical_for ? JSON.parse(row.canonical_for) : [];
+      const also_found_in = row.also_found_in ?? [];
       delete row.raw_content;
       delete row.composite_score;
       delete row.boosted_score;
-      return { ...row, source_type, body_excerpt };
+      delete row.canonical_for;
+      delete row.content_hash;
+      delete row.also_found_in;
+      return { ...row, source_type, body_excerpt, canonical_for, also_found_in };
     });
 
     const countRow = this.#db
@@ -409,10 +732,14 @@ export class SqliteSearch {
       logAll();
     }
 
+    // Count how many raw rows were absorbed into others (sum of also_found_in).
+    const collapsed_count = rows.reduce((n, r) => n + (r.also_found_in?.length ?? 0), 0);
+
     return {
       results: rows,
       total_matches,
       showing: rows.length,
+      collapsed: collapsed_count,
     };
   }
 

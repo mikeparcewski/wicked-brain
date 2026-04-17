@@ -154,3 +154,104 @@ test("symbols falls back to FTS when LSP errors (no tsconfig)", async () => {
   assert.ok(result.results.length >= 1, "should find at least one FTS result");
   assert.equal(result.results[0].file_path, "/src/MyService.ts");
 });
+
+test("GET / serves the viewer HTML", async () => {
+  const res = await fetch(`http://localhost:${port}/`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /text\/html/);
+  const body = await res.text();
+  assert.ok(body.startsWith("<!doctype html>"));
+  assert.ok(body.includes("test-brain-server"), "brain id should appear in the page");
+  assert.ok(body.includes("search-input"));
+});
+
+test("GET /api returns 404 (only POST is allowed)", async () => {
+  const res = await fetch(`http://localhost:${port}/api`);
+  assert.equal(res.status, 404);
+});
+
+test("get_document action: by id round-trips", async () => {
+  await api(port, "index", {
+    id: "viewer-doc-1",
+    path: "wiki/viewer-demo.md",
+    content: "---\ncanonical_for: [VIEWER-DEMO]\n---\n\n# Hello\n\nViewer body.",
+  });
+  const { document: doc } = await api(port, "get_document", { id: "viewer-doc-1" });
+  assert.equal(doc.id, "viewer-doc-1");
+  assert.equal(doc.path, "wiki/viewer-demo.md");
+  assert.ok(doc.content.includes("Viewer body"));
+  assert.deepEqual(doc.canonical_for, ["VIEWER-DEMO"]);
+});
+
+test("get_document action: by path round-trips", async () => {
+  const { document: doc } = await api(port, "get_document", { path: "wiki/viewer-demo.md" });
+  assert.equal(doc.id, "viewer-doc-1");
+});
+
+test("get_document action: returns null document for missing id", async () => {
+  const resp = await api(port, "get_document", { id: "definitely-missing" });
+  assert.equal(resp.document, null);
+});
+
+test("health action reports read_only flag", async () => {
+  const h = await api(port, "health");
+  assert.equal(h.read_only, false, "default server is not read-only");
+});
+
+test("purge_brain action requires DELETE confirmation", async () => {
+  // Seed two bodies via index first — one in chunks, one in wiki.
+  await api(port, "index", { id: "purge-c", path: "chunks/purge.md", content: "chunk body" });
+  await api(port, "index", { id: "purge-w", path: "wiki/purge.md", content: "wiki body" });
+
+  const missing = await api(port, "purge_brain", {});
+  assert.match(missing.error, /confirmation missing/);
+
+  const noop = await api(port, "purge_brain", { confirm: "yes" });
+  assert.match(noop.error, /confirmation missing/);
+
+  const ok = await api(port, "purge_brain", { confirm: "DELETE" });
+  assert.ok(!ok.error, `unexpected error: ${ok.error}`);
+  assert.ok(ok.removed, "returns a removed summary");
+});
+
+test("reonboard action indexes content files from disk", async () => {
+  // Place a wiki file directly on disk under the brain root, then reonboard.
+  // The action should pick it up via walkBrainContent + reindex.
+  const fs = await import("node:fs");
+  const wikiDir = `${brainDir}/wiki`;
+  fs.mkdirSync(wikiDir, { recursive: true });
+  fs.writeFileSync(`${wikiDir}/hello.md`, "# From disk\\n\\nreonboard content");
+  const r = await api(port, "reonboard", {});
+  assert.ok(r.indexed >= 1, `expected at least one indexed doc, got ${r.indexed}`);
+});
+
+test("--read-only flag blocks write + destructive actions (separate server)", async () => {
+  // Spin up a second server on a different port with --read-only. Verifies
+  // the gate is wired at the API dispatch layer, not just the UI.
+  const { spawn } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync: mk, writeFileSync: wf } = await import("node:fs");
+  const { join: j } = await import("node:path");
+  const { tmpdir: td } = await import("node:os");
+  const roDir = mkdtempSync(j(td(), "ro-brain-"));
+  mk(j(roDir, "_meta"), { recursive: true });
+  wf(j(roDir, "brain.json"), JSON.stringify({ id: "ro-brain" }));
+  const roPort = port + 1;
+  const proc = spawn(process.execPath, [serverBin, "--brain", roDir, "--port", String(roPort), "--read-only"], { stdio: "pipe" });
+  try {
+    await new Promise((r) => setTimeout(r, 1200));
+    const h = await api(roPort, "health");
+    assert.equal(h.read_only, true);
+
+    const blocked = await api(roPort, "purge_brain", { confirm: "DELETE" });
+    assert.match(blocked.error || "", /read-only mode/);
+
+    const indexBlocked = await api(roPort, "index", { id: "x", path: "x.md", content: "y" });
+    assert.match(indexBlocked.error || "", /read-only mode/);
+
+    // Reads still work.
+    const searchable = await api(roPort, "search", { query: "anything" });
+    assert.ok("results" in searchable);
+  } finally {
+    proc.kill("SIGTERM");
+  }
+});

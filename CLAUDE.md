@@ -1,5 +1,17 @@
 # wicked-brain Development Guide
 
+## Contributor wiki
+Contributor wiki: ./docs/wiki
+Invariants, contracts, and extension recipes live there. Read
+[`docs/wiki/README.md`](docs/wiki/README.md) before making changes.
+`docs/wiki/contract-api.md` and `docs/wiki/_generated/actions.json` are
+machine-generated — do not hand-edit; run `npm run gen:wiki` in `server/`.
+
+The discovery contract this pointer obeys is in
+[`docs/specs/2026-04-17-wiki-discovery-contract.md`](docs/specs/2026-04-17-wiki-discovery-contract.md).
+Downstream projects using wicked-brain should add the same `Contributor wiki:`
+line in their CLAUDE.md / AGENTS.md — that line is the machine-readable anchor.
+
 ## Project Structure
 
 ```

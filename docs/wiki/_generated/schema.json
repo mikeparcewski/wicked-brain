@@ -1,0 +1,225 @@
+{
+  "generated_at": "2026-04-17",
+  "source": "server/lib/sqlite-search.mjs",
+  "canonical_id": "CONTRACT-SCHEMA",
+  "head_version": 5,
+  "tables": [
+    {
+      "name": "documents",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "path",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "content",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "frontmatter",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "brain_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "indexed_at",
+          "type": "INTEGER NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "content_hash",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "canonical_for",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "refs",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "translation_of",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "version_of",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "canonical_ownership",
+      "columns": [
+        {
+          "name": "canonical_id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "doc_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "path",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "brain_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "links",
+      "columns": [
+        {
+          "name": "source_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "source_brain",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "target_path",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "target_brain",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "rel",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "link_text",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "confidence",
+          "type": "REAL DEFAULT 0",
+          "notes": ".5"
+        },
+        {
+          "name": "evidence_count",
+          "type": "INTEGER DEFAULT 0",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "access_log",
+      "columns": [
+        {
+          "name": "doc_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "accessed_at",
+          "type": "INTEGER NOT NULL",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "search_misses",
+      "columns": [
+        {
+          "name": "query",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "searched_at",
+          "type": "INTEGER NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "migrations": [
+    {
+      "version": 1,
+      "summary": "add rel column to links table + access_log table",
+      "ops": [
+        "ADD COLUMN links.rel",
+        "CREATE TABLE access_log",
+        "CREATE INDEX idx_access_doc ON access_log",
+        "CREATE INDEX idx_access_session ON access_log"
+      ]
+    },
+    {
+      "version": 2,
+      "summary": "add confidence + evidence_count to links, add search_misses table",
+      "ops": [
+        "ADD COLUMN links.confidence",
+        "ADD COLUMN links.evidence_count",
+        "CREATE TABLE search_misses"
+      ]
+    },
+    {
+      "version": 3,
+      "summary": "add content_hash column + index for memory dedup",
+      "ops": [
+        "ADD COLUMN documents.content_hash",
+        "CREATE INDEX idx_documents_content_hash ON documents"
+      ]
+    },
+    {
+      "version": 4,
+      "summary": "add canonical_for + refs columns, canonical_ownership table",
+      "ops": [
+        "ADD COLUMN documents.canonical_for",
+        "ADD COLUMN documents.refs",
+        "CREATE TABLE canonical_ownership",
+        "CREATE INDEX idx_canonical_doc ON canonical_ownership"
+      ]
+    },
+    {
+      "version": 5,
+      "summary": "add translation_of + version_of columns for locale/version",
+      "ops": [
+        "ADD COLUMN documents.translation_of",
+        "ADD COLUMN documents.version_of"
+      ]
+    }
+  ]
+}

@@ -5,9 +5,8 @@ server/_meta/
 *.db
 server.pid
 
-docs/
 archive/v1/
 archive/
-docs/
 
 .claude/
+.wicked-brain/

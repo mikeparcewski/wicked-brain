@@ -45,28 +45,29 @@ wicked-brain is a set of **skills** — markdown instruction files that teach yo
 A lightweight background server handles the one thing that needs a database: full-text search via SQLite FTS5.
 
 ```
-┌─────────────────────────────────────────┐
-│     Your AI CLI (Claude / Gemini / ...) │
-│                                         │
-│  Skills:                                │
-│    wicked-brain:ingest   → add sources  │
-│    wicked-brain:search   → find content │
-│    wicked-brain:query    → ask questions│
-│    wicked-brain:compile  → build wiki   │
-│    wicked-brain:lint     → check quality│
+┌─────────────────────────────────────────┐       ┌──────────────────────┐
+│     Your AI CLI (Claude / Gemini / ...) │       │ Browser (you)        │
+│                                         │       │ http://localhost/…   │
+│  Skills:                                │       │ Search · Wiki viewer │
+│    wicked-brain:ingest   → add sources  │       └──────────┬───────────┘
+│    wicked-brain:search   → find content │                  │ GET /
+│    wicked-brain:query    → ask questions│                  ▼
+│    wicked-brain:compile  → build wiki   │       ┌──────────────────────┐
+│    wicked-brain:lint     → check quality│       │  Viewer HTML         │
+│    wicked-brain:ui       → open viewer  │       └──────────────────────┘
 │                                         │
 │  Your agent uses its own tools:         │
 │  Read, Write, Grep — no special APIs    │
 └────────────┬────────────────────────────┘
-             │  curl localhost (search only)
+             │  POST /api (search + index + …)
              ▼
 ┌─────────────────────────────────────────┐
 │  SQLite FTS5 server (auto-starts)       │
-│  ~300 lines, one dependency             │
+│  Optional: --read-only for shared mode  │
 └─────────────────────────────────────────┘
 ```
 
-**The server is invisible.** It auto-starts when needed and auto-reindexes when files change. You never think about it.
+**The server is invisible.** It auto-starts when needed and auto-reindexes when files change. You never think about it — unless you want to: `open http://localhost:4242/` drops you into a browser viewer that lets you search and browse the wiki without going through an agent.
 
 ## Install
 
@@ -109,6 +110,19 @@ Once installed, just talk to your agent:
 
 Every operation uses **progressive loading** — the agent never pulls more than it needs. Search returns one-line summaries first. You drill down only when something looks relevant.
 
+## Browser Viewer
+
+Every running brain server serves a read-only HTML viewer at `GET /`. Open `http://localhost:4242/` (or whatever port the brain bound to) and you get:
+
+- **Search tab** — type-to-refine with live results and source-type filter chips. Empty query shows every doc most-recent-first so you can browse even when you don't know what to search for.
+- **Wiki tab** — grid of cards for each wiki article with tags and word counts.
+- **Header actions** — refresh (re-detect mode + re-index from disk) and delete (purge content; typed confirmation required).
+- **Read-only mode** — start the server with `--read-only` and destructive actions return 403; the viewer greys out the buttons and tells you why.
+
+Or let an agent do it: say *"open the brain viewer"* and the `wicked-brain:ui` skill resolves the brain, health-checks the server, and launches your default browser.
+
+The viewer has no auth. It's localhost-only, same-machine trust.
+
 ## What Makes It Different
 
 | | Vector DB / RAG | wicked-brain |
@@ -145,6 +159,7 @@ Every operation uses **progressive loading** — the agent never pulls more than
 | `wicked-brain:retag` | Backfill synonym-expanded tags across all chunks for better search recall |
 | `wicked-brain:update` | Check npm for updates and reinstall skills across all detected CLIs |
 | `wicked-brain:lsp` | Universal code intelligence via LSP — hover, go-to-definition, diagnostics, completions |
+| `wicked-brain:ui` | Open the read-only browser viewer — Material-styled Search + Wiki tabs over `http://localhost:<port>/` |
 
 ## Multi-Brain Federation
 
@@ -185,6 +200,8 @@ If you really want one brain for everything, you can pass a custom path to
 
 ## What's on Disk
 
+Two places. The **brain** lives in your home directory:
+
 ```
 ~/.wicked-brain/projects/{project-name}/
   brain.json              # Identity and brain links
@@ -199,7 +216,18 @@ If you really want one brain for everything, you can pass a custom path to
   .brain.db               # SQLite search index (auto-managed)
 ```
 
-Everything is markdown. Everything is git-committable. Everything is human-readable. The SQLite file is a rebuildable cache — delete it and the server recreates it from your markdown files.
+And a small per-repo marker lives **in the project itself**:
+
+```
+<your-repo>/
+  .wicked-brain/
+    mode.json             # Detected repo mode + wiki location (gitignore this)
+  CLAUDE.md               # Gets a `Contributor wiki: <path>` pointer stamped in
+```
+
+`mode.json` records whether the repo is `code` / `content` / `mixed` / `unknown` and where the contributor wiki lives (`wiki/`, `docs/wiki/`, etc.). Agents read it first when they need to find the wiki — it's the canonical discovery hint.
+
+Everything is markdown. Everything is git-committable (except the brain's `.brain.db` and the per-repo `.wicked-brain/`). Everything is human-readable. The SQLite file is a rebuildable cache — delete it and the server recreates it from your markdown files.
 
 ## The Agent is the Parser
 
@@ -209,21 +237,24 @@ Modern LLMs read PDF, DOCX, PPTX, and XLSX natively. When you ingest a binary do
 
 ## Architecture
 
-**~300 lines of server JavaScript** (SQLite FTS5 + file watcher) + **~1,400 lines of skill markdown** (agent instructions).
+Plain Node.js server (SQLite FTS5 + file watcher + optional LSP client + HTML viewer) plus markdown skill instructions your AI CLI consumes. **One runtime dependency** (`better-sqlite3`); LSP layer is hand-rolled JSON-RPC; the viewer is vanilla JS with no build.
 
-That's the entire system. Compare that to a typical RAG stack:
+Compare that to a typical RAG stack:
 
 ```
-Typical RAG:                          wicked-brain:
-- Embedding model API                - SQLite (one file)
+Typical RAG:                           wicked-brain:
+- Embedding model API                 - SQLite (one file)
 - Vector database (Pinecone/Weaviate) - Markdown files
 - Chunking pipeline                   - Agent's native tools
-- Retrieval service                   - curl localhost
+- Retrieval service                   - curl localhost (POST /api)
 - Re-ranking model                    - LLM reasoning
 - Orchestration layer                 - Skills (markdown)
+- Admin UI                            - GET / (vanilla HTML, read-only)
 ─────────────────                     ─────────────────
-~5,000+ lines, 10+ deps              ~1,700 lines, 1 dep
+10+ deps, opaque vectors              1 runtime dep, plain markdown
 ```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for component diagrams and the schema layout.
 
 ## Supported CLIs
 
