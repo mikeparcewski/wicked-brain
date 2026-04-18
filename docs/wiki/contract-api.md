@@ -3,7 +3,7 @@ status: published
 canonical_for: [CONTRACT-API]
 references: []
 owner: core
-last_reviewed: 2026-04-17
+last_reviewed: 2026-04-18
 generated: true
 source: server/bin/wicked-brain-server.mjs
 ---
@@ -46,6 +46,7 @@ This page is **generated** from the server source. Do not hand-edit — changes 
 | `tag_frequency` | — | `server/lib/sqlite-search.mjs#tagFrequency` |
 | `search_misses` | — | `server/lib/sqlite-search.mjs#searchMisses` |
 | `wiki_list` | — | `server/lib/sqlite-search.mjs#wikiList` |
+| `verify_wiki` | — | `server/lib/sqlite-search.mjs#verifyWiki` |
 | `lsp-health` | — | `server/lib/lsp-client.mjs#health` |
 | `lsp-symbols` | — | `server/lib/lsp-client.mjs#symbols` |
 | `lsp-definition` | — | `server/lib/lsp-client.mjs#definition` |
@@ -171,6 +172,10 @@ This page is **generated** from the server source. Do not hand-edit — changes 
 ### `wiki_list`
 
 - Implementation: `server/lib/sqlite-search.mjs#wikiList`
+
+### `verify_wiki`
+
+- Implementation: `server/lib/sqlite-search.mjs#verifyWiki`
 
 ### `lsp-health`
 

@@ -83,7 +83,21 @@ Depth 0 plus:
   ```
   Group results by path prefix (e.g., `chunks/extracted/`, `wiki/`) to show recent activity distribution.
 - List the top 10 most common tags
-- Flag any staleness warnings (sources modified after last ingest)
+- Flag wiki staleness warnings by calling `verify_wiki`:
+  ```bash
+  curl -s -X POST http://localhost:{port}/api \
+    -H "Content-Type: application/json" \
+    -d '{"action":"verify_wiki","params":{}}'
+  ```
+  Report one line per non-fresh bucket — only emit the lines where the count is > 0:
+  ```
+  ⚠ Wiki staleness: {stale} stale / {orphaned} orphaned / {unverifiable} unverifiable (of {total} articles)
+  ```
+  `stale` = at least one referenced chunk changed or is missing. `orphaned` =
+  every referenced chunk is missing from the index. `unverifiable` = article
+  predates `source_hashes` frontmatter. Suggest running `wicked-brain:compile`
+  to refresh stale articles.
+  If `total == 0` (brain has no wiki yet), skip the line entirely.
 
 **Convergence Debt:**
 Detect chunks that are frequently accessed but have never been compiled into wiki articles:

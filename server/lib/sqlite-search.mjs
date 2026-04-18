@@ -1,7 +1,32 @@
 import Database from "better-sqlite3";
 import { parseWikilinks } from "./wikilinks.mjs";
-import { parseFrontmatterBlock } from "./frontmatter.mjs";
+import { parseFrontmatterBlock, extractFrontmatter } from "./frontmatter.mjs";
 import { statSync } from "node:fs";
+import { createHash } from "node:crypto";
+
+/**
+ * Parse a source_hashes entry of the form "{chunk_path}: {hash}". Returns
+ * null if the shape doesn't match — malformed entries are skipped rather
+ * than blocking the whole verify call.
+ */
+function parseHashEntry(raw) {
+  if (typeof raw !== "string") return null;
+  const idx = raw.indexOf(":");
+  if (idx < 0) return null;
+  const chunkPath = raw.slice(0, idx).trim();
+  const hash = raw.slice(idx + 1).trim();
+  if (!chunkPath || !hash) return null;
+  return { chunkPath, hash };
+}
+
+/**
+ * First 8 hex chars of SHA-256 over the chunk body (frontmatter stripped).
+ * Matches the convention wicked-brain:compile uses when writing source_hashes.
+ */
+function chunkBodyHash(content) {
+  const { body } = extractFrontmatter(content ?? "");
+  return createHash("sha256").update(body).digest("hex").slice(0, 8);
+}
 
 /**
  * Extracts body text from a document, stripping YAML frontmatter.
@@ -258,7 +283,8 @@ export class SqliteSearch {
         canonical_for TEXT,
         refs TEXT,
         translation_of TEXT,
-        version_of TEXT
+        version_of TEXT,
+        last_verified_at INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS canonical_ownership (
@@ -402,6 +428,14 @@ export class SqliteSearch {
       currentVersion = 5;
     }
 
+    // Migration 6: add last_verified_at for wiki staleness detection
+    if (currentVersion < 6) {
+      try { this.#db.prepare(`SELECT last_verified_at FROM documents LIMIT 0`).get(); } catch {
+        this.#db.exec(`ALTER TABLE documents ADD COLUMN last_verified_at INTEGER`);
+      }
+      currentVersion = 6;
+    }
+
     // Persist the current version
     this.#db.exec(`DELETE FROM _schema_version`);
     this.#db.prepare(`INSERT INTO _schema_version (version) VALUES (?)`).run(currentVersion);
@@ -540,7 +574,7 @@ export class SqliteSearch {
    */
   getDocument(id) {
     const row = this.#db
-      .prepare(`SELECT id, path, content, frontmatter, brain_id, indexed_at, content_hash, canonical_for, refs FROM documents WHERE id = ?`)
+      .prepare(`SELECT id, path, content, frontmatter, brain_id, indexed_at, content_hash, canonical_for, refs, last_verified_at FROM documents WHERE id = ?`)
       .get(id);
     return this.#hydrateDocumentRow(row);
   }
@@ -551,7 +585,7 @@ export class SqliteSearch {
    */
   getDocumentByPath(path) {
     const row = this.#db
-      .prepare(`SELECT id, path, content, frontmatter, brain_id, indexed_at, content_hash, canonical_for, refs FROM documents WHERE path = ? LIMIT 1`)
+      .prepare(`SELECT id, path, content, frontmatter, brain_id, indexed_at, content_hash, canonical_for, refs, last_verified_at FROM documents WHERE path = ? LIMIT 1`)
       .get(path);
     return this.#hydrateDocumentRow(row);
   }
@@ -568,6 +602,7 @@ export class SqliteSearch {
       content_hash: row.content_hash,
       canonical_for: row.canonical_for ? JSON.parse(row.canonical_for) : [],
       references: row.refs ? JSON.parse(row.refs) : [],
+      last_verified_at: row.last_verified_at ?? null,
     };
   }
 
@@ -1257,6 +1292,102 @@ export class SqliteSearch {
     });
 
     return { articles };
+  }
+
+  /**
+   * Verify wiki articles against the current hashes of the chunks they claim
+   * to synthesize. Returns a per-article classification plus a summary.
+   *
+   * See docs/specs/2026-04-17-wiki-staleness-detection.md for the contract.
+   * Read-only w.r.t. content: the only mutation is stamping
+   * documents.last_verified_at for each article scanned.
+   */
+  verifyWiki({ path = null } = {}) {
+    let rows;
+    if (path) {
+      rows = this.#db.prepare(`
+        SELECT id, path, content, frontmatter
+        FROM documents
+        WHERE path = ? AND path LIKE 'wiki/%'
+      `).all(path);
+    } else {
+      rows = this.#db.prepare(`
+        SELECT id, path, content, frontmatter
+        FROM documents
+        WHERE path LIKE 'wiki/%'
+        ORDER BY path
+      `).all();
+    }
+
+    const summary = { total: 0, fresh: 0, stale: 0, orphaned: 0, unverifiable: 0 };
+    const articles = [];
+    const now = Date.now();
+    const stampVerified = this.#db.prepare(
+      `UPDATE documents SET last_verified_at = ? WHERE id = ?`,
+    );
+
+    for (const row of rows) {
+      summary.total++;
+      const classification = this.#classifyWikiArticle(row);
+      articles.push({
+        path: row.path,
+        status: classification.status,
+        source_count: classification.source_count,
+        matched: classification.matched,
+        mismatched: classification.mismatched,
+        missing: classification.missing,
+        last_verified_at: now,
+      });
+      summary[classification.status]++;
+      stampVerified.run(now, row.id);
+    }
+
+    return { articles, summary };
+  }
+
+  #classifyWikiArticle(row) {
+    const fmBlock = row.frontmatter || SqliteSearch.#extractFrontmatter(row.content) || "";
+    let fmData = {};
+    try { fmData = parseFrontmatterBlock(fmBlock); } catch { fmData = {}; }
+    const hashEntries = Array.isArray(fmData.source_hashes) ? fmData.source_hashes : [];
+    if (hashEntries.length === 0) {
+      return { status: "unverifiable", source_count: 0, matched: 0, mismatched: [], missing: [] };
+    }
+
+    const mismatched = [];
+    const missing = [];
+    let matched = 0;
+
+    for (const entry of hashEntries) {
+      const parsed = parseHashEntry(entry);
+      if (!parsed) continue; // malformed line — skip silently
+      const chunk = this.#db.prepare(
+        `SELECT content FROM documents WHERE path = ?`,
+      ).get(parsed.chunkPath);
+      if (!chunk) {
+        missing.push(parsed.chunkPath);
+        continue;
+      }
+      const currentHash = chunkBodyHash(chunk.content);
+      if (currentHash === parsed.hash) {
+        matched++;
+      } else {
+        mismatched.push(parsed.chunkPath);
+      }
+    }
+
+    const source_count = hashEntries.length;
+    let status;
+    if (mismatched.length > 0) {
+      status = "stale";
+    } else if (missing.length === source_count) {
+      status = "orphaned";
+    } else if (missing.length > 0) {
+      status = "stale";
+    } else {
+      status = "fresh";
+    }
+    return { status, source_count, matched, mismatched, missing };
   }
 
   /**

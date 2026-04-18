@@ -3,7 +3,7 @@ status: published
 canonical_for: [CONTRACT-SCHEMA]
 references: [INV-MIGRATION-REQUIRED]
 owner: core
-last_reviewed: 2026-04-17
+last_reviewed: 2026-04-18
 generated: true
 source: server/lib/sqlite-search.mjs
 ---
@@ -29,6 +29,7 @@ Generated from `server/lib/sqlite-search.mjs`. Do not hand-edit — regenerate w
 | `refs` | `TEXT` |  |
 | `translation_of` | `TEXT` |  |
 | `version_of` | `TEXT` |  |
+| `last_verified_at` | `INTEGER` |  |
 
 ### `canonical_ownership`
 
@@ -77,6 +78,7 @@ Generated from `server/lib/sqlite-search.mjs`. Do not hand-edit — regenerate w
 | 3 | add content_hash column + index for memory dedup | `ADD COLUMN documents.content_hash`, `CREATE INDEX idx_documents_content_hash ON documents` |
 | 4 | add canonical_for + refs columns, canonical_ownership table | `ADD COLUMN documents.canonical_for`, `ADD COLUMN documents.refs`, `CREATE TABLE canonical_ownership`, `CREATE INDEX idx_canonical_doc ON canonical_ownership` |
 | 5 | add translation_of + version_of columns for locale/version | `ADD COLUMN documents.translation_of`, `ADD COLUMN documents.version_of` |
+| 6 | add last_verified_at for wiki staleness detection | `ADD COLUMN documents.last_verified_at` |
 
-Current head: **v5**.
+Current head: **v6**.
 

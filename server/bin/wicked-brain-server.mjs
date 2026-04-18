@@ -207,6 +207,17 @@ const actions = {
   tag_frequency: () => ({ tags: db.tagFrequency() }),
   search_misses: (p) => ({ misses: db.searchMisses(p) }),
   wiki_list: (p) => db.wikiList(p),
+  verify_wiki: (p = {}) => {
+    const result = db.verifyWiki(p);
+    emitEvent("wicked.wiki.verified", "brain.wiki", {
+      brain_id: brainId,
+      total: result.summary.total,
+      stale: result.summary.stale,
+      orphaned: result.summary.orphaned,
+      unverifiable: result.summary.unverifiable,
+    });
+    return result;
+  },
   // LSP actions
   "lsp-health": () => lsp.health(),
   "lsp-symbols": (p) => lsp.symbols(p),

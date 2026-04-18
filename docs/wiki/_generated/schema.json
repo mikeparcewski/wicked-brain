@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-04-17",
+  "generated_at": "2026-04-18",
   "source": "server/lib/sqlite-search.mjs",
   "canonical_id": "CONTRACT-SCHEMA",
-  "head_version": 5,
+  "head_version": 6,
   "tables": [
     {
       "name": "documents",
@@ -60,6 +60,11 @@
         {
           "name": "version_of",
           "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "last_verified_at",
+          "type": "INTEGER",
           "notes": ""
         }
       ]
@@ -219,6 +224,13 @@
       "ops": [
         "ADD COLUMN documents.translation_of",
         "ADD COLUMN documents.version_of"
+      ]
+    },
+    {
+      "version": 6,
+      "summary": "add last_verified_at for wiki staleness detection",
+      "ops": [
+        "ADD COLUMN documents.last_verified_at"
       ]
     }
   ]

@@ -33,11 +33,11 @@ test("extractSchema: includes canonical_ownership table", async () => {
   assert.ok(colNames.includes("doc_id"));
 });
 
-test("extractSchema: migrations include versions 1..5 in order with summaries", async () => {
+test("extractSchema: migrations include versions 1..6 in order with summaries", async () => {
   const src = await fs.readFile(serverLib, "utf8");
   const schema = extractSchema(src);
   const versions = schema.migrations.map((m) => m.version);
-  assert.deepEqual(versions, [1, 2, 3, 4, 5]);
+  assert.deepEqual(versions, [1, 2, 3, 4, 5, 6]);
   // v5 should mention translation/version columns.
   const m5 = schema.migrations.find((m) => m.version === 5);
   assert.ok(m5.summary.length > 0, "v5 summary should be captured");
@@ -45,6 +45,13 @@ test("extractSchema: migrations include versions 1..5 in order with summaries", 
     m5.ops.some((o) => o.includes("translation_of")) ||
       m5.ops.some((o) => o.includes("version_of")),
     "v5 ops should mention translation_of/version_of",
+  );
+  // v6 adds last_verified_at for wiki staleness detection.
+  const m6 = schema.migrations.find((m) => m.version === 6);
+  assert.ok(m6.summary.length > 0, "v6 summary should be captured");
+  assert.ok(
+    m6.ops.some((o) => o.includes("last_verified_at")),
+    "v6 ops should mention last_verified_at",
   );
 });
 

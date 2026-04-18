@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17",
+  "generated_at": "2026-04-18",
   "source_roots": [
     "server/lib",
     "server/bin"
@@ -242,7 +242,7 @@
     },
     {
       "path": "server/lib/sqlite-search.mjs",
-      "purpose": "Extracts body text from a document, stripping YAML frontmatter. Falls back to the raw content if no frontmatter is detected.",
+      "purpose": "Parse a source_hashes entry of the form \"{chunk_path}: {hash}\". Returns null if the shape doesn't match — malformed entries are skipped rather than blocking the whole verify call.",
       "exports": [
         "SqliteSearch",
         "deriveSourceType"
