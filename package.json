@@ -1,6 +1,6 @@
 {
   "name": "wicked-brain",
-  "version": "0.3.8",
+  "version": "0.12.1",
   "type": "module",
   "description": "Digital brain as skills for AI coding CLIs — no vector DB, no embeddings, no infrastructure",
   "keywords": [
