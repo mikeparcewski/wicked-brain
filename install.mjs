@@ -80,7 +80,10 @@ const flagValue = (name) => {
   if (!f) return null;
   let val;
   if (f.includes("=")) {
-    val = f.split("=")[1];
+    // slice from the first '=' forward — split("=")[1] would truncate at
+    // the second '=' (e.g. --path=/volumes/build=artifacts would silently
+    // drop "=artifacts").
+    val = f.slice(f.indexOf("=") + 1);
   } else {
     const idx = args.indexOf(f);
     const next = args[idx + 1];
@@ -96,12 +99,12 @@ const pathArg = flagValue("path");
 
 let targets;
 
-if (pathArg && typeof pathArg === "string") {
+if (pathArg && typeof pathArg === "string" && pathArg !== "") {
   const customPath = resolve(pathArg.replace(/^~/, home));
   // Strip leading dot to match CLI_TARGETS names (e.g. ".claude" → "claude")
   const dirName = basename(customPath).replace(/^\./, "");
   const knownPlatform = CLI_TARGETS.find((t) => t.name === dirName);
-  const agentSubdir = knownPlatform?.agentSubdir ?? (dirName === "claude" ? "agents" : "agents");
+  const agentSubdir = knownPlatform?.agentSubdir ?? "agents";
   targets = [{
     name: dirName,
     dir: join(customPath, "skills"),
@@ -109,7 +112,7 @@ if (pathArg && typeof pathArg === "string") {
     platform: knownPlatform?.platform ?? dirName,
   }];
   console.log(`Custom path: ${customPath}\n`);
-} else if (pathArg === true) {
+} else if (pathArg === true || pathArg === "") {
   console.error("Error: --path requires a value (e.g. --path=~/.claude or --path ~/.claude)");
   process.exit(1);
 } else {
