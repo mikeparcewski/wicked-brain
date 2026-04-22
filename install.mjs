@@ -11,8 +11,44 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const skillsSource = join(__dirname, "skills");
 const home = homedir();
 
+// Claude-root candidate builder. Claude Code's config root is redirectable
+// via $CLAUDE_CONFIG_DIR (multi-tenant setups, alt-config layouts, corporate
+// home-dir overrides). Mirrors the 0.3.3 wicked-testing fix: env var is
+// authoritative when set; otherwise we probe ~/.claude + common alt-config
+// paths and install into each that carries Claude identity markers.
+function buildClaudeTarget(rootDir, source, { trusted = false } = {}) {
+  return {
+    name: "claude",
+    rootDir,
+    dir: join(rootDir, "skills"),
+    agentDir: join(rootDir, "agents"),
+    agentSubdir: "agents",
+    platform: "claude",
+    identityMarkers: ["settings.json", "plugins", "projects"],
+    source,
+    trusted,
+  };
+}
+
+function resolveClaudeCandidates() {
+  const envDir = process.env.CLAUDE_CONFIG_DIR;
+  if (envDir && typeof envDir === "string" && envDir.trim()) {
+    // Function replacement avoids `$&` etc. being interpreted as regex
+    // back-references if $HOME contains those literals (pathological but
+    // cheap to defend against — flagged by gemini on the sibling PRs).
+    const root = resolve(envDir.trim().replace(/^~/, () => home));
+    return [buildClaudeTarget(root, "env:CLAUDE_CONFIG_DIR", { trusted: true })];
+  }
+  return [
+    buildClaudeTarget(join(home, ".claude"),                "default"),
+    buildClaudeTarget(join(home, "alt-configs", ".claude"), "alt-configs"),
+    buildClaudeTarget(join(home, ".config", "claude"),      "xdg"),
+  ];
+}
+
+// Canonical non-claude targets. Claude is expanded dynamically via
+// resolveClaudeCandidates() below so CLI_TARGETS stays a flat spec.
 const CLI_TARGETS = [
-  { name: "claude",      dir: join(home, ".claude", "skills"),      agentDir: join(home, ".claude", "agents"),      agentSubdir: "agents", platform: "claude" },
   { name: "gemini",      dir: join(home, ".gemini", "skills"),      agentDir: join(home, ".gemini", "agents"),      agentSubdir: "agents", platform: "gemini" },
   { name: "copilot",     dir: join(home, ".github", "skills"),      agentDir: join(home, ".github", "agents"),      agentSubdir: "agents", platform: "copilot" },
   { name: "codex",       dir: join(home, ".codex", "skills"),       agentDir: join(home, ".codex", "agents"),       agentSubdir: "agents", platform: "codex" },
@@ -21,22 +57,61 @@ const CLI_TARGETS = [
   { name: "antigravity", dir: join(home, ".antigravity", "skills"), agentDir: join(home, ".antigravity", "rules"),  agentSubdir: "rules",  platform: "antigravity" },
 ];
 
+// Identity-marker gate for claude candidates. Without this, probing
+// ~/.claude, ~/alt-configs/.claude, and ~/.config/claude would install
+// into every path that happens to exist — risky if one was created by a
+// different tool. Env-var / --path targets are `trusted` and skip this.
+function claudeHasIdentityMarker(target) {
+  if (target.trusted) return true;
+  if (!existsSync(target.rootDir)) return false;
+  return (target.identityMarkers || []).some(m => existsSync(join(target.rootDir, m)));
+}
+
 console.log("wicked-brain installer\n");
 
 const args = argv.slice(2);
-const argValue = (a) => a.split("=")[1];
-const cliArg = args.find((a) => a.startsWith("--cli="));
-const pathArg = args.find((a) => a.startsWith("--path="));
+
+// Flag parser supporting both forms:
+//   --flag=value   (canonical)
+//   --flag value   (common shell muscle-memory; previously silently
+//                   dropped the value and fell through to default
+//                   detection — same bug that hit wicked-testing 0.3.2).
+// Narrow string-boolean coercion: literal "true" / "false" become
+// booleans so `--hooks=false` doesn't install hooks.
+const flagValue = (name) => {
+  const f = args.find(a => a === `--${name}` || a.startsWith(`--${name}=`));
+  if (!f) return null;
+  let val;
+  if (f.includes("=")) {
+    // slice from the first '=' forward — split("=")[1] would truncate at
+    // the second '=' (e.g. --path=/volumes/build=artifacts would silently
+    // drop "=artifacts").
+    val = f.slice(f.indexOf("=") + 1);
+  } else {
+    const idx = args.indexOf(f);
+    const next = args[idx + 1];
+    val = (next && !next.startsWith("-")) ? next : true;
+  }
+  if (val === "false") return false;
+  if (val === "true")  return true;
+  return val;
+};
+
+const cliArg  = flagValue("cli");
+const pathArg = flagValue("path");
+
+// Validate --cli upfront — if the user passed a bare --cli or --cli=,
+// they misspoke and we should not silently fall through to "install
+// everywhere". Applies regardless of whether --path is also set.
+if (cliArg === true || cliArg === "") {
+  console.error("Error: --cli requires a value (e.g. --cli=claude or --cli claude)");
+  process.exit(1);
+}
 
 let targets;
 
-if (pathArg) {
-  const rawPath = argValue(pathArg);
-  if (!rawPath) {
-    console.error("Error: --path requires a value (e.g. --path=~/.claude)");
-    process.exit(1);
-  }
-  const customPath = resolve(rawPath.replace(/^~/, home));
+if (pathArg && typeof pathArg === "string" && pathArg !== "") {
+  const customPath = resolve(pathArg.replace(/^~/, () => home));
   // Strip leading dot to match CLI_TARGETS names (e.g. ".claude" → "claude")
   const dirName = basename(customPath).replace(/^\./, "");
   const knownPlatform = CLI_TARGETS.find((t) => t.name === dirName);
@@ -48,19 +123,33 @@ if (pathArg) {
     platform: knownPlatform?.platform ?? dirName,
   }];
   console.log(`Custom path: ${customPath}\n`);
+} else if (pathArg === true || pathArg === "") {
+  console.error("Error: --path requires a value (e.g. --path=~/.claude or --path ~/.claude)");
+  process.exit(1);
 } else {
-  // Detect which CLIs are installed by checking if parent dir exists
-  const detected = CLI_TARGETS.filter((t) => existsSync(resolve(t.dir, "..")));
+  // Build the detection set: expanded claude candidates (env var OR alt-config
+  // probes) + all non-claude targets. Claude candidates pass an identity-marker
+  // check so we don't install into a bare ~/.claude that belongs to some other
+  // tool. Non-claude targets keep the original parent-dir-exists heuristic.
+  const claudeDetected = resolveClaudeCandidates().filter(claudeHasIdentityMarker);
+  const otherDetected  = CLI_TARGETS.filter((t) => existsSync(resolve(t.dir, "..")));
+  const detected = [...claudeDetected, ...otherDetected];
 
   if (detected.length === 0) {
     console.log("No supported AI CLIs detected. Supported: claude, gemini, copilot, codex, cursor, kiro, antigravity");
-    console.log("Install skills manually by copying the skills/ directory.");
+    console.log("Install skills manually by copying the skills/ directory, or set CLAUDE_CONFIG_DIR.");
     process.exit(1);
   }
 
-  console.log(`Detected CLIs: ${detected.map((d) => d.name).join(", ")}\n`);
+  // Annotate claude candidates with their source when more than one was
+  // detected, so the log is not ambiguous.
+  const claudeCount = claudeDetected.length;
+  const label = (d) => d.name === "claude" && claudeCount > 1 && d.source
+    ? `${d.name}[${d.source}]`
+    : d.name;
+  console.log(`Detected CLIs: ${detected.map(label).join(", ")}\n`);
 
-  const cliFilter = cliArg ? argValue(cliArg).split(",") : null;
+  const cliFilter = (typeof cliArg === "string" && cliArg !== "") ? cliArg.split(",") : null;
   targets = cliFilter ? detected.filter((d) => cliFilter.includes(d.name)) : detected;
 }
 
@@ -106,8 +195,10 @@ for (const target of targets) {
   console.log(`  Installed ${agentCount} agents to ${target.agentDir}`);
 }
 
-// Optional hook installation (--hooks flag)
-const installHooks = args.includes("--hooks");
+// Optional hook installation (--hooks flag). Goes through flagValue so
+// `--hooks=false` correctly disables; bare `--hooks` and `--hooks=true`
+// both enable (flagValue coerces "true"/"false" literals to booleans).
+const installHooks = flagValue("hooks") === true;
 
 if (installHooks) {
   console.log("\nInstalling hooks...");
