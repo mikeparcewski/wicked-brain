@@ -33,7 +33,10 @@ function buildClaudeTarget(rootDir, source, { trusted = false } = {}) {
 function resolveClaudeCandidates() {
   const envDir = process.env.CLAUDE_CONFIG_DIR;
   if (envDir && typeof envDir === "string" && envDir.trim()) {
-    const root = resolve(envDir.trim().replace(/^~/, home));
+    // Function replacement avoids `$&` etc. being interpreted as regex
+    // back-references if $HOME contains those literals (pathological but
+    // cheap to defend against — flagged by gemini on the sibling PRs).
+    const root = resolve(envDir.trim().replace(/^~/, () => home));
     return [buildClaudeTarget(root, "env:CLAUDE_CONFIG_DIR", { trusted: true })];
   }
   return [
@@ -97,10 +100,18 @@ const flagValue = (name) => {
 const cliArg  = flagValue("cli");
 const pathArg = flagValue("path");
 
+// Validate --cli upfront — if the user passed a bare --cli or --cli=,
+// they misspoke and we should not silently fall through to "install
+// everywhere". Applies regardless of whether --path is also set.
+if (cliArg === true || cliArg === "") {
+  console.error("Error: --cli requires a value (e.g. --cli=claude or --cli claude)");
+  process.exit(1);
+}
+
 let targets;
 
 if (pathArg && typeof pathArg === "string" && pathArg !== "") {
-  const customPath = resolve(pathArg.replace(/^~/, home));
+  const customPath = resolve(pathArg.replace(/^~/, () => home));
   // Strip leading dot to match CLI_TARGETS names (e.g. ".claude" → "claude")
   const dirName = basename(customPath).replace(/^\./, "");
   const knownPlatform = CLI_TARGETS.find((t) => t.name === dirName);
@@ -138,7 +149,7 @@ if (pathArg && typeof pathArg === "string" && pathArg !== "") {
     : d.name;
   console.log(`Detected CLIs: ${detected.map(label).join(", ")}\n`);
 
-  const cliFilter = (cliArg && typeof cliArg === "string") ? cliArg.split(",") : null;
+  const cliFilter = (typeof cliArg === "string" && cliArg !== "") ? cliArg.split(",") : null;
   targets = cliFilter ? detected.filter((d) => cliFilter.includes(d.name)) : detected;
 }
 
