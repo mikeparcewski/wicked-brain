@@ -36,8 +36,8 @@ returns an empty array and `replay` / `drop` return `{ ok: false, error: "bus un
 ## Parameters
 
 - **mode** (required): `list`, `replay`, or `drop`
-- **cursor_id** (list: optional filter; replay/drop: required): subscriber cursor id
-- **dl_id** (replay/drop: required): dead-letter row id, returned by `list`
+- **cursor_id** (list, optional): filter to one subscriber cursor
+- **dl_id** (replay/drop, required): dead-letter row id, returned by `list`. Globally unique — alone identifies the row.
 - **limit** (list, optional, default 100): max rows to return
 
 ## List mode
@@ -62,9 +62,7 @@ the event as it failed, not current state.
 ## Replay mode
 
 ```bash
-npx wicked-brain-call dlq_replay \
-  --param cursor_id={cursor_id} \
-  --param dl_id={dl_id}
+npx wicked-brain-call dlq_replay --param dl_id={dl_id}
 ```
 
 Marks the row for replay. The managed subscriber drains pending replays
@@ -79,9 +77,7 @@ inside the handler will not be deduped against the original event.
 ## Drop mode
 
 ```bash
-npx wicked-brain-call dlq_drop \
-  --param cursor_id={cursor_id} \
-  --param dl_id={dl_id}
+npx wicked-brain-call dlq_drop --param dl_id={dl_id}
 ```
 
 Permanently deletes the DLQ row. Use when replay would just dead-letter

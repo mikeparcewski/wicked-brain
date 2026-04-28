@@ -95,15 +95,24 @@ export async function waitForBus() {
  * List dead-lettered events scoped to wicked-brain's plugin.
  * Returns [] when the bus is unavailable so callers don't have to branch.
  *
+ * Upstream takes camelCase `cursorId`; we keep snake_case at this layer
+ * for consistency with the rest of wicked-brain's API and translate here.
+ * `limit` is parsed to an integer because params arriving from the HTTP
+ * dispatch layer can be strings (and upstream rejects non-integers by
+ * silently falling back to its default).
+ *
  * @param {object} [opts]
  * @param {string} [opts.cursor_id] filter to one cursor
- * @param {number} [opts.limit=100]
+ * @param {number|string} [opts.limit=100]
  * @returns {Array}
  */
 export function listBusDeadLetters(opts = {}) {
   if (!available || !busListDeadLetters) return [];
+  const limit = parseInt(opts.limit ?? 100, 10) || 100;
+  const upstreamOpts = { plugin: PLUGIN, limit };
+  if (opts.cursor_id) upstreamOpts.cursorId = opts.cursor_id;
   try {
-    return busListDeadLetters(busDb, { plugin: PLUGIN, ...opts });
+    return busListDeadLetters(busDb, upstreamOpts);
   } catch {
     return [];
   }
@@ -114,20 +123,22 @@ export function listBusDeadLetters(opts = {}) {
  * replays before each poll cycle, so a successful return means the request
  * is queued, not that the event has re-delivered yet.
  *
+ * Upstream signature is positional `(db, dlId)`. dl_id is globally unique
+ * (the bus's own primary key) so plugin/cursor scoping is implicit.
+ *
  * @param {object} args
- * @param {string} args.cursor_id
  * @param {string} args.dl_id
  * @returns {{ ok: boolean, error?: string }}
  */
-export function replayBusDeadLetter({ cursor_id, dl_id } = {}) {
+export function replayBusDeadLetter({ dl_id } = {}) {
   if (!available || !busReplayDeadLetter) {
     return { ok: false, error: "bus unavailable" };
   }
-  if (!cursor_id || !dl_id) {
-    return { ok: false, error: "cursor_id and dl_id required" };
+  if (!dl_id) {
+    return { ok: false, error: "dl_id required" };
   }
   try {
-    busReplayDeadLetter(busDb, { cursor_id, dl_id });
+    busReplayDeadLetter(busDb, dl_id);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -138,20 +149,21 @@ export function replayBusDeadLetter({ cursor_id, dl_id } = {}) {
  * Drop (delete) a dead letter row. Use when an event is no longer relevant
  * — replay would just dead-letter again.
  *
+ * Upstream signature is positional `(db, dlId)`. dl_id is globally unique.
+ *
  * @param {object} args
- * @param {string} args.cursor_id
  * @param {string} args.dl_id
  * @returns {{ ok: boolean, error?: string }}
  */
-export function dropBusDeadLetter({ cursor_id, dl_id } = {}) {
+export function dropBusDeadLetter({ dl_id } = {}) {
   if (!available || !busDropDeadLetter) {
     return { ok: false, error: "bus unavailable" };
   }
-  if (!cursor_id || !dl_id) {
-    return { ok: false, error: "cursor_id and dl_id required" };
+  if (!dl_id) {
+    return { ok: false, error: "dl_id required" };
   }
   try {
-    busDropDeadLetter(busDb, { cursor_id, dl_id });
+    busDropDeadLetter(busDb, dl_id);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };

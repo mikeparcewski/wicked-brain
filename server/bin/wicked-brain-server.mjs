@@ -287,15 +287,10 @@ const actions = {
   }),
   // Mark one DLQ entry for replay. The managed subscriber drains pending
   // replays before each poll cycle — success here means queued, not delivered.
-  dlq_replay: (p = {}) => replayBusDeadLetter({
-    cursor_id: p.cursor_id,
-    dl_id: p.dl_id,
-  }),
+  // dl_id alone identifies the row (it's the bus's primary key).
+  dlq_replay: (p = {}) => replayBusDeadLetter({ dl_id: p.dl_id }),
   // Permanently delete a DLQ row. Use when replay would just dead-letter again.
-  dlq_drop: (p = {}) => dropBusDeadLetter({
-    cursor_id: p.cursor_id,
-    dl_id: p.dl_id,
-  }),
+  dlq_drop: (p = {}) => dropBusDeadLetter({ dl_id: p.dl_id }),
   purge_brain: async (p = {}) => {
     // Destructive. Wipes chunks/, wiki/, and memory/ content and clears the
     // SQLite index. Requires p.confirm === "DELETE" to execute — typed
