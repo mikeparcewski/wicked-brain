@@ -448,7 +448,6 @@
       "name": "dlq_replay",
       "async": false,
       "params": [
-        "cursor_id",
         "dl_id"
       ],
       "impls": []
@@ -457,7 +456,6 @@
       "name": "dlq_drop",
       "async": false,
       "params": [
-        "cursor_id",
         "dl_id"
       ],
       "impls": []

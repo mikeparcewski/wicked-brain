@@ -59,8 +59,8 @@ This page is **generated** from the server source. Do not hand-edit — changes 
 | `lsp-diagnostics` | — | `server/lib/lsp-client.mjs#diagnostics` |
 | `reonboard` | — | `server/lib/sqlite-search.mjs#reindex` |
 | `dlq_list` | `cursor_id`, `limit` | — |
-| `dlq_replay` | `cursor_id`, `dl_id` | — |
-| `dlq_drop` | `cursor_id`, `dl_id` | — |
+| `dlq_replay` | `dl_id` | — |
+| `dlq_drop` | `dl_id` | — |
 | `purge_brain` | `confirm` | `server/lib/sqlite-search.mjs#reindex` |
 
 ## Per-action anchors
@@ -233,12 +233,12 @@ This page is **generated** from the server source. Do not hand-edit — changes 
 ### `dlq_replay`
 
 - Implementation: inline in the action handler (no single delegate).
-- Params referenced: `cursor_id`, `dl_id`
+- Params referenced: `dl_id`
 
 ### `dlq_drop`
 
 - Implementation: inline in the action handler (no single delegate).
-- Params referenced: `cursor_id`, `dl_id`
+- Params referenced: `dl_id`
 
 ### `purge_brain`
 
