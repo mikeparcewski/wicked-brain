@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-04-18",
+  "generated_at": "2026-04-28",
   "source": "server/bin/wicked-brain-server.mjs",
   "canonical_id": "CONTRACT-API",
-  "count": 37,
+  "count": 40,
   "actions": [
     {
       "name": "health",
@@ -434,6 +434,33 @@
           "method": "reindex"
         }
       ]
+    },
+    {
+      "name": "dlq_list",
+      "async": false,
+      "params": [
+        "cursor_id",
+        "limit"
+      ],
+      "impls": []
+    },
+    {
+      "name": "dlq_replay",
+      "async": false,
+      "params": [
+        "cursor_id",
+        "dl_id"
+      ],
+      "impls": []
+    },
+    {
+      "name": "dlq_drop",
+      "async": false,
+      "params": [
+        "cursor_id",
+        "dl_id"
+      ],
+      "impls": []
     },
     {
       "name": "purge_brain",

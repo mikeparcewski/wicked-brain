@@ -6,7 +6,13 @@ import { argv, pid, exit } from "node:process";
 import { FileWatcher } from "../lib/file-watcher.mjs";
 import { SqliteSearch } from "../lib/sqlite-search.mjs";
 import { LspClient } from "../lib/lsp-client.mjs";
-import { emitEvent, waitForBus } from "../lib/bus.mjs";
+import {
+  emitEvent,
+  waitForBus,
+  listBusDeadLetters,
+  replayBusDeadLetter,
+  dropBusDeadLetter,
+} from "../lib/bus.mjs";
 import { startMemorySubscriber } from "../lib/memory-subscriber.mjs";
 import { renderViewerHtml } from "../lib/viewer-page.mjs";
 import { walkBrainContent, purgeBrainContent } from "../lib/brain-walker.mjs";
@@ -201,6 +207,17 @@ const actions = {
     emitEvent("wicked.link.confirmed", "brain.link", {
       source_id: p.source_id, target_path: p.target_path, verdict: p.verdict, brain_id: brainId,
     });
+    // Surface contradictions on a dedicated event stream so downstream
+    // consumers don't have to filter by verdict on the generic confirmed event.
+    if (p.verdict === "contradict") {
+      emitEvent("wicked.link.contradicted", "brain.link", {
+        source_id: p.source_id,
+        target_path: p.target_path,
+        confidence: result?.confidence ?? null,
+        evidence_count: result?.evidence_count ?? null,
+        brain_id: brainId,
+      });
+    }
     return result;
   },
   link_health: () => db.linkHealth(),
@@ -259,6 +276,26 @@ const actions = {
         : { skipped: true },
     };
   },
+  // DLQ inspection — read-only listing, scoped to wicked-brain's plugin.
+  // Surfaces dead-lettered fact events from the auto-memorize subscriber
+  // so operators can decide whether to replay or drop them.
+  dlq_list: (p = {}) => ({
+    dead_letters: listBusDeadLetters({
+      cursor_id: p.cursor_id,
+      limit: p.limit,
+    }),
+  }),
+  // Mark one DLQ entry for replay. The managed subscriber drains pending
+  // replays before each poll cycle — success here means queued, not delivered.
+  dlq_replay: (p = {}) => replayBusDeadLetter({
+    cursor_id: p.cursor_id,
+    dl_id: p.dl_id,
+  }),
+  // Permanently delete a DLQ row. Use when replay would just dead-letter again.
+  dlq_drop: (p = {}) => dropBusDeadLetter({
+    cursor_id: p.cursor_id,
+    dl_id: p.dl_id,
+  }),
   purge_brain: async (p = {}) => {
     // Destructive. Wipes chunks/, wiki/, and memory/ content and clears the
     // SQLite index. Requires p.confirm === "DELETE" to execute — typed
@@ -283,6 +320,9 @@ const WRITE_ACTIONS = new Set([
   "confirm_link",
   "reonboard",
   "purge_brain",
+  // DLQ replay/drop mutate the bus DB; list is read-only.
+  "dlq_replay",
+  "dlq_drop",
 ]);
 
 // HTTP server

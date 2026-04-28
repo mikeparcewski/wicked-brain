@@ -9,8 +9,12 @@
  */
 
 const DOMAIN = "wicked-brain";
+const PLUGIN = "wicked-brain";
 
 let busEmit = null;
+let busListDeadLetters = null;
+let busReplayDeadLetter = null;
+let busDropDeadLetter = null;
 let busDb = null;
 let busConfig = null;
 let available = false;
@@ -25,6 +29,9 @@ async function init() {
     const dbPath = bus.resolveDbPath();
     busDb = bus.openDb(dbPath);
     busEmit = bus.emit;
+    busListDeadLetters = bus.listDeadLetters;
+    busReplayDeadLetter = bus.replayDeadLetter;
+    busDropDeadLetter = bus.dropDeadLetter;
     available = true;
   } catch {
     // wicked-bus not installed or not initialized — degrade silently
@@ -82,4 +89,71 @@ export function getBusDb() {
 export async function waitForBus() {
   await ready;
   return available;
+}
+
+/**
+ * List dead-lettered events scoped to wicked-brain's plugin.
+ * Returns [] when the bus is unavailable so callers don't have to branch.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.cursor_id] filter to one cursor
+ * @param {number} [opts.limit=100]
+ * @returns {Array}
+ */
+export function listBusDeadLetters(opts = {}) {
+  if (!available || !busListDeadLetters) return [];
+  try {
+    return busListDeadLetters(busDb, { plugin: PLUGIN, ...opts });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Mark a dead letter for replay. The managed subscriber drains pending
+ * replays before each poll cycle, so a successful return means the request
+ * is queued, not that the event has re-delivered yet.
+ *
+ * @param {object} args
+ * @param {string} args.cursor_id
+ * @param {string} args.dl_id
+ * @returns {{ ok: boolean, error?: string }}
+ */
+export function replayBusDeadLetter({ cursor_id, dl_id } = {}) {
+  if (!available || !busReplayDeadLetter) {
+    return { ok: false, error: "bus unavailable" };
+  }
+  if (!cursor_id || !dl_id) {
+    return { ok: false, error: "cursor_id and dl_id required" };
+  }
+  try {
+    busReplayDeadLetter(busDb, { cursor_id, dl_id });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * Drop (delete) a dead letter row. Use when an event is no longer relevant
+ * — replay would just dead-letter again.
+ *
+ * @param {object} args
+ * @param {string} args.cursor_id
+ * @param {string} args.dl_id
+ * @returns {{ ok: boolean, error?: string }}
+ */
+export function dropBusDeadLetter({ cursor_id, dl_id } = {}) {
+  if (!available || !busDropDeadLetter) {
+    return { ok: false, error: "bus unavailable" };
+  }
+  if (!cursor_id || !dl_id) {
+    return { ok: false, error: "cursor_id and dl_id required" };
+  }
+  try {
+    busDropDeadLetter(busDb, { cursor_id, dl_id });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
