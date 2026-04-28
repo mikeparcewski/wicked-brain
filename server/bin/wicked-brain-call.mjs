@@ -371,10 +371,23 @@ async function readStdin() {
 }
 
 // ---------- main ----------
+// Exits go through process.exitCode + a sentinel throw, NOT process.exit().
+// On Windows, calling process.exit() after a fetch() resolves can fire
+// `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` in libuv async.c
+// because undici handles are still mid-close. Setting exitCode + letting the
+// IIFE return lets the event loop drain naturally before exit.
+
+class ExitSignal extends Error {
+  constructor(code, msg) {
+    super(msg || `exit ${code}`);
+    this.name = "ExitSignal";
+    this.code = code;
+    this.silent = !msg;
+  }
+}
 
 function die(msg, code = 2) {
-  process.stderr.write(`wicked-brain-call: ${msg}\n`);
-  process.exit(code);
+  throw new ExitSignal(code, msg);
 }
 
 const HELP = `wicked-brain-call — invoke the wicked-brain server, auto-starting if needed.
@@ -451,7 +464,7 @@ Examples:
     process.stdout.write(
       (args.flags.pretty ? JSON.stringify(payload, null, 2) : JSON.stringify(payload)) + "\n",
     );
-    process.exit(0);
+    return;
   }
 
   // ---- --stop ----
@@ -463,7 +476,7 @@ Examples:
     try { pid = parseInt(readFileSync(pidPath, "utf-8").trim(), 10); } catch {}
     if (!pid || !pidAlive(pid)) {
       process.stdout.write(JSON.stringify({ stopped: false, reason: "not running", port }) + "\n");
-      process.exit(0);
+      return;
     }
     try { process.kill(pid, "SIGTERM"); } catch (err) { die(`kill ${pid} failed: ${err.message}`); }
     const deadline = Date.now() + 5000;
@@ -472,7 +485,7 @@ Examples:
       await sleep(100);
     }
     process.stdout.write(JSON.stringify({ stopped: !pidAlive(pid), pid, port }) + "\n");
-    process.exit(0);
+    return;
   }
 
   // ---- --start ----
@@ -485,7 +498,7 @@ Examples:
       log,
     }).catch(err => die(err.message));
     process.stdout.write(JSON.stringify({ started: true, port, brain_path: brainPath }) + "\n");
-    process.exit(0);
+    return;
   }
 
   // ---- default: forward an action call ----
@@ -550,5 +563,13 @@ Examples:
   process.stdout.write(
     (args.flags.pretty ? JSON.stringify(response, null, 2) : JSON.stringify(response)) + "\n",
   );
-  process.exit(exitCode);
-})().catch(err => die(err.message ?? String(err)));
+  process.exitCode = exitCode;
+})().catch(err => {
+  if (err instanceof ExitSignal) {
+    if (!err.silent) process.stderr.write(`wicked-brain-call: ${err.message}\n`);
+    process.exitCode = err.code;
+    return;
+  }
+  process.stderr.write(`wicked-brain-call: ${err.message ?? String(err)}\n`);
+  process.exitCode = 2;
+});
