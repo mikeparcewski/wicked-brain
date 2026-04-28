@@ -17,21 +17,19 @@ compact, navigable list.
 
 ## Cross-Platform Notes
 
-- Uses `curl` for server API calls (Windows 10+, macOS, Linux)
+This skill uses `npx wicked-brain-call` for all server interaction. The CLI
+works on macOS, Linux, and Windows; it discovers the brain, auto-starts the
+server, and writes a per-call audit record under `{brain}/calls/`.
+
 - File reads use the agent-native Read tool
 - Paths always use forward slashes
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -48,9 +46,7 @@ project root.
 Start with the aggregate view so the user can see the landscape before the list:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"memory_stats"}'
+npx wicked-brain-call memory_stats
 ```
 
 Render `total`, `by_type`, `by_tier`, `by_age` as a one-line header.
@@ -58,9 +54,7 @@ Render `total`, `by_type`, `by_tier`, `by_age` as a one-line header.
 ### Step 2: Fetch candidates
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"recent_memories","params":{"days":{days},"limit":{limit * 3}}}'
+npx wicked-brain-call recent_memories --param days={days} --param limit={limit * 3}
 ```
 
 Over-fetch by 3x so agent-side type/tier filtering still returns a useful page.

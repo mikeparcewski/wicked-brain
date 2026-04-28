@@ -11,7 +11,7 @@ description: |
 
 # wicked-brain:compile
 
-You compile wiki articles from the brain's chunks by dispatching a compile subagent.
+Compiles wiki articles from the brain's chunks by dispatching a compile subagent.
 
 ## Cross-Platform Notes
 
@@ -25,15 +25,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Process
 
@@ -41,7 +36,7 @@ Dispatch a compile subagent with these instructions:
 
 ```
 You are a compile agent for the digital brain at {brain_path}.
-Server: http://localhost:{port}/api
+Server interactions: use `npx wicked-brain-call <action> [--param k=v ...]`.
 
 ## Your task
 
@@ -51,9 +46,7 @@ Read chunks and synthesize wiki articles that capture key concepts.
 
 Get brain stats:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"stats","params":{}}'
+npx wicked-brain-call stats
 ```
 
 List existing wiki articles using your Glob tool on `{brain_path}/wiki/**/*.md`.
@@ -121,7 +114,7 @@ Focus on chunks NOT referenced by any wiki article.
 **Chunk prioritization:** When there are many uncovered chunks, process them in
 this order:
 1. Most recently modified (check file mtime or `authored_at` frontmatter field)
-2. Highest backlink count (use `{"action":"backlinks","params":{"id":"{chunk-path}"}}` — more backlinks = more referenced by other content)
+2. Highest backlink count (use `npx wicked-brain-call backlinks --param id={chunk-path}` — more backlinks = more referenced by other content)
 
 **Existing wiki articles:** For each existing wiki article, compare the
 `source_hashes` in its frontmatter against the current content hash of each
@@ -243,11 +236,10 @@ supersedes, supports, caused-by, extends, depends-on).
 
 ## Step 5: Index new articles
 
-For each article written:
+For each article written, pass the full payload as positional JSON because
+`content` may contain quotes, braces, and newlines:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"index","params":{"id":"{path}","path":"{path}","content":"{content}","brain_id":"{brain_id}"}}'
+npx wicked-brain-call index '{"id":"{path}","path":"{path}","content":"{content}","brain_id":"{brain_id}"}'
 ```
 
 ## Step 6: Log

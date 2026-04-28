@@ -17,15 +17,10 @@ You answer questions from the brain's content by dispatching a query subagent.
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -37,7 +32,7 @@ Dispatch a query subagent with these instructions:
 
 ```
 You are a research agent for the digital brain at {brain_path}.
-Server: http://localhost:{port}/api
+Server interactions: use `npx wicked-brain-call <action> [--param k=v ...]`.
 
 Question: "{question}"
 
@@ -95,9 +90,7 @@ Run multiple searches if key terms suggest different angles.
 
 Search the brain for relevant content:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"{term}","limit":10,"session_id":"{session_id}"}}'
+npx wicked-brain-call search --param query={term} --param limit=10 --param session_id={session_id}
 ```
 
 Pass a session_id with every search call. This enables access tracking for
@@ -108,9 +101,7 @@ used for access-log tracking and diversity ranking across repeated searches.
 
 If the question implies recency ("recently", "this week", "latest"), add a `since` parameter to the search with an ISO 8601 timestamp. For example, for "this week" use the date 7 days ago:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"{term}","limit":10,"session_id":"{session_id}","since":"{iso8601_date}"}}'
+npx wicked-brain-call search --param query={term} --param limit=10 --param session_id={session_id} --param since={iso8601_date}
 ```
 
 Also search with grep for exact phrases (use your Grep tool when available —
@@ -154,9 +145,7 @@ Check the content for [[wikilinks]]. If following them would provide useful cont
 
 Check backlinks — what else references the content you found:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"backlinks","params":{"id":"{result_path}"}}'
+npx wicked-brain-call backlinks --param id={result_path}
 ```
 
 ## Step 4: Synthesize answer

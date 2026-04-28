@@ -30,15 +30,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -76,13 +71,15 @@ Build a list of accessible brains with their absolute paths.
 
 ### Step 2: Ensure server is running
 
+`wicked-brain-call` auto-starts the server on first invocation. If you want
+to be defensive, run a probe up front:
+
 ```bash
-curl -s -f -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health","params":{}}'
+npx wicked-brain-call health
 ```
 
-If connection refused, trigger wicked-brain:server auto-start pattern.
+Exit code 0 means the server is up. Exit code 2 indicates an infra failure
+(server could not be reached or spawned).
 
 ### Step 3: Dispatch search subagents in parallel
 
@@ -104,9 +101,7 @@ Search for: "{query}"
 ## Step 1: Server search (FTS5)
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"{query}","limit":{limit}}}'
+npx wicked-brain-call search --param query={query} --param limit={limit} --brain {brain_path}
 ```
 
 Parse the JSON response to get results.
@@ -136,9 +131,7 @@ After all subagents return:
 If the merged results have 0 matches across all brains, the query is a "search miss."
 Log it so the brain can learn:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search_misses","params":{"query":"{original_query}","session_id":"{session_id}"}}'
+npx wicked-brain-call search_misses --param query={original_query} --param session_id={session_id}
 ```
 
 Note: This logging happens server-side automatically when search returns 0 results.

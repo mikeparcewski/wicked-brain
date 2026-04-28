@@ -16,6 +16,10 @@ Universal code intelligence for any CLI/IDE via the brain's LSP client layer.
 
 ## Cross-Platform Notes
 
+This skill uses `npx wicked-brain-call` for all server interaction. The CLI
+works on macOS, Linux, and Windows; it discovers the brain, auto-starts the
+server, and writes a per-call audit record under `{brain}/calls/`.
+
 Commands in this skill work on macOS, Linux, and Windows. When a command has
 platform differences, alternatives are shown. Your native tools (Read, Write,
 Grep, Glob) work everywhere — prefer them over shell commands when possible.
@@ -24,7 +28,6 @@ For the brain path default:
 - macOS/Linux: ~/.wicked-brain
 - Windows: %USERPROFILE%\.wicked-brain
 
-- `curl` works on macOS, Linux, and Windows 10+
 - File paths must be absolute
 - On Windows, use forward slashes in file URIs passed to the server. Most LSP
   servers accept `file:///C:/Users/me/project/file.ts` (forward slashes, three
@@ -40,15 +43,10 @@ whether the language server process is running and review its stderr logs.
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Prerequisites — Source Path
 
@@ -148,16 +146,12 @@ Before calling `lsp-workspace-symbols` for the first time on any brain server:
 
 2. Call a file-specific action to trigger `ensureReady`:
    ```bash
-   curl -s -X POST http://localhost:{port}/api \
-     -H "Content-Type: application/json" \
-     -d '{"action":"lsp-symbols","params":{"file":"{absolute_path_to_real_file}"}}'
+   npx wicked-brain-call lsp-symbols --param file={absolute_path_to_real_file}
    ```
 
 3. Poll `lsp-health` until a server is `ready` (not `starting`):
    ```bash
-   curl -s -X POST http://localhost:{port}/api \
-     -H "Content-Type: application/json" \
-     -d '{"action":"lsp-health"}'
+   npx wicked-brain-call lsp-health
    ```
    Expected ready response:
    ```json
@@ -215,31 +209,31 @@ Based on what the user/agent needs, pick the appropriate action from the table a
 ### Step 2: Call the server
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"{action}","params":{params}}'
+npx wicked-brain-call <action> [--param k=v ...]
+# or for nested params:
+npx wicked-brain-call <action> '{"k":"v",...}'
 ```
 
 **Position-based actions** (definition, references, hover, implementation, call-hierarchy):
-```json
-{"action":"lsp-definition","params":{"file":"/absolute/path/to/file.ts","line":15,"col":10}}
+```bash
+npx wicked-brain-call lsp-definition --param file=/absolute/path/to/file.ts --param line=15 --param col=10
 ```
 Note: `line` and `col` are 0-indexed.
 
 **File-based actions** (symbols):
-```json
-{"action":"lsp-symbols","params":{"file":"/absolute/path/to/file.ts"}}
+```bash
+npx wicked-brain-call lsp-symbols --param file=/absolute/path/to/file.ts
 ```
 
 **Query-based actions** (workspace-symbols):
-```json
-{"action":"lsp-workspace-symbols","params":{"query":"PaymentService"}}
+```bash
+npx wicked-brain-call lsp-workspace-symbols --param query=PaymentService
 ```
 
 **No-params actions** (health, diagnostics without file):
-```json
-{"action":"lsp-health"}
-{"action":"lsp-diagnostics"}
+```bash
+npx wicked-brain-call lsp-health
+npx wicked-brain-call lsp-diagnostics
 ```
 
 ### Step 3: Handle errors — auto-install

@@ -19,9 +19,15 @@ server for the current project's brain (or a named brain).
 
 ## Cross-Platform Notes
 
+Server interaction goes through `npx wicked-brain-call`, which works on
+macOS, Linux, and Windows; it discovers the brain, auto-starts the server,
+and writes a per-call audit record under `{brain}/calls/`.
+
 The only platform-specific piece is the "open a URL in the default browser"
-command. Everything else is curl + Read/Write. Fallbacks are provided for all
-three major platforms.
+command. The viewer is served at `GET /` on the same port the JSON API uses,
+so the URL still needs the bound `server_port` — read it from the resolved
+`{brain_path}/_meta/config.json` (the CLI writes the actual bound port back
+to that file on startup).
 
 For the brain path default:
 - macOS/Linux: `~/.wicked-brain/projects/{project-name}`
@@ -54,17 +60,17 @@ Read the resolved config to get `server_port`.
 
 ### Step 2: Verify the server is running
 
+`wicked-brain-call` auto-starts the server on first invocation, so a single
+health probe is enough:
+
 ```bash
-curl -s -f -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health","params":{}}'
+npx wicked-brain-call health --brain {brain_path}
 ```
 
-If the call fails with connection refused, invoke the wicked-brain:server
-auto-start pattern — start the server against the resolved brain path and
-wait for health to return ok before continuing. Never open a browser at a
-URL that isn't serving yet; that produces a scary "can't connect" page the
-user then has to refresh.
+Exit code 0 confirms the server is up. Exit code 2 (infra failure) means the
+server could not be reached or spawned — surface the error and stop. Never
+open a browser at a URL that isn't serving yet; that produces a scary "can't
+connect" page the user then has to refresh.
 
 ### Step 3: Build the URL
 

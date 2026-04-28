@@ -11,13 +11,13 @@ description: |
 
 # wicked-brain:migrate
 
-You migrate a flat brain (all data directly under `~/.wicked-brain/`) into the
+Migrates a flat brain (all data directly under `~/.wicked-brain/`) into the
 per-project layout (each brain under `~/.wicked-brain/projects/{project-name}/`).
 This was the layout change introduced in v0.4.7.
 
 ## Cross-Platform Notes
 
-Commands in this skill work on macOS, Linux, and Windows. Prefer your native
+Commands in this skill work on macOS, Linux, and Windows. Prefer the native
 Read/Write/Glob tools over shell commands when possible.
 
 - macOS/Linux home: `~`
@@ -45,9 +45,9 @@ under the same `~/.wicked-brain/projects/` umbrella (recommended — pick
 distinct project names) or under separate containers if the user prefers
 isolation.
 
-If the user asks "migrate all my brains," enumerate the flat brains you can
-find first (`find ~ -maxdepth 3 -name brain.json 2>/dev/null` on macOS/Linux)
-and confirm each with the user before running migration on it.
+If the user asks "migrate all my brains," enumerate the discoverable flat
+brains first (`find ~ -maxdepth 3 -name brain.json 2>/dev/null` on
+macOS/Linux) and confirm each with the user before running migration on it.
 
 ## Process
 
@@ -198,11 +198,9 @@ npx wicked-brain-server --brain "{target_path}" &
 Wait for the server to start, then re-read `{target_path}/_meta/config.json`
 to get the bound port.
 
-Health-check:
+Health-check (the CLI auto-resolves the new brain's port from its config):
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health"}'
+npx wicked-brain-call health --brain "{target_path}"
 ```
 
 Verify the response includes `"brain_id"` matching the id from Step 1. If the
@@ -215,16 +213,14 @@ Run a stats call against the new server and confirm the document count is
 non-zero (assuming the flat brain had any documents):
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"stats"}'
+npx wicked-brain-call stats --brain "{target_path}"
 ```
 
 If document counts are zero but `.brain.db` was moved, the SQLite file may have
 been truncated during the move or the server is looking at the wrong path.
 **Do NOT proceed to Step 9.** Stop the new server and investigate — the flat
-`_meta/` is still intact at this point, so you can roll back by moving files
-back to `{flat_path}`.
+`_meta/` is still intact at this point, so rollback is possible by moving
+files back to `{flat_path}`.
 
 ### Step 9: Clean up the flat path (only after Steps 7 and 8 pass)
 

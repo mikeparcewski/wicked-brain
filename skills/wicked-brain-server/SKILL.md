@@ -1,21 +1,23 @@
 ---
 name: wicked-brain:server
 description: |
-  Manages the wicked-brain background server. Auto-triggered when any brain skill
-  gets a connection error. Starts the server, checks health, and reports status.
-  Users should never need to invoke this directly.
+  Manages the wicked-brain background server. Most callers should use
+  `wicked-brain-call` directly — it auto-starts the server. This skill is
+  for explicit lifecycle management: start, stop, status, or recovery from
+  a stuck process.
 ---
 
 # wicked-brain:server
 
-You manage the wicked-brain background server. This skill is triggered automatically
-when another brain skill cannot reach the server.
+Manage the wicked-brain background server lifecycle explicitly. **Most skills
+do not need this** — `npx wicked-brain-call <action>` will spawn the server
+on first call (lock-guarded against races) and reuse it thereafter.
 
 ## Cross-Platform Notes
 
-Commands in this skill work on macOS, Linux, and Windows. When a command has
-platform differences, alternatives are shown. Your native tools (Read, Write,
-Grep, Glob) work everywhere — prefer them over shell commands when possible.
+This skill uses `npx wicked-brain-call` for all server interaction. The CLI
+works on macOS, Linux, and Windows; it discovers the brain, auto-starts the
+server, and writes a per-call audit record under `{brain}/calls/`.
 
 For the brain path default:
 - macOS/Linux: `~/.wicked-brain/projects/{cwd_basename}`
@@ -23,71 +25,47 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file to get `brain_path` and `server_port`.
-
-If the calling skill already passed `brain_path`, use that directly instead of
-re-resolving.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## When to use
 
-- When a brain skill reports "connection refused" or similar error from curl
-- When asked to check or restart the brain server
+- Explicitly start, stop, or check the server (rare — `wicked-brain-call`
+  handles this for you on every call)
+- Recover from a stuck or stale server process
 
-## Server check and start
+## Canonical commands
 
-1. Read the file at `{brain_path}/_meta/config.json` to get the port and brain path.
+```bash
+npx wicked-brain-call --status [--brain {brain_path}]
+npx wicked-brain-call --start  [--brain {brain_path}]
+npx wicked-brain-call --stop   [--brain {brain_path}]
+```
 
-2. Try a health check:
-   ```bash
-   curl -s -f -X POST http://localhost:{port}/api \
-     -H "Content-Type: application/json" \
-     -d '{"action":"health","params":{}}'
-   ```
-   A successful response returns `{"status":"ok"}`. If the request succeeds,
-   the server is running — report the status and stop.
+`--status` reports whether a live server is answering on the configured port,
+the bound port, and the brain id. `--start` spawns the server (idempotent —
+no-op if already running). `--stop` signals the recorded PID and clears the
+PID file.
 
-3. If connection refused:
-   a. Read the file at `{brain_path}/_meta/server.pid` to get the PID.
+If the user reports "the brain server seems wedged":
 
-   b. Check if the process is running:
-      - macOS/Linux: `kill -0 {pid} 2>/dev/null`
-      - Windows: `tasklist /FI "PID eq {pid}" 2>nul | findstr {pid}`
-      - Or use Python: `python3 -c "import os; os.kill({pid}, 0)" 2>/dev/null || python -c "import os; os.kill({pid}, 0)"`
-
-   c. If the process is dead or no PID file, start the server.
-      Also pass `--source` if `source_path` is set in `{brain_path}/_meta/config.json`
-      (this roots LSP language servers at the ingested project so symbol
-      lookup and go-to-definition work correctly):
-      ```bash
-      npx wicked-brain-server --brain {brain_path} --port {port} [--source {source_path}] &
-      ```
-      On Windows (PowerShell):
-      ```powershell
-      Start-Process -FilePath "npx" -ArgumentList "wicked-brain-server", "--brain", "{brain_path}", "--port", "{port}" -NoNewWindow
-      ```
-
-   d. Wait 2 seconds, then retry the health check.
-   e. If still failing, tell the user:
-      "The brain server couldn't start automatically. Please run:
-       `npx wicked-brain-server --brain {brain_path} --port {port}`"
+1. `npx wicked-brain-call --status --brain {brain_path}` to confirm.
+2. `npx wicked-brain-call --stop --brain {brain_path}` to terminate.
+3. `npx wicked-brain-call --start --brain {brain_path}` to relaunch.
+4. `npx wicked-brain-call health --brain {brain_path}` to verify.
 
 ## API pattern for other skills
 
-All skills that need the server should use this curl pattern:
+All skills should call the server through `wicked-brain-call`:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"{action}","params":{params_json}}'
+npx wicked-brain-call <action>                                 # no params
+npx wicked-brain-call <action> --param key=value [--param ...] # simple params
+npx wicked-brain-call <action> '{"k":"v","nested":[1,2]}'      # complex JSON
+echo '{"k":"v"}' | npx wicked-brain-call <action> -            # stdin (kubectl-style)
 ```
 
-`curl` works on macOS, Linux, and Windows 10+ (ships by default). If curl fails
-with connection refused, trigger this wicked-brain:server skill.
+Exit codes: `0` = ok, `1` = API returned an error, `2` = infra failure
+(server unreachable or could not be spawned).

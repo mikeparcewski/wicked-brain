@@ -25,15 +25,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -43,18 +38,15 @@ project root.
 
 ### Step 0: Ensure server is running
 
-Before doing anything else, health-check the server:
+`wicked-brain-call` auto-starts the server on first invocation, so an
+explicit health check is not required. If you want to be defensive, run:
 
 ```bash
-curl -s -f -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health","params":{}}'
+npx wicked-brain-call health
 ```
 
-If this fails (connection refused or non-2xx), invoke `wicked-brain:server` to start it
-before continuing. Re-read `{brain_path}/_meta/config.json` (the resolved
-config from the Config section above) after the server starts to get the
-actual port it bound to.
+Exit code 0 means the server is up. Exit code 2 means an infra failure
+(server could not be reached or spawned) — surface the error to the user.
 
 ### Step 1: Assess scope
 
@@ -79,7 +71,7 @@ You are an ingest agent for the digital brain at {brain_path}.
 
 Source file: {source_path}
 Source name: {safe_name} (lowercase, hyphens for special chars)
-Server: http://localhost:{port}/api
+Server interactions: use `npx wicked-brain-call <action>` (auto-discovers brain + port).
 
 ## Detect file type
 
@@ -147,9 +139,10 @@ Example:
 
 ## After writing chunks, index them in the server:
 
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"index","params":{"id":"{chunk_path}","path":"{chunk_path}","content":"{chunk_content}","brain_id":"{brain_id}"}}'
+Pass the full payload as positional JSON because `content` is a long blob with
+quotes and newlines:
+
+npx wicked-brain-call index '{"id":"{chunk_path}","path":"{chunk_path}","content":"{chunk_content}","brain_id":"{brain_id}"}'
 
 ## Report back
 
@@ -171,7 +164,7 @@ Instead, write a batch script and run it. This preserves context and is dramatic
 2. Write a script to the brain's `_meta/` directory that:
    - Walks the source directory
    - Filters by file extension (text types for deterministic, binary types for listing)
-   - For each text file: reads content, splits into chunks, writes chunk .md files, curls the index API
+   - For each text file: reads content, splits into chunks, writes chunk .md files, calls the index API (via fetch in Node, or `npx wicked-brain-call index` in shell)
    - For binary files: lists them for separate vision-based ingest
    - Logs progress to stdout
    - Writes a summary at the end
@@ -400,9 +393,7 @@ Archived files are invisible to the file watcher, so the server won't clean them
 1. List all .md files in `{brain_path}/chunks/extracted/{safe_name}/`
 2. For each file, call the server to remove it from the index:
    ```bash
-   curl -s -X POST http://localhost:{port}/api \
-     -H "Content-Type: application/json" \
-     -d '{"action":"remove","params":{"id":"chunks/extracted/{safe_name}/chunk-NNN.md"}}'
+   npx wicked-brain-call remove --param id=chunks/extracted/{safe_name}/chunk-NNN.md
    ```
 3. Then rename the directory to archive it:
    - macOS/Linux: `mv "{brain_path}/chunks/extracted/{safe_name}" "{brain_path}/chunks/extracted/{safe_name}.archived-$(date +%s)"`

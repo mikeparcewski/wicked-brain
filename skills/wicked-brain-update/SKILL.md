@@ -166,9 +166,7 @@ run in order, and are idempotent (safe to re-run).
 After server restart, verify the server started successfully and migrations ran:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health"}'
+npx wicked-brain-call health --brain "{brain_dir}"
 ```
 
 If the health check fails, the migration may have errored. To diagnose:

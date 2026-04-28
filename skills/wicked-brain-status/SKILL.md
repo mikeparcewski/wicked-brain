@@ -24,15 +24,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -46,14 +41,12 @@ Use the Read tool on `{brain_path}/brain.json` to get id, name, parents, links.
 
 ### Step 2: Get server stats
 
-Ensure the server is running (use the wicked-brain:server auto-start pattern):
+`wicked-brain-call` auto-starts the server on first invocation:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"stats","params":{}}'
+npx wicked-brain-call stats
 ```
 
-If connection refused, invoke the `wicked-brain:server` skill to start the server, then retry.
+If the call exits with code 2 (infra failure), surface the error to the user.
 
 ### Step 3: Return at requested depth
 
@@ -77,17 +70,13 @@ Depth 0 plus:
 - Show topic distribution for the last 7 days by searching with a `since` filter.
   The `since` value must be ISO 8601 format (e.g., `2025-01-15T00:00:00Z`):
   ```bash
-  curl -s -X POST http://localhost:{port}/api \
-    -H "Content-Type: application/json" \
-    -d '{"action":"search","params":{"query":"*","limit":100,"since":"{iso8601_7_days_ago}"}}'
+  npx wicked-brain-call search --param query=* --param limit=100 --param since={iso8601_7_days_ago}
   ```
   Group results by path prefix (e.g., `chunks/extracted/`, `wiki/`) to show recent activity distribution.
 - List the top 10 most common tags
 - Flag wiki staleness warnings by calling `verify_wiki`:
   ```bash
-  curl -s -X POST http://localhost:{port}/api \
-    -H "Content-Type: application/json" \
-    -d '{"action":"verify_wiki","params":{}}'
+  npx wicked-brain-call verify_wiki
   ```
   Report one line per non-fresh bucket — only emit the lines where the count is > 0:
   ```
@@ -103,9 +92,7 @@ Depth 0 plus:
 Detect chunks that are frequently accessed but have never been compiled into wiki articles:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"candidates","params":{"mode":"promote","limit":50}}'
+npx wicked-brain-call candidates --param mode=promote --param limit=50
 ```
 
 For each result where `access_count >= 5` and `session_diversity >= 3`, check whether any wiki article references it. Use the Grep tool on `{brain_path}/wiki/` searching for the chunk path string. If no wiki article references it, flag it as convergence debt:
@@ -120,9 +107,7 @@ If any convergence debt exists, suggest running `wicked-brain:compile` to promot
 Detect path prefixes that concentrate multiple contradictions:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"contradictions","params":{}}'
+npx wicked-brain-call contradictions
 ```
 
 Group the returned contradiction links by path prefix: take the first two path segments of each linked path (e.g., a path `chunks/extracted/auth/session.md` yields prefix `chunks/extracted/auth/`). If any prefix has 2 or more contradiction links, flag it as a hotspot:
@@ -142,9 +127,7 @@ Check link integrity and surface knowledge gaps using two additional API calls.
 
 Get link health:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"link_health","params":{}}'
+npx wicked-brain-call link_health
 ```
 
 Report:
@@ -154,9 +137,7 @@ Report:
 
 Get recent search misses:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search_misses","params":{"limit":20}}'
+npx wicked-brain-call search_misses --param limit=20
 ```
 
 Report the top recurring search miss queries to identify knowledge gaps. If a query appears multiple times, that topic is a strong candidate for ingestion or wiki article creation.

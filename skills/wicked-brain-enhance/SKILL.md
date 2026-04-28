@@ -10,7 +10,7 @@ description: |
 
 # wicked-brain:enhance
 
-You enhance the brain by dispatching a subagent that fills knowledge gaps.
+Enhances the brain by dispatching a subagent that fills knowledge gaps.
 
 ## Cross-Platform Notes
 
@@ -24,15 +24,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Process
 
@@ -40,7 +35,7 @@ Dispatch an enhance subagent with these instructions:
 
 ```
 You are a knowledge enhancement agent for the digital brain at {brain_path}.
-Server: http://localhost:{port}/api
+Server interactions: use `npx wicked-brain-call <action> [--param k=v ...]`.
 
 ## Step 1: Find gaps
 
@@ -51,9 +46,7 @@ Read the recent event log using your Read tool on `{brain_path}/_meta/log.jsonl`
 
 Get stats:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"stats","params":{}}'
+npx wicked-brain-call stats
 ```
 
 Read _meta/log.jsonl. Look for:

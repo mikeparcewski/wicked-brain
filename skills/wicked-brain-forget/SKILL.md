@@ -16,21 +16,19 @@ and the archive-rename convention used by wicked-brain:agent dispatch consolidat
 
 ## Cross-Platform Notes
 
-- Uses `curl` for server API calls (Windows 10+, macOS, Linux)
+This skill uses `npx wicked-brain-call` for all server interaction. The CLI
+works on macOS, Linux, and Windows; it discovers the brain, auto-starts the
+server, and writes a per-call audit record under `{brain}/calls/`.
+
 - Uses agent-native Read/Bash tools for file ops — no Unix-only shell features
 - Paths always use forward slashes
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -58,9 +56,7 @@ memory) inspect its frontmatter so the log entry can record type/tier.
 ### Step 3: Remove from index
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"remove","params":{"id":"{id}"}}'
+npx wicked-brain-call remove --param id={id}
 ```
 
 ### Step 4: Archive the file

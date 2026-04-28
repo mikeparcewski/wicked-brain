@@ -10,7 +10,7 @@ description: |
 
 # wicked-brain:init
 
-You initialize a new digital brain on the filesystem and get it fully operational.
+Initializes a new digital brain on the filesystem and gets it fully operational.
 
 ## Cross-Platform Notes
 
@@ -48,6 +48,10 @@ For the brain path default:
 - Windows: `%USERPROFILE%\.wicked-brain\projects\{project_name}`
 
 ## Resolving the brain config
+
+> Most consumer skills now invoke `wicked-brain-call` directly and don't
+> need to resolve the brain themselves — see the section below for the
+> canonical resolution this skill performs at init time.
 
 **This section is the canonical resolution logic. Other skills point here —
 keep it authoritative.** Never read a bare relative `_meta/config.json`: the
@@ -183,7 +187,7 @@ Stop and wait for their answer before continuing.
 
 ### Step 3: Create directory structure
 
-Use your native Write tool to create these directories (write a `.gitkeep` placeholder in each):
+Use the native Write tool to create these directories (write a `.gitkeep` placeholder in each):
 - `{brain_path}/raw`
 - `{brain_path}/chunks/extracted`
 - `{brain_path}/chunks/inferred`
@@ -238,33 +242,32 @@ the real port — never hardcode `4242` in downstream calls.
 
 ### Step 6: Initialize the event log
 
-Use your Write tool to create an empty file at `{brain_path}/_meta/log.jsonl`.
+Use the Write tool to create an empty file at `{brain_path}/_meta/log.jsonl`.
 
 ### Step 7: Start the server
 
-Invoke `wicked-brain:server` to start the server against this brain path.
-The server will pick a free port and write it back to `_meta/config.json`.
+Use `wicked-brain-call` to start and verify the server in one step. It picks
+a free port, writes it back to `_meta/config.json`, and waits for the server
+to answer:
+
+```bash
+npx wicked-brain-call --start --brain {brain_path}
+npx wicked-brain-call health --brain {brain_path}
+```
+
+Verify the health response includes `"brain_id"` matching this brain's id —
+this confirms you're talking to the right server (not an unrelated brain on
+the same machine).
+
+If you need the raw spawn (e.g. to pass extra flags), the server binary is
+still available directly:
 
 ```bash
 npx wicked-brain-server --brain {brain_path} &
 ```
 
 Do NOT pass `--port` unless the user specifies one — let the server pick a
-free port. After the process starts, **re-read `{brain_path}/_meta/config.json`**
-to get the actual `server_port` the server bound to. Use that port for the
-health check and all subsequent API calls.
-
-Then health-check to confirm it's up before continuing:
-
-```bash
-curl -s -X POST http://localhost:{actual_port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health"}'
-```
-
-Verify the response includes `"brain_id"` matching this brain's id — this
-confirms you're talking to the right server (not an unrelated brain on the
-same machine).
+free port.
 
 ### Step 8: Ingest the project
 

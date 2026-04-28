@@ -1,6 +1,11 @@
 ---
 name: wicked-brain:configure
-description: Read brain state and write contextual instructions into the active CLI's agent config file. Run after onboarding, major ingests, or consolidation.
+description: |
+  This skill should be used when the user says "configure brain CLI",
+  "update CLAUDE.md from brain", "write brain orientation", or
+  "regenerate brain config". Reads brain state and writes contextual
+  instructions into the active CLI's agent config file. Run after
+  onboarding, major ingests, or consolidation.
 ---
 
 # wicked-brain:configure
@@ -9,15 +14,10 @@ Writes a contextual `## wicked-brain` section into the active CLI/IDE's agent co
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Process
 
@@ -25,16 +25,12 @@ project root.
 
 1. Call server stats:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"stats"}'
+npx wicked-brain-call stats
 ```
 
 2. Search for top topics — run a broad search to identify dominant tags:
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"*","limit":50}}'
+npx wicked-brain-call search --param query=* --param limit=50
 ```
 Read frontmatter of top results, count `contains:` tag frequency. Top 10 tags = brain expertise.
 

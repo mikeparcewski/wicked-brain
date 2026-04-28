@@ -15,8 +15,9 @@ You adjust the confidence score of a brain link based on user feedback.
 
 ## Cross-Platform Notes
 
-Commands in this skill work on macOS, Linux, and Windows. `curl` is available
-on Windows 10+ and macOS/Linux — it is used here for API calls.
+This skill uses `npx wicked-brain-call` for all server interaction. The CLI
+works on macOS, Linux, and Windows; it discovers the brain, auto-starts the
+server, and writes a per-call audit record under `{brain}/calls/`.
 
 For the brain path default:
 - macOS/Linux: ~/.wicked-brain
@@ -24,15 +25,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -50,9 +46,7 @@ Ensure `source_id`, `target_path`, and `verdict` are provided.
 ### Step 2: Submit the verdict to the server
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"confirm_link","params":{"source_id":"{source_id}","target_path":"{target_path}","verdict":"{verdict}"}}'
+npx wicked-brain-call confirm_link --param source_id={source_id} --param target_path={target_path} --param verdict={verdict}
 ```
 
 ### Step 3: Report the result

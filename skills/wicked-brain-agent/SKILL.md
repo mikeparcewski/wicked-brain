@@ -1,6 +1,12 @@
 ---
 name: wicked-brain:agent
-description: Factory skill for listing and dispatching wicked-brain agents. Agents enforce multi-step pipelines for consolidation, context assembly, session teardown, and project onboarding.
+description: |
+  This skill should be used when the user says "list brain agents",
+  "dispatch the consolidation agent", "run brain context assembly",
+  "onboard a new project", or "session teardown". Factory skill for listing
+  and dispatching wicked-brain agents. Agents enforce multi-step pipelines
+  for consolidation, context assembly, session teardown, and project
+  onboarding.
 ---
 
 # wicked-brain:agent
