@@ -87,3 +87,47 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # After a successful publish, open a PR that brings package.json files
+  # on main in step with the released version. Lets us tag without a manual
+  # bump — the catchup PR is squash-merged with one click. peter-evans/
+  # create-pull-request is idempotent: re-running on the same version updates
+  # the existing branch instead of creating a duplicate.
+  sync-package-json:
+    needs: publish-npm
+    if: needs.publish-npm.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Bump package.json files to released version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          cd server && npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Open catchup PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          title: "chore(release): sync package.json to ${{ github.ref_name }}"
+          commit-message: "chore(release): sync package.json to ${{ github.ref_name }}"
+          branch: release-sync/${{ github.ref_name }}
+          base: main
+          labels: release-sync
+          body: |
+            Automated catchup — `${{ github.ref_name }}` has been published to npm.
+            This PR brings `package.json` (root + server) on `main` in step with
+            the released version. Safe to squash-merge.
+
+            See `docs/wiki/` if regeneration is needed; this PR only touches versions.
+          delete-branch: true
