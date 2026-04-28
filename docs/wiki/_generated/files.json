@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-18",
+  "generated_at": "2026-04-28",
   "source_roots": [
     "server/lib",
     "server/bin"
   ],
   "canonical_id": "MAP-FILES",
-  "count": 25,
+  "count": 26,
   "files": [
     {
       "path": "server/bin/onboard-wiki.mjs",
@@ -14,6 +14,12 @@
       "imports": [
         "../lib/onboard-wiki.mjs"
       ]
+    },
+    {
+      "path": "server/bin/wicked-brain-call.mjs",
+      "purpose": "",
+      "exports": [],
+      "imports": []
     },
     {
       "path": "server/bin/wicked-brain-server.mjs",
@@ -44,9 +50,12 @@
       "purpose": "wicked-bus integration for wicked-brain-server.",
       "exports": [
         "busAvailable",
+        "dropBusDeadLetter",
         "emitEvent",
         "getBusDb",
         "isBusAvailable",
+        "listBusDeadLetters",
+        "replayBusDeadLetter",
         "waitForBus"
       ],
       "imports": []

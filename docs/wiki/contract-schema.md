@@ -3,7 +3,7 @@ status: published
 canonical_for: [CONTRACT-SCHEMA]
 references: [INV-MIGRATION-REQUIRED]
 owner: core
-last_reviewed: 2026-04-18
+last_reviewed: 2026-04-28
 generated: true
 source: server/lib/sqlite-search.mjs
 ---

@@ -251,7 +251,59 @@ test("--read-only flag blocks write + destructive actions (separate server)", as
     // Reads still work.
     const searchable = await api(roPort, "search", { query: "anything" });
     assert.ok("results" in searchable);
+
+    // dlq_list is read-only (just lists rows) — should NOT be blocked.
+    const dlqOk = await api(roPort, "dlq_list");
+    assert.ok(Array.isArray(dlqOk.dead_letters), "dlq_list should work in read-only mode");
+
+    // dlq_replay and dlq_drop mutate the bus DB — must be blocked.
+    const replayBlocked = await api(roPort, "dlq_replay", { dl_id: "y" });
+    assert.match(replayBlocked.error || "", /read-only mode/);
+
+    const dropBlocked = await api(roPort, "dlq_drop", { dl_id: "y" });
+    assert.match(dropBlocked.error || "", /read-only mode/);
   } finally {
     proc.kill("SIGTERM");
   }
+});
+
+test("dlq_list returns an array (empty when bus has no dead letters or is unavailable)", async () => {
+  const result = await api(port, "dlq_list");
+  assert.ok(Array.isArray(result.dead_letters), "dead_letters should be an array");
+});
+
+test("dlq_list accepts limit and cursor_id params without crashing", async () => {
+  const result = await api(port, "dlq_list", { limit: 25, cursor_id: "no-such-cursor" });
+  assert.ok(Array.isArray(result.dead_letters));
+});
+
+test("dlq_replay rejects missing dl_id", async () => {
+  const noArgs = await api(port, "dlq_replay");
+  assert.equal(noArgs.ok, false);
+  assert.match(noArgs.error || "", /dl_id required|unavailable/);
+});
+
+test("dlq_drop rejects missing dl_id", async () => {
+  const noArgs = await api(port, "dlq_drop");
+  assert.equal(noArgs.ok, false);
+  assert.match(noArgs.error || "", /dl_id required|unavailable/);
+});
+
+test("dlq_list parses string limit defensively (CLI/HTTP layer often passes strings)", async () => {
+  const result = await api(port, "dlq_list", { limit: "25" });
+  assert.ok(Array.isArray(result.dead_letters));
+});
+
+test("confirm_link with verdict=contradict does not crash and returns ok", async () => {
+  // No matching link exists; confirmLink returns null. The HTTP layer maps
+  // null to { ok: true }. The handler still fires both wicked.link.confirmed
+  // and (because verdict=contradict) wicked.link.contradicted — we can't
+  // observe the emit from here, but we verify the dispatch path is wired.
+  const result = await api(port, "confirm_link", {
+    source_id: "no-such-source",
+    target_path: "no-such-target",
+    verdict: "contradict",
+  });
+  assert.equal(result.ok, true, "no-op contradict against missing link should not error");
+  assert.equal(result.error, undefined, "should not surface a handler error");
 });

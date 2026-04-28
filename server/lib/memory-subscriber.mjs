@@ -43,7 +43,7 @@ export async function startMemorySubscriber({ brainPath, brainId, db }) {
     plugin: "wicked-brain",
     filter: "wicked.fact.extracted",
     cursor_init: "latest",
-    pollIntervalMs: 15000,
+    pollIntervalMs: 5000,
     maxRetries: 3,
     backoffMs: [1000, 5000, 30000],
     handler: async (event) => {
