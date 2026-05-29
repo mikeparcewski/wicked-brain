@@ -11,15 +11,23 @@ function normalizePath(p) {
 // makes libuv abort the process with "Assertion failed: !_wcsnicmp(...)" in
 // fs-event.c — change events report the long filename, which no longer shares
 // the watched (short) directory prefix. That abort is a native crash, so it
-// bypasses the try/catch → polling fallback below. realpathSync resolves short
-// names and symlinks so the watched prefix matches the reported filenames.
-// filename in the callbacks stays relative to the watched dir, so the logical
-// relPath construction is unaffected.
+// bypasses the try/catch → polling fallback below. filename in the callbacks
+// stays relative to the watched dir, so the logical relPath construction is
+// unaffected.
+//
+// realpathSync.native (OS GetFinalPathNameByHandle) is required to expand 8.3
+// short names to their long form; the JS realpathSync only resolves symlinks
+// and leaves short-name components like RUNNER~1 intact. Fall back to the JS
+// implementation, then to the original path.
 function canonicalDir(p) {
   try {
-    return realpathSync(p);
+    return realpathSync.native(p);
   } catch {
-    return p;
+    try {
+      return realpathSync(p);
+    } catch {
+      return p;
+    }
   }
 }
 
