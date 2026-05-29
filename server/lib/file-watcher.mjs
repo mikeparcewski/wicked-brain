@@ -1,9 +1,26 @@
-import { watch, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { watch, readFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
 
 function normalizePath(p) {
   return p.replace(/\\/g, "/");
+}
+
+// Canonicalize to the real (long) path before watching. On Windows, calling
+// fs.watch on an 8.3 short-name path (e.g. C:\Users\RUNNER~1\AppData\Local\Temp)
+// makes libuv abort the process with "Assertion failed: !_wcsnicmp(...)" in
+// fs-event.c — change events report the long filename, which no longer shares
+// the watched (short) directory prefix. That abort is a native crash, so it
+// bypasses the try/catch → polling fallback below. realpathSync resolves short
+// names and symlinks so the watched prefix matches the reported filenames.
+// filename in the callbacks stays relative to the watched dir, so the logical
+// relPath construction is unaffected.
+function canonicalDir(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
 }
 
 const IGNORE_DIRS = new Set([
@@ -70,7 +87,7 @@ export class FileWatcher {
       if (!existsSync(project.path)) continue;
       this.#scanAndHashProject(project);
       try {
-        const watcher = watch(project.path, { recursive: true }, (eventType, filename) => {
+        const watcher = watch(canonicalDir(project.path), { recursive: true }, (eventType, filename) => {
           if (!filename) return;
           const parts = filename.split(/[/\\]/);
           if (parts.some(p => IGNORE_DIRS.has(p))) return;
@@ -96,7 +113,7 @@ export class FileWatcher {
     const absDir = join(this.#brainPath, dir);
     if (!existsSync(absDir)) return false;
     try {
-      const watcher = watch(absDir, { recursive: true }, (eventType, filename) => {
+      const watcher = watch(canonicalDir(absDir), { recursive: true }, (eventType, filename) => {
         if (!filename || !filename.endsWith(".md")) return;
         const relPath = normalizePath(`${dir}/${filename}`);
         this.#debounce(relPath, () => this.#handleChange(relPath));
