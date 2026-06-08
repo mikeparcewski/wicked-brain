@@ -3,7 +3,7 @@ status: published
 canonical_for: [MAP-FILES]
 references: []
 owner: core
-last_reviewed: 2026-04-28
+last_reviewed: 2026-06-08
 generated: true
 source_roots: [server/lib, server/bin]
 ---
@@ -23,7 +23,7 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 | `server/lib/bus.mjs` | wicked-bus integration for wicked-brain-server. | `busAvailable`, `dropBusDeadLetter`, `emitEvent`, `getBusDb`, `isBusAvailable`, `listBusDeadLetters`, `replayBusDeadLetter`, `waitForBus` | — |
 | `server/lib/canonical-registry.mjs` | Canonical registry: maps canonical IDs (e.g. "INV-PATHS-FORWARD") to the single page that owns them. Detects violations of the "one page per ID" rule and broken references. | `buildRegistry`, `findBrokenReferences`, `loadWikiEntries` | `./frontmatter.mjs` |
 | `server/lib/detect-mode.mjs` | Pure classifier. Takes shallow scan inputs, returns mode verdict. | `classifyRepo`, `defaultWikiRoots`, `detectRepoMode` | — |
-| `server/lib/file-watcher.mjs` | Try to set up fs.watch for a brain subdirectory. Returns true on success. | `FileWatcher` | — |
+| `server/lib/file-watcher.mjs` | Recursive fs.watch over brain content with a polling fallback. | `FileWatcher` | — |
 | `server/lib/frontmatter.mjs` | Minimal YAML-subset frontmatter parser. | `extractFrontmatter`, `getField`, `parseFrontmatter`, `parseFrontmatterBlock`, `serializeFrontmatterBlock` | — |
 | `server/lib/gen-contract-api.mjs` | Contract API generator. | `extractActions`, `renderActionsJson`, `renderContractApi` | — |
 | `server/lib/gen-contract-schema.mjs` | Contract schema generator. | `extractSchema`, `renderContractSchema`, `renderSchemaJson` | — |

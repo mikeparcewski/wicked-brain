@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -87,6 +88,78 @@ test("removes a .md file from index when deleted", async () => {
     unlinkSync(filePath);
 
     await waitFor(() => db.search({ query: "deleted" }).results.length === 0);
+  } finally {
+    watcher.stop();
+    db.close();
+    rmSync(brainPath, { recursive: true, force: true });
+  }
+});
+
+test("survives an fs.watch 'error' event and degrades to polling instead of crashing", () => {
+  const { brainPath, db } = makeBrain();
+  // makeBrain creates chunks/ and wiki/; the watcher also watches memory/.
+  mkdirSync(join(brainPath, "memory"), { recursive: true });
+
+  const created = [];
+  // Inject a fake watch so the FSWatcher 'error' event can be driven
+  // deterministically — a real EMFILE depends on the OS file-descriptor limit.
+  const fakeWatch = () => {
+    const w = new EventEmitter();
+    w.close = () => {};
+    created.push(w);
+    return w;
+  };
+
+  const watcher = new FileWatcher(brainPath, db, "test-brain", [], fakeWatch);
+  watcher.start();
+
+  try {
+    assert.ok(watcher.watcherCount > 0, "fs watchers active before the error");
+    assert.equal(watcher.polling, false, "not polling before the error");
+
+    const emfile = Object.assign(
+      new Error("EMFILE: too many open files, watch"),
+      { code: "EMFILE" },
+    );
+    // Unhandled, this 'error' event is rethrown by Node and crashes the whole
+    // server. The watcher must catch it and keep the process alive.
+    assert.doesNotThrow(() => created[0].emit("error", emfile));
+
+    assert.equal(watcher.watcherCount, 0, "fs watchers torn down after error");
+    assert.equal(watcher.polling, true, "degraded to polling after error");
+  } finally {
+    watcher.stop();
+    db.close();
+    rmSync(brainPath, { recursive: true, force: true });
+  }
+});
+
+test("degrades to polling when fs.watch throws EMFILE synchronously during init", () => {
+  const { brainPath, db } = makeBrain();
+  mkdirSync(join(brainPath, "memory"), { recursive: true });
+
+  let calls = 0;
+  // First dir attaches; the second throws EMFILE synchronously. Without the
+  // resource-aware catch the first dir stays watched while the rest are left
+  // neither watched nor polled — a silent half-watched state.
+  const throwingWatch = () => {
+    calls++;
+    if (calls === 1) {
+      const w = new EventEmitter();
+      w.close = () => {};
+      return w;
+    }
+    const err = new Error("EMFILE: too many open files, watch");
+    err.code = "EMFILE";
+    throw err;
+  };
+
+  const watcher = new FileWatcher(brainPath, db, "test-brain", [], throwingWatch);
+  assert.doesNotThrow(() => watcher.start());
+
+  try {
+    assert.equal(watcher.watcherCount, 0, "partial fs watchers torn down");
+    assert.equal(watcher.polling, true, "degraded to polling on sync EMFILE");
   } finally {
     watcher.stop();
     db.close();

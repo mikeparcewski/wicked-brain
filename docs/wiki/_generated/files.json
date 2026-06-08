@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28",
+  "generated_at": "2026-06-08",
   "source_roots": [
     "server/lib",
     "server/bin"
@@ -84,7 +84,7 @@
     },
     {
       "path": "server/lib/file-watcher.mjs",
-      "purpose": "Try to set up fs.watch for a brain subdirectory. Returns true on success.",
+      "purpose": "Recursive fs.watch over brain content with a polling fallback.",
       "exports": [
         "FileWatcher"
       ],
