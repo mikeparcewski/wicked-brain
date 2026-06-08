@@ -52,7 +52,7 @@ export async function startMemorySubscriber({ brainPath, brainId, db }) {
   const healed = fastForwardStaleCursor(busDb, PLUGIN, FACT_FILTER);
   if (healed) {
     console.error(
-      `[memory-subscriber] cursor was behind the TTL window; advanced ${healed.from} -> ${healed.to}`,
+      `[memory-subscriber] cursor was behind the TTL window; repositioned ${healed.from} -> ${healed.to} to replay survivors`,
     );
   }
 
@@ -109,8 +109,9 @@ export async function startMemorySubscriber({ brainPath, brainId, db }) {
  * surviving event; wicked-bus poll() then throws WB-003 ("cursor behind the TTL
  * window") every cycle. The subscriber resumes its existing cursor (cursor_init
  * only applies on first registration), so it never recovers on its own. This
- * mirrors poll()'s WB-003 check and, when behind, advances the cursor to the
- * latest event — matching the subscriber's cursor_init:"latest" intent.
+ * mirrors poll()'s WB-003 check and, when behind, repositions the cursor to just
+ * before the oldest surviving event so the subscriber still replays everything
+ * left in the bus (at-least-once) instead of discarding the survivors.
  *
  * No-op when the cursor is current, when there are no events, or when no cursor
  * exists yet (a fresh subscriber initializes at "latest" anyway). Never throws —
@@ -124,7 +125,7 @@ export async function startMemorySubscriber({ brainPath, brainId, db }) {
 export function fastForwardStaleCursor(busDb, plugin, filter) {
   try {
     const bounds = busDb
-      .prepare("SELECT MIN(event_id) AS min_id, MAX(event_id) AS max_id FROM events")
+      .prepare("SELECT MIN(event_id) AS min_id FROM events")
       .get();
     if (!bounds || bounds.min_id == null) return null; // no events to be behind of
 
@@ -143,11 +144,14 @@ export function fastForwardStaleCursor(busDb, plugin, filter) {
     if (!row) return null; // no existing cursor — fresh subscribe inits at "latest"
 
     // Mirror wicked-bus poll(): WB-003 fires when last_event_id < oldest - 1.
-    if (row.last_event_id < bounds.min_id - 1) {
+    // Reposition to oldest-1 (not latest) so the subscriber replays every event
+    // that survived the sweep instead of discarding the backlog.
+    const target = bounds.min_id - 1;
+    if (row.last_event_id < target) {
       busDb
         .prepare("UPDATE cursors SET last_event_id = ? WHERE cursor_id = ?")
-        .run(bounds.max_id, row.cursor_id);
-      return { from: row.last_event_id, to: bounds.max_id };
+        .run(target, row.cursor_id);
+      return { from: row.last_event_id, to: target };
     }
     return null;
   } catch {

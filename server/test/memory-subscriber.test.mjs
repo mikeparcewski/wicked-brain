@@ -34,12 +34,14 @@ function makeBusDb({ events = [], cursorAt = null, plugin = "wicked-brain" } = {
 const cursorOf = (db) =>
   db.prepare("SELECT last_event_id FROM cursors WHERE cursor_id='cur1'").get().last_event_id;
 
-test("fast-forwards a cursor behind the TTL window to the latest event", () => {
+test("repositions a cursor behind the TTL window to just before the oldest survivor", () => {
   const db = makeBusDb({ events: [100, 150, 200], cursorAt: 5 });
   try {
+    // oldest = 100 → reposition to 99 so the surviving events (100,150,200) are
+    // still replayed rather than skipped.
     const r = fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted");
-    assert.deepEqual(r, { from: 5, to: 200 });
-    assert.equal(cursorOf(db), 200);
+    assert.deepEqual(r, { from: 5, to: 99 });
+    assert.equal(cursorOf(db), 99);
   } finally {
     db.close();
   }
