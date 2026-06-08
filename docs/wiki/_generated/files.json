@@ -216,6 +216,7 @@
       "path": "server/lib/memory-subscriber.mjs",
       "purpose": "Auto-memorize subscriber: bridges wicked-bus fact events into brain memories.",
       "exports": [
+        "fastForwardStaleCursor",
         "renderMemoryFile",
         "startMemorySubscriber"
       ],
