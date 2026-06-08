@@ -1,3 +1,12 @@
+/**
+ * Recursive fs.watch over brain content with a polling fallback.
+ *
+ * Watches chunks/, wiki/, memory/ and registered project dirs; on any watch
+ * error (EMFILE/ENOSPC, or recursive watch unsupported) it degrades to polling
+ * instead of crashing the server.
+ *
+ * @module lib/file-watcher
+ */
 import { watch, readFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
@@ -157,8 +166,15 @@ export class FileWatcher {
     let watcher;
     try {
       watcher = this.#watch(canonicalDir(absPath), { recursive: true }, listener);
-    } catch {
-      // recursive watch not supported (Linux) — polling fallback handles it
+    } catch (err) {
+      // Resource exhaustion (EMFILE/ENFILE/ENOSPC) can throw synchronously, not
+      // only as an async 'error' event. Don't leave already-watched dirs in a
+      // half-watched state — degrade the whole watcher to polling. Other sync
+      // failures (e.g. recursive watch unsupported on older Linux) fall through
+      // to the polling fallback in start() when no watcher attaches.
+      if (err && (err.code === "EMFILE" || err.code === "ENFILE" || err.code === "ENOSPC")) {
+        this.#degradeToPolling();
+      }
       return null;
     }
     if (watcher && typeof watcher.on === "function") {
@@ -362,6 +378,7 @@ export class FileWatcher {
   }
 
   #startPolling() {
+    if (this.#pollInterval) return; // already polling — keep a single interval
     console.log("File watcher using polling mode (recursive watch not available)");
     this.#pollInterval = setInterval(() => {
       for (const dir of ["chunks", "wiki", "memory"]) {

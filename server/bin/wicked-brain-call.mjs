@@ -249,16 +249,21 @@ async function ensureServer(brainPath, opts) {
     if (sourcePath) argv.push("--source", sourcePath);
 
     const { fd: logFd, logPath } = openServerLog(brainPath);
-    const child = spawn(process.execPath, argv, {
-      detached: true,
-      stdio: logFd === null ? "ignore" : ["ignore", logFd, logFd],
-      windowsHide: true,
-    });
-    child.unref();
-    if (logFd !== null) {
-      try { closeSync(logFd); } catch {}
-      log(`server logs -> ${logPath}`);
+    try {
+      const child = spawn(process.execPath, argv, {
+        detached: true,
+        stdio: logFd === null ? "ignore" : ["ignore", logFd, logFd],
+        windowsHide: true,
+      });
+      child.unref();
+    } finally {
+      // Close our copy of the fd in all cases — the child keeps its own. Without
+      // the finally a synchronous spawn() throw would leak the descriptor.
+      if (logFd !== null) {
+        try { closeSync(logFd); } catch {}
+      }
     }
+    if (logFd !== null) log(`server logs -> ${logPath}`);
 
     if (await waitForHealth(port, spawnTimeoutMs)) return port;
     throw new Error(

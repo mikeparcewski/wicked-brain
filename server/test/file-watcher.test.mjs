@@ -133,3 +133,36 @@ test("survives an fs.watch 'error' event and degrades to polling instead of cras
     rmSync(brainPath, { recursive: true, force: true });
   }
 });
+
+test("degrades to polling when fs.watch throws EMFILE synchronously during init", () => {
+  const { brainPath, db } = makeBrain();
+  mkdirSync(join(brainPath, "memory"), { recursive: true });
+
+  let calls = 0;
+  // First dir attaches; the second throws EMFILE synchronously. Without the
+  // resource-aware catch the first dir stays watched while the rest are left
+  // neither watched nor polled — a silent half-watched state.
+  const throwingWatch = () => {
+    calls++;
+    if (calls === 1) {
+      const w = new EventEmitter();
+      w.close = () => {};
+      return w;
+    }
+    const err = new Error("EMFILE: too many open files, watch");
+    err.code = "EMFILE";
+    throw err;
+  };
+
+  const watcher = new FileWatcher(brainPath, db, "test-brain", [], throwingWatch);
+  assert.doesNotThrow(() => watcher.start());
+
+  try {
+    assert.equal(watcher.watcherCount, 0, "partial fs watchers torn down");
+    assert.equal(watcher.polling, true, "degraded to polling on sync EMFILE");
+  } finally {
+    watcher.stop();
+    db.close();
+    rmSync(brainPath, { recursive: true, force: true });
+  }
+});
