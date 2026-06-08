@@ -11,6 +11,9 @@ import {
   unlinkSync,
   existsSync,
   mkdirSync,
+  openSync,
+  closeSync,
+  statSync,
 } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
@@ -186,6 +189,24 @@ function pidAlive(pid) {
 
 // ---------- server lifecycle ----------
 
+// Open {brain}/_meta/server.log for the detached daemon's stdout+stderr. Without
+// this the server is spawned with stdio:"ignore", so a boot crash (e.g. an
+// EMFILE watch error) vanishes and the only symptom is the "did not become
+// ready" timeout below. Caps growth: starts fresh if the existing log exceeds
+// 5 MB so a long-lived daemon stays diagnosable without growing unbounded.
+function openServerLog(brainPath) {
+  const logPath = join(brainPath, "_meta", "server.log");
+  let flag = "a";
+  try {
+    if (statSync(logPath).size > 5 * 1024 * 1024) flag = "w";
+  } catch {}
+  try {
+    return { fd: openSync(logPath, flag), logPath };
+  } catch {
+    return { fd: null, logPath };
+  }
+}
+
 async function ensureServer(brainPath, opts) {
   const { explicitPort, sourceOverride, noSpawn, log, spawnTimeoutMs = 10_000 } = opts;
   const meta = readMetaConfig(brainPath);
@@ -227,15 +248,23 @@ async function ensureServer(brainPath, opts) {
     const argv = [SERVER_BIN, "--brain", brainPath, "--port", String(port)];
     if (sourcePath) argv.push("--source", sourcePath);
 
+    const { fd: logFd, logPath } = openServerLog(brainPath);
     const child = spawn(process.execPath, argv, {
       detached: true,
-      stdio: "ignore",
+      stdio: logFd === null ? "ignore" : ["ignore", logFd, logFd],
       windowsHide: true,
     });
     child.unref();
+    if (logFd !== null) {
+      try { closeSync(logFd); } catch {}
+      log(`server logs -> ${logPath}`);
+    }
 
     if (await waitForHealth(port, spawnTimeoutMs)) return port;
-    throw new Error(`server did not become ready within ${spawnTimeoutMs}ms on port ${port}`);
+    throw new Error(
+      `server did not become ready within ${spawnTimeoutMs}ms on port ${port}` +
+        (logFd !== null ? ` — see ${logPath} for the cause` : ""),
+    );
   } finally {
     releaseLock(lockPath);
   }
