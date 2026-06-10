@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
@@ -34,6 +35,20 @@ function tryJson(s) {
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+// Ask the OS for a free port (bind 0, read, release). Random ranges collide
+// with real services on CI runners — macOS holds 6000 (X11), etc. — and the
+// CLI's explicit --port means bind-or-fail with no upward probing.
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.once("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const { port: p } = srv.address();
+      srv.close(() => resolve(p));
+    });
+  });
 }
 
 before(() => {
@@ -242,7 +257,7 @@ test("cold spawn derives --source from cwd when basename matches, and persists s
   mkdirSync(join(bDir, "_meta"), { recursive: true });
   writeFileSync(join(bDir, "brain.json"), JSON.stringify({ id: "test-src-derive" }));
 
-  const srcPort = Math.floor(6000 + Math.random() * 100);
+  const srcPort = await freePort();
   const res = spawnSync(
     process.execPath,
     [callBin, "--brain", bDir, "--port", String(srcPort), "--spawn-timeout", "10000", "health"],
