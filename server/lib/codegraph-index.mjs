@@ -42,7 +42,10 @@ export function runIndex(sourcePath, opts = {}, _spawn = spawn) {
     if (!argv) { resolve({ ok: false, error: "codegraph not resolvable" }); return; }
     const [cmd, ...prefix] = argv;
     const sub = existsSync(dbPath(sourcePath)) ? "index" : "init";
-    const proc = _spawn(cmd, [...prefix, sub, "."], { cwd: sourcePath, stdio: ["ignore", "pipe", "pipe"] });
+    // stdout is "ignore", not "pipe": codegraph prints a progress banner and on a
+    // large repo an undrained stdout pipe can fill and deadlock the child. stderr
+    // stays piped so we can surface the failure message.
+    const proc = _spawn(cmd, [...prefix, sub, "."], { cwd: sourcePath, stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
     proc.stderr.on("data", (d) => { stderr += d.toString(); });
     proc.on("error", (e) => resolve({ ok: false, error: e.message }));

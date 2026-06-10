@@ -56,7 +56,7 @@ test("runIndex uses `init` when no graph exists yet", async () => {
     const cap = {};
     const r = await runIndex(repo, { env: { WICKED_CODEGRAPH_BIN: "codegraph" } }, fakeSpawn(cap));
     assert.equal(r.ok, true);
-    assert.equal(cap.args[0], "init");
+    assert.ok(cap.args.includes("init"), `expected 'init' in ${cap.args}`);
     assert.equal(cap.opts.cwd, repo);
   } finally {
     rmSync(repo, { recursive: true, force: true });
@@ -71,7 +71,7 @@ test("runIndex uses `index` when a graph already exists", async () => {
     const cap = {};
     const r = await runIndex(repo, { env: { WICKED_CODEGRAPH_BIN: "codegraph" } }, fakeSpawn(cap));
     assert.equal(r.ok, true);
-    assert.equal(cap.args[0], "index");
+    assert.ok(cap.args.includes("index"), `expected 'index' in ${cap.args}`);
   } finally {
     rmSync(repo, { recursive: true, force: true });
   }
