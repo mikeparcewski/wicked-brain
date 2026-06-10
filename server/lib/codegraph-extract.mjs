@@ -17,6 +17,7 @@ import { pathToFileURL } from "node:url";
 import { extract as busExtract } from "./codegraph-extractors/bus.mjs";
 import { extract as dispatchExtract } from "./codegraph-extractors/dispatch.mjs";
 import { extract as capabilityExtract } from "./codegraph-extractors/capability.mjs";
+import { ensureFileNode, ensureVirtualNode } from "./codegraph-nodes.mjs";
 
 const BUILTINS = [
   { label: "bus", extract: busExtract },
@@ -72,12 +73,14 @@ export async function runExtractors({ db, sourcePath }) {
   const dropin_labels = dropins.map((d) => d.label);
   const all = [...BUILTINS, ...dropins];
 
+  const nodes = { ensureFileNode, ensureVirtualNode };
+
   const out = {};
   let total = 0;
 
   for (const ext of all) {
     try {
-      const counts = await ext.extract({ db, sourcePath });
+      const counts = await ext.extract({ db, sourcePath, nodes });
       out[ext.label] = counts;
       total += counts.edges_added || 0;
     } catch (e) {

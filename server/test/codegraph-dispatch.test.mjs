@@ -14,7 +14,6 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { extract } from "../lib/codegraph-extractors/dispatch.mjs";
 import { CodegraphClient } from "../lib/codegraph-client.mjs";
-import { dbPath } from "../lib/codegraph-index.mjs";
 
 // Real DDL from docs/codegraph-contract.md
 const NODES_DDL = `

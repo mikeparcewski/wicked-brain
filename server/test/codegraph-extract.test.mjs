@@ -245,3 +245,56 @@ test("B4-discoverDropins: broken dropin import is skipped, valid one included", 
     rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test("B4-5: drop-in self-noding via passed nodes helpers — no brain import needed", async () => {
+  const { repo, dbFile } = makeBusWiredRepo();
+  try {
+    const dropinDir = join(repo, ".codegraph-extractors");
+    mkdirSync(dropinDir, { recursive: true });
+
+    // A drop-in that uses only the passed `nodes` helpers — no brain imports.
+    writeFileSync(
+      join(dropinDir, "demo.mjs"),
+      `export function extract({ db, sourcePath, nodes }) {
+  const a = nodes.ensureVirtualNode(db, "thing:demo", "thing", "demo");
+  const f = nodes.ensureFileNode(db, "x/y.md");
+  db.prepare("INSERT INTO edges (source,target,kind,metadata,provenance) VALUES (?,?,?,?,?)")
+    .run(f, a, "references", null, "dropin:demo");
+  return { edges_added: 1 };
+}
+`,
+    );
+
+    const db = new Database(dbFile);
+    const result = await runExtractors({ db, sourcePath: repo });
+
+    // The virtual node thing:demo must exist
+    const vNode = db.prepare("SELECT * FROM nodes WHERE id = ?").get("thing:demo");
+    assert.ok(vNode, "thing:demo virtual node must exist");
+    assert.equal(vNode.kind, "thing");
+    assert.equal(vNode.name, "demo");
+
+    // The file node file:x/y.md must exist
+    const fNode = db.prepare("SELECT * FROM nodes WHERE id = ?").get("file:x/y.md");
+    assert.ok(fNode, "file:x/y.md file node must exist");
+    assert.equal(fNode.kind, "file");
+
+    // The dropin:demo edge must exist
+    const edge = db.prepare(
+      "SELECT * FROM edges WHERE provenance = 'dropin:demo'"
+    ).get();
+    assert.ok(edge, "dropin:demo edge must exist");
+    assert.equal(edge.source, "file:x/y.md");
+    assert.equal(edge.target, "thing:demo");
+    assert.equal(edge.kind, "references");
+
+    // The result must reflect the dropin ran
+    assert.ok("dropin:demo.mjs" in result,
+      `result must have dropin:demo.mjs key; got: ${Object.keys(result).join(", ")}`);
+    assert.equal(result["dropin:demo.mjs"].edges_added, 1);
+
+    db.close();
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
