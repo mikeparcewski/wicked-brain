@@ -244,7 +244,15 @@ async function ensureServer(brainPath, opts) {
     }
 
     log(`starting wicked-brain-server (brain=${brainPath} port=${port})`);
-    const sourcePath = sourceOverride || meta.source_path;
+    let sourcePath = sourceOverride || meta.source_path;
+    // Per-project brains are keyed on basename(cwd). Configs written before
+    // source_path persistence lack the field — derive it from cwd (only when
+    // the basename convention confirms cwd is the project root) so the server
+    // roots LSP at the project and persists source_path for port-resolution
+    // consumers (wicked-garden hooks match configs by source_path).
+    if (!sourcePath && basename(brainPath) === basename(process.cwd())) {
+      sourcePath = process.cwd();
+    }
     const argv = [SERVER_BIN, "--brain", brainPath, "--port", String(port)];
     if (sourcePath) argv.push("--source", sourcePath);
 
@@ -465,18 +473,19 @@ Examples:
   if (args.flags.version) {
     const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf-8"));
     process.stdout.write(pkg.version + "\n");
-    process.exit(0);
+    return;
   }
 
   if (args.flags.help) {
     process.stdout.write(HELP);
-    process.exit(0);
+    return;
   }
 
   const noModeFlag = !args.flags.start && !args.flags.stop && !args.flags.status;
   if (noModeFlag && args.positional.length === 0) {
     process.stderr.write(HELP);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const log = (msg) => process.stderr.write(`[wicked-brain-call] ${msg}\n`);

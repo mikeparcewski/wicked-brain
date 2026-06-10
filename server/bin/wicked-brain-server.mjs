@@ -32,7 +32,7 @@ function getArg(name) {
 if (args.includes("--version") || args.includes("-v")) {
   const pkgUrl = new URL("../../package.json", import.meta.url);
   const pkg = JSON.parse(readFileSync(pkgUrl, "utf-8"));
-  console.log(pkg.version);
+  process.stdout.write(pkg.version + "\n");
   exit(0);
 }
 
@@ -120,7 +120,7 @@ let memorySubscriber = null;
 
 // Graceful shutdown
 async function shutdown() {
-  console.log("Shutting down...");
+  process.stdout.write("Shutting down...\n");
   try { unlinkSync(pidPath); } catch {}
   watcher.stop();
   if (memorySubscriber) {
@@ -398,12 +398,16 @@ try {
   let metaConfig = {};
   try { metaConfig = JSON.parse(readFileSync(metaConfigPath, "utf-8")); } catch {}
   metaConfig.server_port = port;
+  // Persist the source root alongside the port: external port resolution
+  // (wicked-garden hooks) matches per-project configs by source_path, and
+  // configs created before this field existed would otherwise never gain it.
+  if (sourcePath) metaConfig.source_path = sourcePath;
   writeFileSync(metaConfigPath, JSON.stringify(metaConfig, null, 2) + "\n");
 } catch (err) {
   console.error(`Warning: could not write port to config: ${err.message}`);
 }
 
-console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
+process.stdout.write(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})\n`);
 watcher.start();
 const busReady = await waitForBus();
 emitEvent("wicked.server.started", "brain.system", {

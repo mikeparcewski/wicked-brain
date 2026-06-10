@@ -101,6 +101,7 @@ Brain search/query results include `source_type` and `path` fields:
 ### Rules (follow strictly)
 
 - **ALWAYS check the brain BEFORE using Grep, Glob, Read, or Agent(Explore)** — for any find, search, explore, explain, or "what is/how does" request
+- The server auto-starts on any `wicked-brain-call` / skill invocation — a "server not running" notice is NEVER a reason to skip the brain; just call the skill
 - Use `wicked-brain:search` for finding content ("find X", "where is Y", "look for Z", "show me W")
 - Use `wicked-brain:query` for questions ("what does X do", "how does Y work", "explain Z")
 - Use `wicked-brain:agent` (context) when starting a new topic or unfamiliar area

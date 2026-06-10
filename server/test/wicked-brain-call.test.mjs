@@ -2,7 +2,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
@@ -226,6 +226,36 @@ test("concurrent cold starts converge on a single server (lock works)", async ()
   } finally {
     try {
       const pid = parseInt(readFileSync(join(dir, "_meta", "server.pid"), "utf-8").trim(), 10);
+      if (pid) { try { process.kill(pid, "SIGKILL"); } catch {} }
+    } catch {}
+  }
+});
+
+test("cold spawn derives --source from cwd when basename matches, and persists source_path", async () => {
+  // Per-project brains are keyed on basename(cwd) — when the brain dir name
+  // matches the cwd name and config has no source_path, the CLI passes cwd
+  // as --source and the server writes it back to _meta/config.json. External
+  // port resolution (wicked-garden hooks) matches configs by source_path.
+  const srcDir = mkdtempSync(join(tmpdir(), "wb-proj-"));
+  const brainRoot = mkdtempSync(join(tmpdir(), "wb-brainroot-"));
+  const bDir = join(brainRoot, basename(srcDir));
+  mkdirSync(join(bDir, "_meta"), { recursive: true });
+  writeFileSync(join(bDir, "brain.json"), JSON.stringify({ id: "test-src-derive" }));
+
+  const srcPort = Math.floor(6000 + Math.random() * 100);
+  const res = spawnSync(
+    process.execPath,
+    [callBin, "--brain", bDir, "--port", String(srcPort), "--spawn-timeout", "10000", "health"],
+    { encoding: "utf-8", cwd: srcDir, timeout: 15_000 },
+  );
+  try {
+    assert.equal(res.status, 0, `exit ${res.status}; stderr: ${res.stderr}`);
+    const cfg = JSON.parse(readFileSync(join(bDir, "_meta", "config.json"), "utf-8"));
+    assert.ok(cfg.source_path, "source_path missing from _meta/config.json after spawn");
+    assert.equal(basename(cfg.source_path), basename(srcDir));
+  } finally {
+    try {
+      const pid = parseInt(readFileSync(join(bDir, "_meta", "server.pid"), "utf-8").trim(), 10);
       if (pid) { try { process.kill(pid, "SIGKILL"); } catch {} }
     } catch {}
   }
