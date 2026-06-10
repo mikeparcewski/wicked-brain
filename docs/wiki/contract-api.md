@@ -3,7 +3,7 @@ status: published
 canonical_for: [CONTRACT-API]
 references: []
 owner: core
-last_reviewed: 2026-04-28
+last_reviewed: 2026-06-10
 generated: true
 source: server/bin/wicked-brain-server.mjs
 ---

@@ -3,7 +3,7 @@ status: published
 canonical_for: [MAP-FILES]
 references: []
 owner: core
-last_reviewed: 2026-06-08
+last_reviewed: 2026-06-10
 generated: true
 source_roots: [server/lib, server/bin]
 ---
@@ -18,10 +18,16 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 |---|---|---|---|
 | `server/bin/onboard-wiki.mjs` | wicked-brain-onboard-wiki | — | `../lib/onboard-wiki.mjs` |
 | `server/bin/wicked-brain-call.mjs` | — | — | — |
-| `server/bin/wicked-brain-server.mjs` | Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real server instance so the bind semantics (dual-stack IPv4+IPv6) match the eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only conflict and produce a false "free" result. | — | `../lib/brain-walker.mjs`, `../lib/bus.mjs`, `../lib/file-watcher.mjs`, `../lib/lsp-client.mjs`, `../lib/memory-subscriber.mjs`, `../lib/onboard-wiki.mjs`, `../lib/sqlite-search.mjs`, `../lib/viewer-page.mjs` |
+| `server/bin/wicked-brain-server.mjs` | Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real server instance so the bind semantics (dual-stack IPv4+IPv6) match the eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only conflict and produce a false "free" result. | — | `../lib/brain-walker.mjs`, `../lib/bus.mjs`, `../lib/codegraph-actions.mjs`, `../lib/file-watcher.mjs`, `../lib/lsp-client.mjs`, `../lib/memory-subscriber.mjs`, `../lib/onboard-wiki.mjs`, `../lib/sqlite-search.mjs`, `../lib/viewer-page.mjs` |
 | `server/lib/brain-walker.mjs` | Walk a brain path and surface every authored `.md` file under the content subdirectories (chunks/, wiki/, memory/). Deliberately excludes `_meta/`, `raw/`, `.brain.db`, and any dotfile/dotdir. Paths returned are relative to the brain path and use forward slashes per INV-PATHS-FORWARD. | `purgeBrainContent`, `walkBrainContent` | — |
 | `server/lib/bus.mjs` | wicked-bus integration for wicked-brain-server. | `busAvailable`, `dropBusDeadLetter`, `emitEvent`, `getBusDb`, `isBusAvailable`, `listBusDeadLetters`, `replayBusDeadLetter`, `waitForBus` | — |
 | `server/lib/canonical-registry.mjs` | Canonical registry: maps canonical IDs (e.g. "INV-PATHS-FORWARD") to the single page that owns them. Detects violations of the "one page per ID" rule and broken references. | `buildRegistry`, `findBrokenReferences`, `loadWikiEntries` | `./frontmatter.mjs` |
+| `server/lib/codegraph-actions.mjs` | Build the graph-* action handlers bound to a source repo. A fresh client per call keeps the readonly DB handle short-lived and always reopens after a rebuild. | `makeGraphActions` | `./codegraph-client.mjs`, `./codegraph-extract.mjs`, `./codegraph-index.mjs` |
+| `server/lib/codegraph-client.mjs` | Transitive dependents — "what breaks if I change X". | `CodegraphClient` | `./codegraph-index.mjs` |
+| `server/lib/codegraph-extract.mjs` | codegraph-extract.mjs — extractor registry (builtins + drop-ins). | `discoverDropins`, `runExtractors` | `./codegraph-extractors/bus.mjs`, `./codegraph-extractors/capability.mjs`, `./codegraph-extractors/dispatch.mjs`, `./codegraph-nodes.mjs` |
+| `server/lib/codegraph-index.mjs` | How far the graph has drifted from HEAD. Fail-open: errors report present-but-unknown, never throw. @returns {{present:boolean, stale:boolean\|null, commits_behind:number\|null, indexed_at:string\|null}} | `dbPath`, `runIndex`, `staleness` | `./codegraph-resolver.mjs` |
+| `server/lib/codegraph-nodes.mjs` | codegraph-nodes.mjs — self-noding helpers for injected-edge extractors. | `ensureFileNode`, `ensureVirtualNode` | — |
+| `server/lib/codegraph-resolver.mjs` | Resolve the argv prefix that invokes codegraph, or null. Ladder: WICKED_CODEGRAPH_BIN (set-but-empty = kill switch) -> brain _meta/codegraph.json {bin} -> PATH -> source node_modules/.bin -> `npx`. | `codegraphAvailable`, `resolveCodegraph` | — |
 | `server/lib/detect-mode.mjs` | Pure classifier. Takes shallow scan inputs, returns mode verdict. | `classifyRepo`, `defaultWikiRoots`, `detectRepoMode` | — |
 | `server/lib/file-watcher.mjs` | Recursive fs.watch over brain content with a polling fallback. | `FileWatcher` | — |
 | `server/lib/frontmatter.mjs` | Minimal YAML-subset frontmatter parser. | `extractFrontmatter`, `getField`, `parseFrontmatter`, `parseFrontmatterBlock`, `serializeFrontmatterBlock` | — |

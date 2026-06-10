@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-06-08",
+  "generated_at": "2026-06-10",
   "source_roots": [
     "server/lib",
     "server/bin"
   ],
   "canonical_id": "MAP-FILES",
-  "count": 26,
+  "count": 32,
   "files": [
     {
       "path": "server/bin/onboard-wiki.mjs",
@@ -28,6 +28,7 @@
       "imports": [
         "../lib/brain-walker.mjs",
         "../lib/bus.mjs",
+        "../lib/codegraph-actions.mjs",
         "../lib/file-watcher.mjs",
         "../lib/lsp-client.mjs",
         "../lib/memory-subscriber.mjs",
@@ -71,6 +72,72 @@
       "imports": [
         "./frontmatter.mjs"
       ]
+    },
+    {
+      "path": "server/lib/codegraph-actions.mjs",
+      "purpose": "Build the graph-* action handlers bound to a source repo. A fresh client per call keeps the readonly DB handle short-lived and always reopens after a rebuild.",
+      "exports": [
+        "makeGraphActions"
+      ],
+      "imports": [
+        "./codegraph-client.mjs",
+        "./codegraph-extract.mjs",
+        "./codegraph-index.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/codegraph-client.mjs",
+      "purpose": "Transitive dependents — \"what breaks if I change X\".",
+      "exports": [
+        "CodegraphClient"
+      ],
+      "imports": [
+        "./codegraph-index.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/codegraph-extract.mjs",
+      "purpose": "codegraph-extract.mjs — extractor registry (builtins + drop-ins).",
+      "exports": [
+        "discoverDropins",
+        "runExtractors"
+      ],
+      "imports": [
+        "./codegraph-extractors/bus.mjs",
+        "./codegraph-extractors/capability.mjs",
+        "./codegraph-extractors/dispatch.mjs",
+        "./codegraph-nodes.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/codegraph-index.mjs",
+      "purpose": "How far the graph has drifted from HEAD. Fail-open: errors report present-but-unknown, never throw. @returns {{present:boolean, stale:boolean|null, commits_behind:number|null, indexed_at:string|null}}",
+      "exports": [
+        "dbPath",
+        "runIndex",
+        "staleness"
+      ],
+      "imports": [
+        "./codegraph-resolver.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/codegraph-nodes.mjs",
+      "purpose": "codegraph-nodes.mjs — self-noding helpers for injected-edge extractors.",
+      "exports": [
+        "ensureFileNode",
+        "ensureVirtualNode"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/codegraph-resolver.mjs",
+      "purpose": "Resolve the argv prefix that invokes codegraph, or null. Ladder: WICKED_CODEGRAPH_BIN (set-but-empty = kill switch) -> brain _meta/codegraph.json {bin} -> PATH -> source node_modules/.bin -> `npx`.",
+      "exports": [
+        "codegraphAvailable",
+        "resolveCodegraph"
+      ],
+      "imports": []
     },
     {
       "path": "server/lib/detect-mode.mjs",
