@@ -6,13 +6,17 @@ description: |
   language servers when missing.
 
   Use when: "where is X defined", "who uses X", "what type is X",
-  "list symbols in", "find symbol", "who calls X", "blast radius",
-  "architecture map", "code diagnostics", "lsp health".
+  "list symbols in", "find symbol", "who calls X",
+  "code diagnostics", "lsp health".
 ---
 
 # wicked-brain:lsp
 
 Universal code intelligence for any CLI/IDE via the brain's LSP client layer.
+
+> For whole-repo **relationship** queries — blast radius, lineage, architecture
+> map — use `wicked-brain:graph` (codegraph-backed). LSP here is live,
+> single-symbol intelligence (definitions, references, hover, diagnostics).
 
 ## Cross-Platform Notes
 
