@@ -18,6 +18,7 @@ import { renderViewerHtml } from "../lib/viewer-page.mjs";
 import { walkBrainContent, purgeBrainContent } from "../lib/brain-walker.mjs";
 import { runOnboardWiki } from "../lib/onboard-wiki.mjs";
 import { readFile as readFileAsync } from "node:fs/promises";
+import { makeGraphActions } from "../lib/codegraph-actions.mjs";
 
 // Parse args
 const args = argv.slice(2);
@@ -112,6 +113,7 @@ try {
 
 // LSP client — pass source path so language servers are rooted at the project, not the brain dir
 const lsp = new LspClient(brainPath, db, sourcePath);
+const graphActions = makeGraphActions({ sourcePath, brainPath });
 
 // Auto-memorize subscriber handle (set after bus init in server.listen callback)
 let memorySubscriber = null;
@@ -246,6 +248,8 @@ const actions = {
   "lsp-call-hierarchy-in": (p) => lsp.callHierarchyIn(p),
   "lsp-call-hierarchy-out": (p) => lsp.callHierarchyOut(p),
   "lsp-diagnostics": (p) => lsp.diagnostics(p),
+  // Graph (codegraph) actions
+  ...graphActions,
   reonboard: async () => {
     // Detect mode + stamp the CLAUDE.md/AGENTS.md pointer, then rebuild the
     // search index from whatever content is on disk in this brain. Does NOT
@@ -318,6 +322,8 @@ const WRITE_ACTIONS = new Set([
   // DLQ replay/drop mutate the bus DB; list is read-only.
   "dlq_replay",
   "dlq_drop",
+  // Graph rebuild is a write — shells out to codegraph CLI.
+  "graph-index",
 ]);
 
 // HTTP server
