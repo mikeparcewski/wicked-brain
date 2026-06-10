@@ -1,5 +1,7 @@
+import Database from "better-sqlite3";
 import { CodegraphClient } from "./codegraph-client.mjs";
-import { runIndex, staleness } from "./codegraph-index.mjs";
+import { runIndex, staleness, dbPath } from "./codegraph-index.mjs";
+import { runExtractors } from "./codegraph-extract.mjs";
 
 /**
  * Build the graph-* action handlers bound to a source repo. A fresh client per
@@ -16,7 +18,17 @@ export function makeGraphActions({ sourcePath, brainPath } = {}) {
     "graph-lineage": (p = {}) => withClient((c) => c.lineage({ node: p.node, maxDepth: p.maxDepth })),
     "graph-index": async () => {
       const r = await runIndex(sourcePath, { brainPath, sourcePath });
-      return { ...r, staleness: staleness(sourcePath) };
+      if (!r.ok) {
+        return { ...r, staleness: staleness(sourcePath) };
+      }
+      const db = new Database(dbPath(sourcePath));
+      let injected;
+      try {
+        injected = await runExtractors({ db, sourcePath });
+      } finally {
+        db.close();
+      }
+      return { ...r, injected, staleness: staleness(sourcePath) };
     },
   };
 }

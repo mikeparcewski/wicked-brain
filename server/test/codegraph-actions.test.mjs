@@ -48,3 +48,33 @@ test("graph-blast-radius on a graphless repo reports unavailable", () => {
     assert.equal(actions["graph-blast-radius"]({ node: "x" }).engine, "unavailable");
   } finally { rmSync(repo, { recursive: true, force: true }); }
 });
+
+// ── B5: graph-index wiring ─────────────────────────────────────────────────────
+//
+// We don't invoke real codegraph in unit tests. The kill-switch path
+// (WICKED_CODEGRAPH_BIN="") makes runIndex return {ok:false} immediately, so we
+// verify that:
+//   - graph-index returns {ok:false, ...} and does NOT throw
+//   - the result does NOT include `injected` (extractor injection is skipped on failure)
+//   - staleness is still attached
+
+test("B5: graph-index with unresolvable codegraph returns ok:false without injected, no throw", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "cg-act-b5-"));
+  const prev = process.env.WICKED_CODEGRAPH_BIN;
+  process.env.WICKED_CODEGRAPH_BIN = "";
+  try {
+    const actions = makeGraphActions({ sourcePath: repo });
+    const result = await actions["graph-index"]();
+    assert.equal(result.ok, false, `expected ok:false, got ${JSON.stringify(result)}`);
+    assert.ok(!("injected" in result),
+      `injected must NOT be present on ok:false; got keys: ${Object.keys(result).join(", ")}`);
+    assert.ok("staleness" in result, "staleness must always be attached");
+  } finally {
+    if (prev === undefined) {
+      delete process.env.WICKED_CODEGRAPH_BIN;
+    } else {
+      process.env.WICKED_CODEGRAPH_BIN = prev;
+    }
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
