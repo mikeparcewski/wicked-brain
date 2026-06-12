@@ -8,7 +8,7 @@ on:
 
 jobs:
   ci:
-    uses: mikeparcewski/wicked-ci/.github/workflows/node-ci.yml@0382b46d00d772c09911f9d00021e0172eb9abe4 # v1.1.0
+    uses: mikeparcewski/wicked-ci/.github/workflows/node-ci.yml@6573ae1b5eeb50468193308750c08ceeafde8039 # v1.1.1
     with:
       test_working_dir: server
 
