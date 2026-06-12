@@ -52,3 +52,28 @@ empty graph.
 Backed by the `@colbymchenry/codegraph` CLI (resolved at runtime via
 `WICKED_CODEGRAPH_BIN` → brain config → PATH → `npx`). The brain reads codegraph's
 SQLite graph directly; it shells the CLI only to (re)build.
+
+### Offline / air-gapped install
+
+By **default** the engine is resolved by shelling out to
+`npx @colbymchenry/codegraph`, which **downloads from the npm registry and will
+not work on an air-gapped machine**. To run offline, install the CLI ahead of
+time and point the brain at the binary with **`WICKED_CODEGRAPH_BIN`** — the
+**highest-priority** entry in the resolution ladder:
+
+```
+WICKED_CODEGRAPH_BIN  →  _meta/codegraph.json {bin}  →  PATH  →  source node_modules/.bin/codegraph  →  npx (network, last resort)
+```
+
+```bash
+# Pre-install on a connected machine, then on the air-gapped host:
+export WICKED_CODEGRAPH_BIN=/usr/local/bin/codegraph     # macOS/Linux
+```
+```powershell
+$env:WICKED_CODEGRAPH_BIN = "C:\tools\codegraph\codegraph.cmd"   # Windows
+```
+
+- A `.mjs`/`.js` target is invoked via `node`; any other path is executed directly.
+- An **empty** `WICKED_CODEGRAPH_BIN` is a **kill switch** — queries return
+  `engine: "unavailable"` rather than reaching for the network `npx` path.
+- Per-brain alternative: write `_meta/codegraph.json` with `{ "bin": "/path/to/codegraph" }`.

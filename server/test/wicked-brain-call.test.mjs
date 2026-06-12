@@ -4,6 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
@@ -243,6 +244,103 @@ test("concurrent cold starts converge on a single server (lock works)", async ()
       const pid = parseInt(readFileSync(join(dir, "_meta", "server.pid"), "utf-8").trim(), 10);
       if (pid) { try { process.kill(pid, "SIGKILL"); } catch {} }
     } catch {}
+  }
+});
+
+// Stand up a fake brain server that answers the health action with a chosen
+// brain_id — same response shape as the real server (db.health()). Lets us
+// simulate "a DIFFERENT brain occupies this port" without spawning two real
+// servers or touching live brain data.
+function startFakeBrainServer(brainId) {
+  return new Promise((resolve) => {
+    const srv = createHttpServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => { body += c; });
+      req.on("end", () => {
+        let action = "";
+        try { action = JSON.parse(body || "{}").action; } catch {}
+        res.setHeader("Content-Type", "application/json");
+        if (action === "health") {
+          res.end(JSON.stringify({ status: "ok", uptime: 1, brain_id: brainId }));
+        } else {
+          res.end(JSON.stringify({ error: "unsupported in fake server" }));
+        }
+      });
+    });
+    srv.listen(0, "127.0.0.1", () => resolve({ srv, port: srv.address().port }));
+  });
+}
+
+// Run the CLI WITHOUT blocking the test's event loop. The fake brain server
+// lives in THIS process, so a synchronous spawnSync would freeze the event
+// loop and the fake server could never answer the child's health probe (it
+// would see zero requests). Async spawn keeps the loop live to serve them.
+function runCliAsync(args, { cwd } = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [callBin, ...args], { encoding: "utf-8", cwd });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", (d) => { stdout += d; });
+    child.stderr.on("data", (d) => { stderr += d; });
+    child.on("exit", (code) => resolve({ stdout, stderr, status: code, parsed: tryJson(stdout) }));
+  });
+}
+
+test("--status reports port_conflict when a DIFFERENT brain occupies the port", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wb-mismatch-status-"));
+  mkdirSync(join(dir, "_meta"), { recursive: true });
+  // We expect to be brain "alpha"...
+  writeFileSync(join(dir, "brain.json"), JSON.stringify({ id: "alpha" }));
+  // ...but the port is actually held by brain "beta".
+  const { srv, port: occupiedPort } = await startFakeBrainServer("beta");
+  // A stale PID file for OUR brain — the bug is reporting running:true off this.
+  writeFileSync(join(dir, "_meta", "server.pid"), String(process.pid));
+  try {
+    const r = await runCliAsync(["--brain", dir, "--port", String(occupiedPort), "--status"]);
+    assert.ok(r.parsed, `status not JSON: ${r.stdout} ${r.stderr}`);
+    assert.equal(r.parsed.running, false, "must NOT report running for a mismatched brain");
+    assert.equal(r.parsed.port_conflict, true, "expected port_conflict flag");
+    assert.equal(r.parsed.brain_id, "alpha", "should report the EXPECTED brain id");
+    assert.equal(r.parsed.actual_brain_id, "beta", "should surface the ACTUAL occupant");
+    assert.equal(r.parsed.pid, null, "pid must be null on conflict");
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});
+
+test("--status reports running:true when the SAME brain occupies the port", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wb-match-status-"));
+  mkdirSync(join(dir, "_meta"), { recursive: true });
+  writeFileSync(join(dir, "brain.json"), JSON.stringify({ id: "gamma" }));
+  const { srv, port: occupiedPort } = await startFakeBrainServer("gamma");
+  try {
+    const r = await runCliAsync(["--brain", dir, "--port", String(occupiedPort), "--status"]);
+    assert.ok(r.parsed, `status not JSON: ${r.stdout} ${r.stderr}`);
+    assert.equal(r.parsed.running, true, "matching brain should report running");
+    assert.notEqual(r.parsed.port_conflict, true, "no conflict for matching brain");
+    assert.equal(r.parsed.brain_id, "gamma");
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});
+
+test("--stop REFUSES when a DIFFERENT brain occupies the port", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wb-mismatch-stop-"));
+  mkdirSync(join(dir, "_meta"), { recursive: true });
+  writeFileSync(join(dir, "brain.json"), JSON.stringify({ id: "alpha" }));
+  // Stale PID for our brain pointing at THIS test process — proves stop does
+  // NOT signal it (the refuse path returns before ever reaching kill()).
+  writeFileSync(join(dir, "_meta", "server.pid"), String(process.pid));
+  const { srv, port: occupiedPort } = await startFakeBrainServer("beta");
+  try {
+    const r = await runCliAsync(["--brain", dir, "--port", String(occupiedPort), "--stop"]);
+    assert.ok(r.parsed, `stop not JSON: ${r.stdout} ${r.stderr}`);
+    assert.equal(r.parsed.stopped, false, "must refuse to stop a mismatched brain");
+    assert.equal(r.parsed.reason, "port_conflict");
+    assert.equal(r.parsed.brain_id, "alpha");
+    assert.equal(r.parsed.actual_brain_id, "beta");
+    assert.equal(r.status, 1, `expected refusal exit 1, got ${r.status}`);
+  } finally {
+    await new Promise((r) => srv.close(r));
   }
 });
 
