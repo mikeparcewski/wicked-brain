@@ -106,6 +106,20 @@ function readMetaConfig(brainPath) {
   }
 }
 
+// The brain the caller EXPECTS to be on this port. The server derives its
+// brain_id from brain.json's `id` field (see wicked-brain-server.mjs), so we
+// read the same source here. Fall back to the per-project basename convention
+// when brain.json is absent — that's the id a freshly-init'd brain will carry.
+function readExpectedBrainId(brainPath) {
+  try {
+    const cfg = JSON.parse(readFileSync(join(brainPath, "brain.json"), "utf-8"));
+    if (cfg && typeof cfg.id === "string" && cfg.id) return cfg.id;
+  } catch {
+    // brain.json missing/unreadable — fall through to the basename convention.
+  }
+  return basename(brainPath);
+}
+
 // ---------- HTTP ----------
 
 async function callApi(port, action, params, { timeoutMs = 30000, auditFile } = {}) {
@@ -132,6 +146,18 @@ async function healthCheck(port, { timeoutMs = 800 } = {}) {
     return !!(r && r.status === "ok");
   } catch {
     return false;
+  }
+}
+
+// Like healthCheck, but returns the full health body (which carries brain_id)
+// so callers can confirm WHICH brain is answering the port — not just that
+// SOMETHING is. Returns null when nothing responds healthily.
+async function healthInfo(port, { timeoutMs = 800 } = {}) {
+  try {
+    const r = await callApi(port, "health", {}, { timeoutMs });
+    return r && r.status === "ok" ? r : null;
+  } catch {
+    return null;
   }
 }
 
@@ -495,15 +521,44 @@ Examples:
   if (args.flags.status) {
     const meta = readMetaConfig(brainPath);
     const port = args.flags.port || meta.server_port || 4242;
-    const running = await healthCheck(port);
+    const expectedBrainId = readExpectedBrainId(brainPath);
+    // Ask the responding server WHICH brain it is rather than trusting that the
+    // persisted port still belongs to us. A different brain's server can have
+    // claimed this port (probe-up on EADDRINUSE, stale config, manual restart),
+    // and a blind `running:true` would point an operator at the wrong process.
+    const health = await healthInfo(port);
     let pid = null;
     try { pid = parseInt(readFileSync(join(brainPath, "_meta", "server.pid"), "utf-8").trim(), 10); } catch {}
-    const payload = {
-      brain_path: brainPath,
-      port,
-      running,
-      pid: running && pidAlive(pid) ? pid : null,
-    };
+
+    let payload;
+    if (!health) {
+      payload = {
+        brain_path: brainPath,
+        brain_id: expectedBrainId,
+        port,
+        running: false,
+        pid: null,
+      };
+    } else if (health.brain_id !== expectedBrainId) {
+      // Port is occupied — but by a DIFFERENT brain than the one we resolved.
+      payload = {
+        brain_path: brainPath,
+        brain_id: expectedBrainId,
+        port,
+        running: false,
+        port_conflict: true,
+        actual_brain_id: health.brain_id ?? null,
+        pid: null,
+      };
+    } else {
+      payload = {
+        brain_path: brainPath,
+        brain_id: expectedBrainId,
+        port,
+        running: true,
+        pid: pidAlive(pid) ? pid : null,
+      };
+    }
     process.stdout.write(
       (args.flags.pretty ? JSON.stringify(payload, null, 2) : JSON.stringify(payload)) + "\n",
     );
@@ -514,9 +569,32 @@ Examples:
   if (args.flags.stop) {
     const meta = readMetaConfig(brainPath);
     const port = args.flags.port || meta.server_port || 4242;
+    const expectedBrainId = readExpectedBrainId(brainPath);
     const pidPath = join(brainPath, "_meta", "server.pid");
     let pid = null;
     try { pid = parseInt(readFileSync(pidPath, "utf-8").trim(), 10); } catch {}
+
+    // Reconcile the port's actual occupant before signalling anything. If a
+    // DIFFERENT brain answers this port, refuse — killing our persisted PID
+    // (or, worse, mistaking the port owner for ours) would take down an
+    // unrelated process. The operator must target the right brain or port.
+    const health = await healthInfo(port);
+    if (health && health.brain_id !== expectedBrainId) {
+      const payload = {
+        stopped: false,
+        reason: "port_conflict",
+        port,
+        brain_id: expectedBrainId,
+        actual_brain_id: health.brain_id ?? null,
+      };
+      process.stdout.write(
+        (args.flags.pretty ? JSON.stringify(payload, null, 2) : JSON.stringify(payload)) + "\n",
+      );
+      // Refused on purpose — surface a non-zero exit so scripted callers notice.
+      process.exitCode = 1;
+      return;
+    }
+
     if (!pid || !pidAlive(pid)) {
       process.stdout.write(JSON.stringify({ stopped: false, reason: "not running", port }) + "\n");
       return;

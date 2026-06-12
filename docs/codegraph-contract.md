@@ -4,6 +4,15 @@ Empirical characterization of `@colbymchenry/codegraph` schema and behaviour.
 Produced by a spike run on 2026-06-10. Downstream tasks MUST cite this document
 for schema column names and the `DEPENDENTS_BY` constant — do not assume.
 
+> **Offline / air-gapped:** the `npx -y @colbymchenry/codegraph …` invocations
+> below download from the npm registry and will not work air-gapped. Pre-install
+> the CLI and set **`WICKED_CODEGRAPH_BIN=/path/to/codegraph`** to make the brain
+> use a local binary instead of `npx`. It is the top of the resolution ladder
+> (`WICKED_CODEGRAPH_BIN` → `_meta/codegraph.json {bin}` → PATH → source
+> `node_modules/.bin` → `npx`); an empty value is a kill switch. See the README
+> "Code Graph (offline / air-gapped)" section and `wicked-brain:graph` for the
+> full install path.
+
 ---
 
 ## Version

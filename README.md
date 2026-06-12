@@ -159,7 +159,49 @@ The viewer has no auth. It's localhost-only, same-machine trust.
 | `wicked-brain:retag` | Backfill synonym-expanded tags across all chunks for better search recall |
 | `wicked-brain:update` | Check npm for updates and reinstall skills across all detected CLIs |
 | `wicked-brain:lsp` | Universal code intelligence via LSP — hover, go-to-definition, diagnostics, completions |
+| `wicked-brain:graph` | Code-relationship graph — blast radius, callers, lineage — backed by a static code graph |
 | `wicked-brain:ui` | Open the read-only browser viewer — Material-styled Search + Wiki tabs over `http://localhost:<port>/` |
+
+## Code Graph (offline / air-gapped)
+
+`wicked-brain:graph` (blast radius, callers, lineage) is backed by the
+[`@colbymchenry/codegraph`](https://www.npmjs.com/package/@colbymchenry/codegraph)
+CLI. By **default** the brain resolves that CLI by shelling out to
+`npx @colbymchenry/codegraph` — which **fetches from the npm registry and will
+not work air-gapped**. On an offline/air-gapped machine, point the brain at a
+pre-installed binary with the **`WICKED_CODEGRAPH_BIN`** environment variable.
+
+`WICKED_CODEGRAPH_BIN` sits at the **top** of the resolution ladder:
+
+```
+WICKED_CODEGRAPH_BIN  →  brain _meta/codegraph.json {bin}  →  PATH  →  source node_modules/.bin/codegraph  →  npx (last resort, network)
+```
+
+**Offline install path:**
+
+```bash
+# 1. On a connected machine, install codegraph globally (or vendor it):
+npm install -g @colbymchenry/codegraph        # provides a `codegraph` on PATH
+#    …or install it into the project: npm install @colbymchenry/codegraph
+
+# 2. On the air-gapped machine, point the brain at the binary:
+export WICKED_CODEGRAPH_BIN=/usr/local/bin/codegraph     # macOS/Linux
+#    A .mjs/.js path is run via node; any other path is executed directly.
+```
+
+```powershell
+# Windows (PowerShell)
+$env:WICKED_CODEGRAPH_BIN = "C:\tools\codegraph\codegraph.cmd"
+```
+
+Notes:
+- Setting `WICKED_CODEGRAPH_BIN` to an **empty string** is a deliberate **kill
+  switch** — graph queries return `engine: "unavailable"` instead of falling
+  through to the network `npx` path.
+- A per-brain alternative to the env var is `_meta/codegraph.json` with
+  `{ "bin": "/path/to/codegraph" }`.
+- If nothing resolves, graph queries degrade gracefully to
+  `engine: "unavailable"` rather than returning a misleading empty graph.
 
 ## Multi-Brain Federation
 
