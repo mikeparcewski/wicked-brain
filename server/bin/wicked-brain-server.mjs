@@ -141,14 +141,18 @@ const actions = {
     emitEvent("wicked.search.executed", "brain.search", {
       query: p.query, result_count: result.total_matches, brain_id: brainId,
     });
-    return result;
+    // Stamp the responding brain on the envelope so a `wicked-brain-call search`
+    // makes WHICH brain answered visible without a separate health round-trip.
+    // (A wrong-port hit is caught upstream by reconcileHealth, but this keeps
+    // the answer self-describing for the operator and the rendering skill.)
+    return { ...result, brain_id: brainId };
   },
   federated_search: (p) => {
     const result = db.federatedSearch(p);
     emitEvent("wicked.search.executed", "brain.search", {
       query: p.query, federated: true, brain_id: brainId,
     });
-    return result;
+    return { ...result, brain_id: brainId };
   },
   index: (p) => {
     db.index(p);

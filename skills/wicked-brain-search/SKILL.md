@@ -1,39 +1,35 @@
 ---
 name: wicked-brain:search
 description: |
-  Search the digital brain for relevant content. Dispatches parallel search
-  subagents across local and linked brains. Returns results at depth 0 with
-  deeper hints.
+  Search the digital brain for relevant content. A single CLI call for the
+  common single-brain case; fans out to linked brains only when they exist.
 
   Use instead of Grep/Glob/Agent(Explore) for any open-ended search or
   exploration: "find X", "search for Y", "look for Z", "where is W used",
   "show me anything about X", "explore Y", "what files relate to Z".
-  
+
   Only fall back to Grep/Glob for exact symbol or pattern lookup when the
   brain returns no results.
 ---
 
 # wicked-brain:search
 
-You search the digital brain by dispatching parallel subagents — one per brain
-in the network (local + parents + links).
+Search the brain. The default path is ONE direct CLI call — no synonym load,
+no brain.json round-trip, no subagent fan-out. Reserve the heavier paths
+(synonym fallback, multi-brain fan-out) for when they actually pay off.
 
 ## Cross-Platform Notes
 
-Commands in this skill work on macOS, Linux, and Windows. When a command has
-platform differences, alternatives are shown. Your native tools (Read, Write,
-Grep, Glob) work everywhere — prefer them over shell commands when possible.
-
-For the brain path default:
-- macOS/Linux: ~/.wicked-brain
-- Windows: %USERPROFILE%\.wicked-brain
+Commands here work on macOS, Linux, and Windows. The `npx wicked-brain-call`
+CLI is cross-platform. Brain path default: `~/.wicked-brain/projects/{name}`
+(macOS/Linux), `%USERPROFILE%\.wicked-brain\projects\{name}` (Windows).
 
 ## Config
 
 Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
 `--brain <path>` to override the auto-detected brain, or set
-`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
-init required) and writes an audit record to `{brain}/calls/` per call.
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual init)
+and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -41,121 +37,73 @@ init required) and writes an audit record to `{brain}/calls/` per call.
 - **limit** (default: 10): max results per brain
 - **depth** (default: 0): result detail level
 
-## Process
+## Default path — direct search (do this first)
 
-### Step 0: Load synonyms (optional)
-
-Check if `{brain_path}/_meta/synonyms.json` exists using the Read tool.
-If it exists, parse it. Format:
-```json
-{
-  "jwt": ["json web token", "auth token"],
-  "auth": ["authentication", "authorization"],
-  "k8s": ["kubernetes"]
-}
-```
-
-When searching, expand the query: if any word in the query matches a synonym key,
-add the synonym values as additional OR terms.
-
-Example: query "jwt validation" → search for "jwt validation" first, then also
-search for "json web token validation" and "auth token validation" if initial
-results are sparse (fewer than 3 results).
-
-### Step 1: Discover brains to search
-
-Use the Read tool on `{brain_path}/brain.json` to get parents and links.
-For each parent/link, check if it's accessible by reading `{brain_path}/{relative_path}/brain.json`.
-
-Build a list of accessible brains with their absolute paths.
-
-### Step 2: Ensure server is running
-
-`wicked-brain-call` auto-starts the server on first invocation. If you want
-to be defensive, run a probe up front:
+One call. The CLI auto-starts the server and reconciles the responding
+brain, so no probe is needed.
 
 ```bash
-npx wicked-brain-call health
+npx wicked-brain-call search --param query={query} --param limit={limit}
 ```
 
-Exit code 0 means the server is up. Exit code 2 indicates an infra failure
-(server could not be reached or spawned).
+The JSON envelope is `{ results, total_matches, showing, collapsed, brain_id }`.
+`brain_id` names WHICH brain answered — always surface it so the result is
+unambiguous (see Report format). Each result row also carries its own
+`brain_id` (the brain that owns that document).
 
-### Step 3: Dispatch search subagents in parallel
+If `total_matches > 0`, render and return. You are done — skip everything
+below.
 
-Launch one subagent per accessible brain using parallel dispatch:
+## Fallback A — synonym expansion (only when results are sparse)
 
-- **Claude Code:** use the Agent tool, launching all subagents in a single message so they run concurrently.
-- **Other CLIs with subagent support:** use the CLI's native parallel dispatch mechanism (e.g., Gemini CLI's parallel tool calls).
-- **No subagent support:** run each brain search sequentially and collect results before merging.
+Trigger ONLY when the direct search returned 0–2 results.
 
-Each subagent call passes the brain-specific instructions below.
+1. Read `{brain_path}/_meta/synonyms.json` (skip if absent — fresh brains
+   won't have it). Format: `{ "jwt": ["json web token", "auth token"], ... }`.
+2. For each query word matching a synonym key, re-run the search with the
+   synonym values OR'd in (e.g. "jwt validation" → also try "json web token
+   validation"). Merge results, dedupe by path, keep higher score.
 
-Each search subagent receives these instructions:
+Server-side miss logging is automatic when a search returns 0 results — no
+explicit call needed.
 
-```
-You are a search agent for the "{brain_id}" brain at {brain_path}.
+## Fallback B — multi-brain fan-out (only when linked brains exist)
 
-Search for: "{query}"
+Trigger ONLY when this brain has accessible parents/links. Most brains have
+none — skip this entirely for a single local brain.
 
-## Step 1: Server search (FTS5)
+1. Read `{brain_path}/brain.json`. If it has no `parents`/`links`, STOP —
+   the default-path result is complete.
+2. For each parent/link, confirm it's reachable by reading
+   `{linked_brain_path}/brain.json`.
+3. Dispatch one subagent per reachable brain IN PARALLEL (Claude Code: one
+   message, multiple Agent calls). Each subagent runs:
+   ```bash
+   npx wicked-brain-call search --param query={query} --param limit={limit} --brain {linked_brain_path}
+   ```
+   and returns `BRAIN: {brain_id}` plus `{path} | score | one-line summary`
+   per row.
+4. Merge: collect all rows, dedupe by path (keep higher score), sort by score
+   descending, tag each with its origin `brain_id`.
 
-```bash
-npx wicked-brain-call search --param query={query} --param limit={limit} --brain {brain_path}
-```
-
-Parse the JSON response to get results.
-
-## Step 2: Return results
-
-For each result, read the first line of the file to get the title/summary.
-
-Return in this format:
-BRAIN: {brain_id}
-RESULTS:
-- {path} | score: {score} | {one-line summary}
-- {path} | score: {score} | {one-line summary}
-TOTAL: {count}
-```
-
-### Step 3: Merge results from all subagents
-
-After all subagents return:
-1. Collect all results
-2. Deduplicate by path (keep higher score)
-3. Sort by score descending
-4. Tag each result with its brain origin
-
-### Step 4: Log search miss (if applicable)
-
-If the merged results have 0 matches across all brains, the query is a "search miss."
-Log it so the brain can learn:
-```bash
-npx wicked-brain-call search_misses --param query={original_query} --param session_id={session_id}
-```
-
-Note: This logging happens server-side automatically when search returns 0 results.
-The explicit call here is only needed if synonym-expanded searches found results
-but the original query did not.
-
-### Step 5: Return at requested depth
+## Report format
 
 **Depth 0 (default):**
 ```
-Found {N} matches across {M} brains (showing top {limit}):
+Brain: {brain_id}{, +N linked} — {N} matches (top {limit}):
 
-1. {path} [{brain}] ({score})
+1. {path} ({score})
    {one-line summary}
-
-2. {path} [{brain}] ({score})
+2. {path} ({score})
    {one-line summary}
-
 ...
 
-Unreachable brains: {list, if any}
+Unreachable brains: {list, if any — fan-out only}
 
 To read any result: wicked-brain:read {path} --depth 2
 ```
 
-**Depth 1:** For each result, also include frontmatter + first paragraph.
-**Depth 2:** For each result, include full content (use sparingly — high token cost).
+Lead with `brain_id` so it's always clear which brain produced the answer.
+
+**Depth 1:** also include frontmatter + first paragraph per result.
+**Depth 2:** include full content per result (use sparingly — high token cost).
