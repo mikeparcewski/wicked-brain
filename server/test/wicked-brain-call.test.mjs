@@ -251,23 +251,35 @@ test("concurrent cold starts converge on a single server (lock works)", async ()
 // brain_id — same response shape as the real server (db.health()). Lets us
 // simulate "a DIFFERENT brain occupies this port" without spawning two real
 // servers or touching live brain data.
+//
+// Non-health actions are RECORDED (so a test can prove whether a data op was
+// actually routed to this server) and answered with a benign ok payload. This
+// is the canary for the data-path guard: if the brain_id reconciliation works,
+// a mismatched op must be refused BEFORE it reaches here, so `received` stays
+// empty for the mutating action.
 function startFakeBrainServer(brainId) {
   return new Promise((resolve) => {
+    const received = [];
     const srv = createHttpServer((req, res) => {
       let body = "";
       req.on("data", (c) => { body += c; });
       req.on("end", () => {
-        let action = "";
-        try { action = JSON.parse(body || "{}").action; } catch {}
+        let parsed = {};
+        try { parsed = JSON.parse(body || "{}"); } catch {}
+        const action = parsed.action || "";
         res.setHeader("Content-Type", "application/json");
         if (action === "health") {
           res.end(JSON.stringify({ status: "ok", uptime: 1, brain_id: brainId }));
         } else {
-          res.end(JSON.stringify({ error: "unsupported in fake server" }));
+          received.push(parsed);
+          // Echo a benign success so a CORRECTLY-routed op looks like it landed.
+          res.end(JSON.stringify({ ok: true, fake_brain_id: brainId, action }));
         }
       });
     });
-    srv.listen(0, "127.0.0.1", () => resolve({ srv, port: srv.address().port }));
+    srv.listen(0, "127.0.0.1", () =>
+      resolve({ srv, port: srv.address().port, received }),
+    );
   });
 }
 
@@ -339,6 +351,117 @@ test("--stop REFUSES when a DIFFERENT brain occupies the port", async () => {
     assert.equal(r.parsed.brain_id, "alpha");
     assert.equal(r.parsed.actual_brain_id, "beta");
     assert.equal(r.status, 1, `expected refusal exit 1, got ${r.status}`);
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});
+
+// ---- data-path brain_id guard (P0: route by port alone was destructive) ----
+// The data plane (search/index/remove/forget/query/...) resolves the server via
+// ensureServer and then POSTs the action. Before the guard, ensureServer
+// confirmed only that SOMETHING healthy answered the persisted port — not that
+// it was the EXPECTED brain. A recycled/shared port could route a destructive
+// op (remove/forget) to the WRONG brain. These tests pin the fail-closed guard.
+
+test("data path: mutating op (remove) REFUSES with port_conflict on a mismatched brain", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wb-mismatch-remove-"));
+  mkdirSync(join(dir, "_meta"), { recursive: true });
+  // We are brain "alpha"...
+  writeFileSync(join(dir, "brain.json"), JSON.stringify({ id: "alpha" }));
+  // ...but port is held by brain "beta". A remove here would nuke beta's doc.
+  const { srv, port: occupiedPort, received } = await startFakeBrainServer("beta");
+  try {
+    const r = await runCliAsync([
+      "--brain", dir,
+      "--port", String(occupiedPort),
+      "--no-spawn", // make sure we test the WARM-path guard, not a spawn
+      "remove",
+      "--param", "id=victim-doc",
+    ]);
+    assert.ok(r.parsed, `remove not JSON: ${r.stdout} ${r.stderr}`);
+    assert.equal(r.parsed.refused, true, "mutating op must be refused on mismatch");
+    assert.equal(r.parsed.reason, "port_conflict");
+    assert.equal(r.parsed.brain_id, "alpha", "should report the EXPECTED brain id");
+    assert.equal(r.parsed.actual_brain_id, "beta", "should surface the ACTUAL occupant");
+    assert.equal(r.status, 1, `expected refusal exit 1, got ${r.status}`);
+    // The destructive call must NOT have reached the foreign server.
+    const sawRemove = received.some((m) => m.action === "remove");
+    assert.equal(sawRemove, false, "remove leaked to the wrong brain — guard failed");
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});
+
+test("data path: mutating op (index) REFUSES with port_conflict on a mismatched brain", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wb-mismatch-index-"));
+  mkdirSync(join(dir, "_meta"), { recursive: true });
+  writeFileSync(join(dir, "brain.json"), JSON.stringify({ id: "alpha" }));
+  const { srv, port: occupiedPort, received } = await startFakeBrainServer("beta");
+  try {
+    const r = await runCliAsync([
+      "--brain", dir,
+      "--port", String(occupiedPort),
+      "--no-spawn",
+      "index",
+      "--param", "id=x",
+      "--param", "path=x.md",
+      "--param", "content=should not land on beta",
+    ]);
+    assert.ok(r.parsed, `index not JSON: ${r.stdout} ${r.stderr}`);
+    assert.equal(r.parsed.refused, true, "index must be refused on mismatch");
+    assert.equal(r.parsed.reason, "port_conflict");
+    assert.equal(r.status, 1);
+    const sawIndex = received.some((m) => m.action === "index");
+    assert.equal(sawIndex, false, "index leaked to the wrong brain — guard failed");
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});
+
+test("data path: read op (search) also refuses on a mismatched brain (fail closed)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wb-mismatch-search-"));
+  mkdirSync(join(dir, "_meta"), { recursive: true });
+  writeFileSync(join(dir, "brain.json"), JSON.stringify({ id: "alpha" }));
+  const { srv, port: occupiedPort, received } = await startFakeBrainServer("beta");
+  try {
+    const r = await runCliAsync([
+      "--brain", dir,
+      "--port", String(occupiedPort),
+      "--no-spawn",
+      "search",
+      "--param", "query=anything",
+    ]);
+    assert.ok(r.parsed, `search not JSON: ${r.stdout} ${r.stderr}`);
+    assert.equal(r.parsed.reason, "port_conflict", "reads fail closed on mismatch");
+    assert.equal(r.status, 1);
+    const sawSearch = received.some((m) => m.action === "search");
+    assert.equal(sawSearch, false, "search leaked to the wrong brain — guard failed");
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});
+
+test("data path: matching brain_id lets the op THROUGH to the server", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wb-match-data-"));
+  mkdirSync(join(dir, "_meta"), { recursive: true });
+  // We are brain "gamma" and the port is held by brain "gamma" — same brain.
+  writeFileSync(join(dir, "brain.json"), JSON.stringify({ id: "gamma" }));
+  const { srv, port: occupiedPort, received } = await startFakeBrainServer("gamma");
+  try {
+    const r = await runCliAsync([
+      "--brain", dir,
+      "--port", String(occupiedPort),
+      "--no-spawn",
+      "remove",
+      "--param", "id=ok-to-remove",
+    ]);
+    assert.ok(r.parsed, `remove not JSON: ${r.stdout} ${r.stderr}`);
+    assert.notEqual(r.parsed.reason, "port_conflict", "matching brain must NOT conflict");
+    assert.notEqual(r.parsed.refused, true, "matching brain must not be refused");
+    assert.equal(r.status, 0, `expected success exit 0, got ${r.status}; ${r.stderr}`);
+    // The op DID reach the (matching) server.
+    const sawRemove = received.some((m) => m.action === "remove");
+    assert.equal(sawRemove, true, "matching-brain op should have been routed to the server");
   } finally {
     await new Promise((r) => srv.close(r));
   }

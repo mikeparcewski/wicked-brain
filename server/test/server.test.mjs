@@ -3,13 +3,23 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const serverBin = join(__dirname, "..", "bin", "wicked-brain-server.mjs");
 
-const port = Math.floor(4200 + Math.random() * 800);
+// Assigned in before() from an OS-allocated ephemeral port. Was previously a
+// fixed random port (Math.floor(4200 + random*800)) chosen at module load —
+// node --test runs test FILES in parallel by default, so two files (or two CI
+// shards) could land on the same number, and the server runs with an explicit
+// --port (bind-or-fail, no upward probe). The loser crashed on EADDRINUSE and
+// every test in this file then flaked as ECONNREFUSED. We now ask the OS for a
+// free port immediately before spawn and retry the spawn if the port was
+// snatched in the (small) gap between release and bind — fixing the race
+// rather than masking it with longer sleeps or retried assertions.
+let port;
 let serverProcess;
 let brainDir;
 
@@ -22,6 +32,90 @@ async function api(port, action, params = {}) {
   return res.json();
 }
 
+// Ask the OS for a free port: bind 0, read the assigned port, release. The
+// window between release and the server's bind is small; the spawn loop below
+// retries with a fresh port if it loses that race.
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.once("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const { port: p } = srv.address();
+      srv.close(() => resolve(p));
+    });
+  });
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Poll the health endpoint until it answers (server is up) or the deadline
+// passes. Replaces the unconditional 1.5s sleep, which both under-waited on a
+// slow CI box and over-waited locally.
+async function waitForHealthy(p, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`http://localhost:${p}/api`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "health", params: {} }),
+      });
+      const body = await res.json();
+      if (body && body.status === "ok") return true;
+    } catch {
+      // not up yet
+    }
+    await sleep(100);
+  }
+  return false;
+}
+
+// Spawn the server on an ephemeral port, retrying with a fresh port if the
+// process dies before answering health (the EADDRINUSE race). Returns the
+// live process + the port it bound.
+async function spawnServer(brainDir, { extraArgs = [] } = {}) {
+  const MAX_ATTEMPTS = 5;
+  let lastErr = "";
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const p = await freePort();
+    const proc = spawn(
+      process.execPath,
+      [serverBin, "--brain", brainDir, "--port", String(p), ...extraArgs],
+      { stdio: "pipe" },
+    );
+    let stderrBuf = "";
+    let exited = false;
+    let exitCode = null;
+    proc.stderr.on("data", (d) => { stderrBuf += d.toString(); });
+    proc.on("exit", (code) => { exited = true; exitCode = code; });
+
+    if (await waitForHealthy(p)) {
+      // Keep surfacing late crashes for diagnostics.
+      proc.on("exit", (code) => {
+        if (code !== null && code !== 0 && stderrBuf) {
+          process.stderr.write(`[server.test] spawned server exited ${code}:\n${stderrBuf}\n`);
+        }
+      });
+      return { proc, port: p };
+    }
+
+    // Didn't become healthy. If it died on a port collision, retry on a new
+    // port; otherwise surface the failure.
+    try { proc.kill("SIGKILL"); } catch {}
+    lastErr = stderrBuf;
+    if (exited && /EADDRINUSE/.test(stderrBuf)) {
+      continue; // race lost — try a fresh ephemeral port
+    }
+    // Non-collision failure (or never exited but never healthy) — don't spin.
+    throw new Error(
+      `server did not become healthy on port ${p} (attempt ${attempt + 1}, exitCode=${exitCode}):\n${stderrBuf}`,
+    );
+  }
+  throw new Error(`server never bound a free port after ${MAX_ATTEMPTS} attempts:\n${lastErr}`);
+}
+
 before(async () => {
   // Create a temp brain directory
   brainDir = mkdtempSync(join(tmpdir(), "fs-brain-test-"));
@@ -31,23 +125,9 @@ before(async () => {
     JSON.stringify({ id: "test-brain-server" })
   );
 
-  // Spawn the server
-  serverProcess = spawn(process.execPath, [serverBin, "--brain", brainDir, "--port", String(port)], {
-    stdio: "pipe",
-  });
-
-  // Capture stderr so a crashed spawn surfaces its error on test failure
-  // instead of looking like a generic ECONNREFUSED. Printed on process exit.
-  let stderrBuf = "";
-  serverProcess.stderr.on("data", (d) => { stderrBuf += d.toString(); });
-  serverProcess.on("exit", (code) => {
-    if (code !== null && code !== 0 && stderrBuf) {
-      process.stderr.write(`[server.test] spawned server exited ${code}:\n${stderrBuf}\n`);
-    }
-  });
-
-  // Wait ~1.5s for server to start
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const started = await spawnServer(brainDir);
+  serverProcess = started.proc;
+  port = started.port;
 });
 
 after(() => {
@@ -226,19 +306,19 @@ test("reonboard action indexes content files from disk", async () => {
 });
 
 test("--read-only flag blocks write + destructive actions (separate server)", async () => {
-  // Spin up a second server on a different port with --read-only. Verifies
-  // the gate is wired at the API dispatch layer, not just the UI.
-  const { spawn } = await import("node:child_process");
+  // Spin up a second server on its OWN ephemeral port with --read-only.
+  // Verifies the gate is wired at the API dispatch layer, not just the UI.
+  // Previously this used `port + 1`, which (a) could collide with another
+  // listener and (b) tied its fate to the first server's port — the same
+  // bind-or-fail flake. Use the robust spawn helper instead.
   const { mkdtempSync, mkdirSync: mk, writeFileSync: wf } = await import("node:fs");
   const { join: j } = await import("node:path");
   const { tmpdir: td } = await import("node:os");
   const roDir = mkdtempSync(j(td(), "ro-brain-"));
   mk(j(roDir, "_meta"), { recursive: true });
   wf(j(roDir, "brain.json"), JSON.stringify({ id: "ro-brain" }));
-  const roPort = port + 1;
-  const proc = spawn(process.execPath, [serverBin, "--brain", roDir, "--port", String(roPort), "--read-only"], { stdio: "pipe" });
+  const { proc, port: roPort } = await spawnServer(roDir, { extraArgs: ["--read-only"] });
   try {
-    await new Promise((r) => setTimeout(r, 1200));
     const h = await api(roPort, "health");
     assert.equal(h.read_only, true);
 
