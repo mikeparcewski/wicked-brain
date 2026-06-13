@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   release:
-    uses: mikeparcewski/wicked-ci/.github/workflows/node-release.yml@6573ae1b5eeb50468193308750c08ceeafde8039 # v1.1.1
+    uses: mikeparcewski/wicked-ci/.github/workflows/node-release.yml@d8c9b0a14fb91c2d13f5da0468eeeff983c27e5a # v1.1.2
     with:
       package_name: wicked-brain
       test_working_dir: server
