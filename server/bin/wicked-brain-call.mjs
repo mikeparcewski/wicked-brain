@@ -161,6 +161,28 @@ async function healthInfo(port, { timeoutMs = 800 } = {}) {
   }
 }
 
+// Raised by ensureServer when a server answers the persisted port but it
+// belongs to a DIFFERENT brain than the one we resolved. The data path
+// (search/index/remove/forget/query/...) routes through ensureServer, so this
+// guard is the single choke point that stops a destructive op from silently
+// hitting the wrong brain on a shared/recycled port. Fail closed — never
+// operate on a mismatched brain.
+class PortConflictError extends Error {
+  constructor({ port, expectedBrainId, actualBrainId }) {
+    super(
+      `port_conflict: port ${port} is held by a different brain ` +
+        `(expected brain_id "${expectedBrainId}", got "${actualBrainId ?? "unknown"}"). ` +
+        `Refusing the operation so it can't hit the wrong brain. ` +
+        `Stop the other server, free the port, or pass the correct --port for this brain.`,
+    );
+    this.name = "PortConflictError";
+    this.code = "port_conflict";
+    this.port = port;
+    this.expectedBrainId = expectedBrainId;
+    this.actualBrainId = actualBrainId ?? null;
+  }
+}
+
 // ---------- spawn lock ----------
 // Cross-platform exclusive-create lock via { flag: "wx" }. Stale entries
 // (older than STALE_LOCK_MS) are reaped on contention so a crashed CLI
@@ -233,12 +255,42 @@ function openServerLog(brainPath) {
   }
 }
 
+// Reconcile the responding server's brain_id against the brain we resolved.
+// Returns true when the port is ours (or when expectedBrainId is unknown and
+// we choose not to gate). Throws PortConflictError when a DIFFERENT brain
+// answers — the fail-closed path that protects the data plane. One health
+// round-trip per resolution; cheap enough that we don't cache across calls
+// (each CLI invocation resolves the server exactly once anyway).
+function reconcileHealth(health, { port, expectedBrainId }) {
+  // No expected id to compare against (no brain.json id, no basename) — can't
+  // meaningfully gate, so don't. In practice readExpectedBrainId always yields
+  // at least the basename, so this is a defensive fallback only.
+  if (!expectedBrainId) return true;
+  if (health.brain_id === expectedBrainId) return true;
+  throw new PortConflictError({
+    port,
+    expectedBrainId,
+    actualBrainId: health.brain_id,
+  });
+}
+
 async function ensureServer(brainPath, opts) {
   const { explicitPort, sourceOverride, noSpawn, log, spawnTimeoutMs = 10_000 } = opts;
   const meta = readMetaConfig(brainPath);
   const port = explicitPort || meta.server_port || 4242;
+  // The brain we EXPECT on this port — same source --status/--stop reconcile
+  // against (brain.json `id`, falling back to the per-project basename).
+  const expectedBrainId = opts.expectedBrainId ?? readExpectedBrainId(brainPath);
 
-  if (await healthCheck(port)) return port;
+  // Warm path: a server already answers the port. Confirm it's OUR brain before
+  // handing the port to the data plane. A foreign brain can occupy this port
+  // (stale config, manual restart, EADDRINUSE probe-up), and routing by port
+  // alone would let a destructive op (remove/forget) silently hit it.
+  const warmHealth = await healthInfo(port);
+  if (warmHealth) {
+    reconcileHealth(warmHealth, { port, expectedBrainId });
+    return port;
+  }
   if (noSpawn) {
     throw new Error(`server not reachable on port ${port} and --no-spawn was set`);
   }
@@ -248,14 +300,26 @@ async function ensureServer(brainPath, opts) {
 
   if (!tryLock(lockPath)) {
     log(`another process is starting the server; waiting...`);
-    if (await waitForHealth(port, spawnTimeoutMs)) return port;
+    const concurrentHealth = await waitForHealthInfo(port, spawnTimeoutMs);
+    if (concurrentHealth) {
+      // The peer that held the lock brought a server up — confirm it's OUR
+      // brain before we route the data plane at it.
+      reconcileHealth(concurrentHealth, { port, expectedBrainId });
+      return port;
+    }
     throw new Error(`concurrent spawn timed out on port ${port}`);
   }
 
   try {
     // Re-check after acquiring the lock — another process might have started
-    // and finished while we were contending.
-    if (await healthCheck(port)) return port;
+    // and finished while we were contending. Reconcile brain_id here too: the
+    // server that came up while we waited could be a different brain probing up
+    // onto this port.
+    const relockHealth = await healthInfo(port);
+    if (relockHealth) {
+      reconcileHealth(relockHealth, { port, expectedBrainId });
+      return port;
+    }
 
     const pidPath = join(brainPath, "_meta", "server.pid");
     if (existsSync(pidPath)) {
@@ -299,7 +363,14 @@ async function ensureServer(brainPath, opts) {
     }
     if (logFd !== null) log(`server logs -> ${logPath}`);
 
-    if (await waitForHealth(port, spawnTimeoutMs)) return port;
+    const ready = await waitForHealthInfo(port, spawnTimeoutMs);
+    if (ready) {
+      // We spawned with --brain brainPath, so the server that comes up should
+      // be ours. Reconcile anyway: a foreign brain could have won the bind in
+      // the race window before our child listened. Fail closed if so.
+      reconcileHealth(ready, { port, expectedBrainId });
+      return port;
+    }
     throw new Error(
       `server did not become ready within ${spawnTimeoutMs}ms on port ${port}` +
         (logFd !== null ? ` — see ${logPath} for the cause` : ""),
@@ -316,6 +387,18 @@ async function waitForHealth(port, timeoutMs) {
     await sleep(150);
   }
   return false;
+}
+
+// Like waitForHealth but returns the health body (carrying brain_id) once the
+// port answers, so the spawn path can confirm WHICH brain came up.
+async function waitForHealthInfo(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const h = await healthInfo(port, { timeoutMs: 500 });
+    if (h) return h;
+    await sleep(150);
+  }
+  return null;
 }
 
 function sleep(ms) {
@@ -644,13 +727,43 @@ Examples:
     }
   }
 
-  const port = await ensureServer(brainPath, {
-    explicitPort: args.flags.port,
-    sourceOverride: args.flags.source,
-    noSpawn: args.flags.noSpawn,
-    spawnTimeoutMs: args.flags.spawnTimeoutMs,
-    log,
-  }).catch(err => die(err.message));
+  let port;
+  try {
+    port = await ensureServer(brainPath, {
+      explicitPort: args.flags.port,
+      sourceOverride: args.flags.source,
+      noSpawn: args.flags.noSpawn,
+      spawnTimeoutMs: args.flags.spawnTimeoutMs,
+      log,
+    });
+  } catch (err) {
+    if (err instanceof PortConflictError) {
+      // Fail closed: the persisted port is held by a different brain. Refuse the
+      // op (read OR mutate) so a destructive call (remove/forget/index) can't
+      // silently hit the wrong brain. Emit a structured payload on stdout that
+      // mirrors --stop/--status, plus a non-zero exit for scripted callers.
+      const payload = {
+        error: err.message,
+        action,
+        refused: true,
+        reason: "port_conflict",
+        port: err.port,
+        brain_id: err.expectedBrainId,
+        actual_brain_id: err.actualBrainId,
+      };
+      // Leave a refusal breadcrumb so the audit trail shows the op was blocked.
+      if (auditEnabled(args.flags.noAudit)) {
+        const a = writeAuditOpen(brainPath, action, params, err.port);
+        writeAuditClose(a, { exitCode: 1, durationMs: 0, response: payload, error: err.message });
+      }
+      process.stdout.write(
+        (args.flags.pretty ? JSON.stringify(payload, null, 2) : JSON.stringify(payload)) + "\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    die(err.message);
+  }
 
   // Open audit BEFORE the call so a crash mid-flight still leaves a partial
   // record. Audit is best-effort — write failures never block the request.
