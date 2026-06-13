@@ -156,6 +156,26 @@ test("indexes and searches a document", async () => {
   assert.ok(found, "doc1 should appear in search results");
 });
 
+test("search envelope stamps the responding brain_id (which-brain clarity)", async () => {
+  await api(port, "index", {
+    id: "doc-brainid",
+    path: "notes/brainid.md",
+    content: "envelope brain identity marker",
+  });
+
+  // A direct search call must make WHICH brain answered visible on the
+  // envelope — no separate health round-trip. Guards friction-point-2: a
+  // search that silently hits the wrong brain is now self-describing.
+  const result = await api(port, "search", { query: "envelope brain identity" });
+  assert.equal(result.brain_id, "test-brain-server");
+
+  // Zero-result searches still carry the brain_id so an empty answer also
+  // says which brain produced it.
+  const empty = await api(port, "search", { query: "zzzz-no-such-term-zzzz" });
+  assert.equal(empty.total_matches, 0);
+  assert.equal(empty.brain_id, "test-brain-server");
+});
+
 test("returns backlinks after indexing a doc with [[link]]", async () => {
   await api(port, "index", {
     id: "doc2",
