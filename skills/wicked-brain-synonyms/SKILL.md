@@ -43,8 +43,10 @@ Format:
 ```
 
 Keys are the short/common form. Values are expansions to try when the key
-appears in a search query. The search skill reads this file before executing
-queries and automatically expands sparse results using these mappings.
+appears in a search query. The default search path does NOT read this file —
+`wicked-brain:search` only loads it as a fallback when a direct search returns
+sparse results (0–2 matches), then re-runs the query with matching synonym
+values OR'd in and merges the results.
 
 ## Commands
 
