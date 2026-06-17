@@ -82,6 +82,21 @@ For each wiki article with source_hashes in frontmatter:
 ### Missing frontmatter
 Check each chunk has required frontmatter fields (source, chunk_id, confidence, indexed_at).
 
+Also check the **provenance** field `method` (how the chunk/memory was obtained:
+`deterministic-parse`, `llm-vision`, `llm-synthesis`, `manual`, or
+`session-capture` for memories). `method` is **optional** — it was added after
+some content was written, so a chunk/memory without it is still valid. When it
+is missing, auto-fix by stamping `method: unknown` and report the fix as `info`
+severity, type `missing_field` (do NOT raise it to a warning/error — that would
+invalidate pre-existing content). Surfacing `method: unknown` lets a reviewer
+distinguish facts with known provenance from those whose origin was never
+recorded.
+
+Lightweight provenance check (the "no source ⇒ assumption" rule): if a chunk has
+no `source`/`source_path` and its `method` is not one of the inferred kinds
+(`llm-synthesis`, `unknown`), flag it `info`, type `missing_field`:
+`unsourced fact with method "{method}" — add a source or set method to llm-synthesis`.
+
 ### Tag synonym candidates
 
 Call the server to get all tag frequencies:

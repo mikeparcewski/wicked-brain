@@ -115,12 +115,30 @@ entities:
   people: [{people/roles}]
   programs: [{programs/initiatives}]
   metrics: ["{metric}: {value}"]
+method: {extraction method — see "Extraction method" below}
 confidence: {0.7 for text, 0.85 for vision}
 indexed_at: {current ISO timestamp}
 narrative_theme: {the "so what" in 8 words or fewer}
 ---
 
 {Extracted content in markdown format}
+
+## Extraction method
+
+The `method:` field records *how* the chunk's content was obtained — the
+provenance answer to "how do we know this?" It is distinct from `source_type`
+(which is the file format, e.g. `pdf`/`md`/`js`). Set it deterministically
+from the path you are already taking:
+
+- `deterministic-parse` — the TEXT path above (Read + split, no model judgement).
+- `llm-vision` — the BINARY path above (content extracted by the model viewing
+  the document/image).
+
+Use one of the controlled values: `deterministic-parse`, `llm-vision`,
+`llm-synthesis` (model-generated/inferred content), or `manual` (hand-authored).
+The value is plain frontmatter — it is stored and returned verbatim by the
+server with no schema migration. If omitted, downstream lint treats the chunk
+as `method: unknown`; prefer to set it explicitly.
 
 ## Tag Expansion
 
@@ -334,6 +352,10 @@ async function ingestFile(filePath) {
       "  - text",
       "contains:",
       ...keywords.map(k => `  - ${k}`),
+      // method = HOW this chunk was obtained (provenance), distinct from
+      // source_type (file format). The batch path is a deterministic
+      // Read + split with no model judgement.
+      `method: deterministic-parse`,
       `confidence: 0.7`,
       `indexed_at: "${ts}"`,
       "---",

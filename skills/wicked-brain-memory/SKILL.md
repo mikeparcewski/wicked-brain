@@ -100,6 +100,7 @@ Write to `{brain_path}/memory/{safe_name}.md`:
 ---
 type: {detected or provided type}
 tier: {resolved tier from Step 2b}
+method: {extraction method — see "Extraction method" below}
 confidence: 0.5
 importance: {from type defaults or override}
 ttl_days: {from type defaults or override, null if permanent}
@@ -117,6 +118,21 @@ indexed_at: "{ISO 8601 timestamp}"
 {memory content}
 ```
 
+#### Extraction method
+
+The `method:` field records *how* the memory was obtained — the provenance
+answer to "how do we know this?", mirroring the `method:` field on ingested
+chunks. Set it from how the memory came to be:
+
+- `session-capture` — captured live from the current session (the default for
+  "remember this" during work).
+- `manual` — explicitly stated by the user ("we decided X", interview-style).
+- `llm-synthesis` — inferred/derived by the agent rather than directly observed.
+
+Default to `session-capture` when unsure. The value is plain frontmatter,
+stored and returned verbatim by the server (no schema migration). If omitted,
+lint treats the memory as `method: unknown` — prefer to set it explicitly.
+
 #### Tier definitions
 
 - **working**: Active, session-specific context. Expires quickly (hours to days). Use for in-progress decisions, temporary notes, and things only relevant to the current task.
@@ -131,6 +147,7 @@ New memories start at the tier resolved from importance (default `episodic` for 
 ---
 type: decision
 tier: semantic
+method: manual
 confidence: 0.9
 importance: 7
 ttl_days: null
