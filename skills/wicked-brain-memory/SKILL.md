@@ -129,9 +129,17 @@ chunks. Set it from how the memory came to be:
 - `manual` — explicitly stated by the user ("we decided X", interview-style).
 - `llm-synthesis` — inferred/derived by the agent rather than directly observed.
 
+These three are the values you will use for memories. They are drawn from the
+shared controlled vocabulary used across `wicked-brain:ingest`,
+`wicked-brain:memory`, and `wicked-brain:lint`: `deterministic-parse`,
+`llm-vision`, `llm-synthesis`, `session-capture`, `manual`, `unknown`. The
+remaining values (`deterministic-parse`, `llm-vision`) describe ingested
+chunks rather than memories, and `unknown` is the lint-applied fallback for
+content written before this field existed.
+
 Default to `session-capture` when unsure. The value is plain frontmatter,
 stored and returned verbatim by the server (no schema migration). If omitted,
-lint treats the memory as `method: unknown` — prefer to set it explicitly.
+lint stamps the memory as `method: unknown` — prefer to set it explicitly.
 
 #### Tier definitions
 

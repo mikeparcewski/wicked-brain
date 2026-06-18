@@ -82,15 +82,18 @@ For each wiki article with source_hashes in frontmatter:
 ### Missing frontmatter
 Check each chunk has required frontmatter fields (source, chunk_id, confidence, indexed_at).
 
-Also check the **provenance** field `method` (how the chunk/memory was obtained:
-`deterministic-parse`, `llm-vision`, `llm-synthesis`, `manual`, or
-`session-capture` for memories). `method` is **optional** — it was added after
-some content was written, so a chunk/memory without it is still valid. When it
-is missing, auto-fix by stamping `method: unknown` and report the fix as `info`
-severity, type `missing_field` (do NOT raise it to a warning/error — that would
-invalidate pre-existing content). Surfacing `method: unknown` lets a reviewer
-distinguish facts with known provenance from those whose origin was never
-recorded.
+Also check the **provenance** field `method` (how the chunk/memory was
+obtained). The shared controlled vocabulary — the same set documented by
+`wicked-brain:ingest` and `wicked-brain:memory` — is: `deterministic-parse`,
+`llm-vision`, `llm-synthesis`, `session-capture`, `manual`, `unknown`. In
+practice `deterministic-parse`/`llm-vision` come from ingested chunks,
+`session-capture` from memories, and `llm-synthesis`/`manual` from either.
+`method` is **optional** — it was added after some content was written, so a
+chunk/memory without it is still valid. When it is missing, auto-fix by
+stamping `method: unknown` and report the fix as `info` severity, type
+`missing_field` (do NOT raise it to a warning/error — that would invalidate
+pre-existing content). Surfacing `method: unknown` lets a reviewer distinguish
+facts with known provenance from those whose origin was never recorded.
 
 Lightweight provenance check (the "no source ⇒ assumption" rule): if a chunk has
 no `source`/`source_path` and its `method` is not one of the inferred kinds

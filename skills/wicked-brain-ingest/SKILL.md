@@ -134,11 +134,17 @@ from the path you are already taking:
 - `llm-vision` — the BINARY path above (content extracted by the model viewing
   the document/image).
 
-Use one of the controlled values: `deterministic-parse`, `llm-vision`,
-`llm-synthesis` (model-generated/inferred content), or `manual` (hand-authored).
-The value is plain frontmatter — it is stored and returned verbatim by the
-server with no schema migration. If omitted, downstream lint treats the chunk
-as `method: unknown`; prefer to set it explicitly.
+Use one of the shared controlled values (the same vocabulary across
+`wicked-brain:ingest`, `wicked-brain:memory`, and `wicked-brain:lint`):
+`deterministic-parse`, `llm-vision`, `llm-synthesis`, `session-capture`,
+`manual`, `unknown`. For ingested chunks you will almost always use
+`deterministic-parse` (text) or `llm-vision` (binary); `llm-synthesis` covers
+model-generated/inferred content and `manual` covers hand-authored content.
+`session-capture` applies to memories (see `wicked-brain:memory`), and `unknown`
+is the lint-applied fallback for content written before this field existed. The
+value is plain frontmatter — it is stored and returned verbatim by the server
+with no schema migration. If omitted, downstream lint stamps the chunk as
+`method: unknown`; prefer to set it explicitly.
 
 ## Tag Expansion
 
