@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:lint
+name: wicked-brain-lint
 description: |
   Check brain health and fix issues. Dispatches a lint subagent that runs
   deterministic checks (broken links, orphans, stale entries) and semantic

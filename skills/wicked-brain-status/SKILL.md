@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:status
+name: wicked-brain-status
 description: |
   Show brain health, stats, and orientation with progressive loading.
   Depth 0: summary. Depth 1: + topic distribution. Depth 2: full orientation.

@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:ingest
+name: wicked-brain-ingest
 description: |
   Ingest source files into the brain as structured chunks. Handles text files
   (md, txt, csv, html) deterministically and binary files (pdf, docx, pptx,

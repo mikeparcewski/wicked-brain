@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:search
+name: wicked-brain-search
 description: |
   Search the digital brain for relevant content. A single CLI call for the
   common single-brain case; fans out to linked brains only when they exist.

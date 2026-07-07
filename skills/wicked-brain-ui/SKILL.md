@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:ui
+name: wicked-brain-ui
 description: |
   Open the read-only brain viewer (Material-styled search + wiki browser) in
   the default web browser. Use when the user says "open the brain viewer",

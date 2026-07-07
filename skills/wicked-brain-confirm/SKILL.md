@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:confirm
+name: wicked-brain-confirm
 description: |
   Confirm or contradict a brain link, adjusting its confidence score.
   Increases confidence when a link is confirmed by evidence, decreases it

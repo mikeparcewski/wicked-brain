@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:migrate
+name: wicked-brain-migrate
 description: |
   Migrate a flat brain at ~/.wicked-brain/ into the per-project layout at
   ~/.wicked-brain/projects/{name}/. Safe to run on already-migrated brains

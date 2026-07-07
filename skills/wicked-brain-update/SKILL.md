@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:update
+name: wicked-brain-update
 description: |
   Check for and install wicked-brain updates. Compares installed version against
   npm registry, updates skills across all detected CLIs, and updates the server.

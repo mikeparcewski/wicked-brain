@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:compile
+name: wicked-brain-compile
 description: |
   Synthesize wiki articles from brain chunks. Dispatches a compile subagent
   that identifies concept clusters in chunks and writes structured wiki

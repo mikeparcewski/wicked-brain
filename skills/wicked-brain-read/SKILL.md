@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:read
+name: wicked-brain-read
 description: |
   Read a chunk or wiki article from the brain with progressive loading.
   Depth 0: frontmatter + stats. Depth 1: + summary + headings. Depth 2: full content.

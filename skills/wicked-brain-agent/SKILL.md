@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:agent
+name: wicked-brain-agent
 description: |
   This skill should be used when the user says "list brain agents",
   "dispatch the consolidation agent", "run brain context assembly",

@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:memory
+name: wicked-brain-memory
 description: |
   Store and recall experiential learnings (decisions, patterns, preferences,
   gotchas, discoveries) in the brain's memory system.

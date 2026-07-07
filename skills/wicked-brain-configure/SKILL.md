@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:configure
+name: wicked-brain-configure
 description: |
   This skill should be used when the user says "configure brain CLI",
   "update CLAUDE.md from brain", "write brain orientation", or

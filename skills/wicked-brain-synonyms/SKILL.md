@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:synonyms
+name: wicked-brain-synonyms
 description: |
   Manage the brain's synonym map for search expansion. Add, remove, or review
   synonym mappings. Can also auto-suggest synonyms from search miss data and

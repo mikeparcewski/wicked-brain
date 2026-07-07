@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:forget
+name: wicked-brain-forget
 description: |
   Archive or delete a memory (or any indexed document) by id or path.
   Removes the document from the FTS index and renames the file with an

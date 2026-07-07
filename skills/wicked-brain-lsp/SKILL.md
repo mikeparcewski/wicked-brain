@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:lsp
+name: wicked-brain-lsp
 description: |
   Universal code intelligence via LSP. Queries language servers for definitions,
   references, symbols, call hierarchies, hover info, and diagnostics. Auto-installs

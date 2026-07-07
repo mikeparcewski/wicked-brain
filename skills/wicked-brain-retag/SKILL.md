@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:retag
+name: wicked-brain-retag
 description: |
   Backfill synonym-expanded tags on chunks and memories that have fewer than
   5 tags. Run periodically or as part of consolidation.

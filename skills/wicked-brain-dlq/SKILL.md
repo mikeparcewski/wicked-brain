@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:dlq
+name: wicked-brain-dlq
 description: |
   Inspect, replay, or drop dead-lettered events from wicked-brain's bus
   subscriber. The auto-memorize subscriber consumes `wicked.fact.extracted`

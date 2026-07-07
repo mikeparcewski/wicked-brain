@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:query
+name: wicked-brain-query
 description: |
   Answer questions by searching and synthesizing brain content. Dispatches a
   query subagent that searches, reads, follows links, and produces a cited answer.

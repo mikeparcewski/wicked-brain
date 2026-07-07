@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:graph
+name: wicked-brain-graph
 description: |
   Code-relationship graph queries — blast radius, callers, and lineage — backed
   by a codegraph static graph the brain owns. Answers "what breaks if I change X",

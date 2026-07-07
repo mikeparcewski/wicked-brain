@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:review
+name: wicked-brain-review
 description: |
   Browse stored memories with filters on type, tier, and recency. Read-only —
   use wicked-brain:forget to archive or wicked-brain:agent dispatch consolidate

@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:enhance
+name: wicked-brain-enhance
 description: |
   Fill gaps in brain knowledge. Dispatches an enhance subagent that identifies
   thin areas and writes inferred chunks to expand coverage.

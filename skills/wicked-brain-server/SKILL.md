@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:server
+name: wicked-brain-server
 description: |
   Manages the wicked-brain background server. Most callers should use
   `wicked-brain-call` directly — it auto-starts the server. This skill is

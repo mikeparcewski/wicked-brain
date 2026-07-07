@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:init
+name: wicked-brain-init
 description: |
   Initialize a new digital brain. Creates the directory structure, brain.json,
   and config. Auto-triggered on first use of any brain skill when no config exists.
