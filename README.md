@@ -10,7 +10,22 @@ __      _(_) ___| | _____  __| |     | |__  _ __ __ _(_)_ __
 
 wicked-brain gives your AI coding CLI a persistent, searchable knowledge base built on markdown and SQLite. Drop in files, let the agent organize them, and query your accumulated knowledge across sessions — all without leaving your terminal.
 
-Works with **Claude Code**, **Gemini CLI**, **Copilot CLI**, **Cursor**, and **Codex**.
+Works with **Claude Code**, **Gemini CLI**, **Copilot CLI**, **Cursor**, **Codex**, **Kiro**, and **Antigravity**.
+
+> **Status:** v0.17.2, published to npm as [`wicked-brain`](https://www.npmjs.com/package/wicked-brain).
+> Actively developed (JS). This is a **bridge-period adapter** — its memory and knowledge role is
+> destined to fold into [wicked-estate](https://github.com/mikeparcewski/wicked-estate).
+>
+> **The differentiator:** a RAG alternative that stores knowledge as human-readable markdown with
+> explicit, confidence-scored `[[backlinks]]` instead of opaque embeddings — every claim traces to a
+> source file, and the agent (not a vector index) does the reasoning.
+
+wicked-brain is the **bridge-period memory** of the [wicked-* foundation](https://we.wickedagile.com):
+a local-first stack for AI coding agents anchored by
+[wicked-estate](https://github.com/mikeparcewski/wicked-estate) (the code graph), with
+[wicked-core](https://github.com/mikeparcewski/wicked-core) (the runtime),
+[wicked-bus](https://github.com/mikeparcewski/wicked-bus) (the event substrate), and
+[wicked-crew](https://github.com/mikeparcewski/wicked-crew) (the workflow governor).
 
 ---
 
@@ -279,7 +294,7 @@ Modern LLMs read PDF, DOCX, PPTX, and XLSX natively. When you ingest a binary do
 
 ## Architecture
 
-Plain Node.js server (SQLite FTS5 + file watcher + optional LSP client + HTML viewer) plus markdown skill instructions your AI CLI consumes. **One runtime dependency** (`better-sqlite3`); LSP layer is hand-rolled JSON-RPC; the viewer is vanilla JS with no build.
+Plain Node.js server (SQLite FTS5 + file watcher + optional LSP client + HTML viewer) plus markdown skill instructions your AI CLI consumes. **Two runtime dependencies** (`better-sqlite3` and `wicked-bus`); LSP layer is hand-rolled JSON-RPC; the viewer is vanilla JS with no build.
 
 Compare that to a typical RAG stack:
 
