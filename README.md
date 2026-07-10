@@ -24,8 +24,8 @@ wicked-brain is the **bridge-period memory** of the [wicked-* foundation](https:
 a local-first stack for AI coding agents anchored by
 [wicked-estate](https://github.com/mikeparcewski/wicked-estate) (the code graph), with
 [wicked-core](https://github.com/mikeparcewski/wicked-core) (the runtime),
-[wicked-bus](https://github.com/mikeparcewski/wicked-bus) (the event substrate), and
-[wicked-crew](https://github.com/mikeparcewski/wicked-crew) (the workflow governor).
+[wicked-bus](https://github.com/mikeparcewski/wicked-bus) (the durable event fabric), and
+[wicked-crew](https://github.com/mikeparcewski/wicked-crew) (the agentic execution harness).
 
 ---
 
@@ -308,7 +308,7 @@ Typical RAG:                           wicked-brain:
 - Orchestration layer                 - Skills (markdown)
 - Admin UI                            - GET / (vanilla HTML, read-only)
 ─────────────────                     ─────────────────
-10+ deps, opaque vectors              1 runtime dep, plain markdown
+10+ deps, opaque vectors              2 runtime deps, plain markdown
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for component diagrams and the schema layout.
