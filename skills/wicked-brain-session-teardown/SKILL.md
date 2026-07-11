@@ -1,9 +1,28 @@
-# session-teardown
+---
+name: wicked-brain:session-teardown
+description: |
+  Capture session learnings - decisions, patterns, gotchas, discoveries - as
+  brain memories before session ends.
 
-## Depth 0 — Summary
-Capture session learnings before exit. Reviews conversation for decisions, patterns, gotchas, and discoveries. Stores each as a memory via wicked-brain:memory.
+  Use when: session/topic is wrapping up, before /clear or exit, user says
+  capture what we learned.
+model: sonnet
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+context: fork
+---
 
-## Depth 1 — Pipeline Steps
+# wicked-brain:session-teardown
+
+You are a session teardown agent for the digital brain. This runs in an
+isolated (forked) context so it has a longer token budget and file-writing
+tools to review the conversation and persist learnings.
+
+## Overview (pipeline)
+
+Capture session learnings before exit. Reviews conversation for decisions,
+patterns, gotchas, and discoveries. Stores each as a memory via
+wicked-brain:memory.
+
 1. Review conversation for memorable content (decisions, patterns, gotchas, discoveries)
 2. For each finding: classify type, generate tags, determine TTL
 3. Store via wicked-brain:memory skill (store mode)
@@ -12,7 +31,32 @@ Capture session learnings before exit. Reviews conversation for decisions, patte
 Parameters: brain_path, port, session_id
 Depends on: wicked-brain:memory skill
 
-## Depth 2 — Full Subagent Instructions
+## Config
+
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file for brain path and server port.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
+
+## Bus event (start)
+
+At the start of the run, emit a dispatch event (fire-and-forget — if the bus is
+not installed, silently skip):
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.agent.dispatched" \
+  --domain "wicked-brain" \
+  --subdomain "brain.agent" \
+  --payload '{"agent":"session-teardown","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+## Pipeline
 
 You are a session teardown agent for the digital brain at {brain_path}.
 Server: http://localhost:{port}/api
@@ -82,3 +126,8 @@ Report what was captured:
 - Don't store implementation details — store the *why* and *what*, not the *how*
 - Don't duplicate information already in the brain — search first if unsure
 - If nothing valuable was discussed, say so and store nothing
+
+## Cross-Platform Notes
+
+- `curl` is cross-platform (Windows 10+) — OK for server API calls.
+- Memory files and log appends must use forward-slash paths.

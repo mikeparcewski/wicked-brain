@@ -12,7 +12,7 @@ description: |
 # wicked-brain:forget
 
 Archive or hard-delete a memory by id or path. Wraps the server `remove` action
-and the archive-rename convention used by wicked-brain:agent dispatch consolidate.
+and the archive-rename convention used by wicked-brain:consolidate.
 
 ## Cross-Platform Notes
 

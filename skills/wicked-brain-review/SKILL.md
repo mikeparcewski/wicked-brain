@@ -2,7 +2,7 @@
 name: wicked-brain:review
 description: |
   Browse stored memories with filters on type, tier, and recency. Read-only —
-  use wicked-brain:forget to archive or wicked-brain:agent dispatch consolidate
+  use wicked-brain:forget to archive or wicked-brain:consolidate
   to promote.
 
   Use when: "review my memories", "browse decisions", "what have I stored",
@@ -85,7 +85,7 @@ Age is derived from `indexed_at` relative to now (`Xd` / `Xh`).
 
 After the list, suggest one of:
 - `wicked-brain:forget path=…` to archive a specific entry
-- `wicked-brain:agent dispatch consolidate` to promote patterns and drop expired entries
+- `wicked-brain:consolidate` to promote patterns and drop expired entries
 - `wicked-brain:retag` if many entries have thin `contains:` arrays
 
 ## Notes

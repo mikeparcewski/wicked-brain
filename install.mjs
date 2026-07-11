@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// wicked-brain installer — detects CLIs and installs skills + agents
+// wicked-brain installer — detects CLIs and installs skills (skills-only;
+// no per-platform agent materialization).
 
 import { existsSync, mkdirSync, cpSync, readdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
@@ -21,8 +22,6 @@ function buildClaudeTarget(rootDir, source, { trusted = false } = {}) {
     name: "claude",
     rootDir,
     dir: join(rootDir, "skills"),
-    agentDir: join(rootDir, "agents"),
-    agentSubdir: "agents",
     platform: "claude",
     identityMarkers: ["settings.json", "plugins", "projects"],
     source,
@@ -49,12 +48,12 @@ function resolveClaudeCandidates() {
 // Canonical non-claude targets. Claude is expanded dynamically via
 // resolveClaudeCandidates() below so CLI_TARGETS stays a flat spec.
 const CLI_TARGETS = [
-  { name: "gemini",      dir: join(home, ".gemini", "skills"),      agentDir: join(home, ".gemini", "agents"),      agentSubdir: "agents", platform: "gemini" },
-  { name: "copilot",     dir: join(home, ".github", "skills"),      agentDir: join(home, ".github", "agents"),      agentSubdir: "agents", platform: "copilot" },
-  { name: "codex",       dir: join(home, ".codex", "skills"),       agentDir: join(home, ".codex", "agents"),       agentSubdir: "agents", platform: "codex" },
-  { name: "cursor",      dir: join(home, ".cursor", "skills"),      agentDir: join(home, ".cursor", "agents"),      agentSubdir: "agents", platform: "cursor" },
-  { name: "kiro",        dir: join(home, ".kiro", "skills"),        agentDir: join(home, ".kiro", "agents"),        agentSubdir: "agents", platform: "kiro" },
-  { name: "antigravity", dir: join(home, ".antigravity", "skills"), agentDir: join(home, ".antigravity", "rules"),  agentSubdir: "rules",  platform: "antigravity" },
+  { name: "gemini",      dir: join(home, ".gemini", "skills"),      platform: "gemini" },
+  { name: "copilot",     dir: join(home, ".github", "skills"),      platform: "copilot" },
+  { name: "codex",       dir: join(home, ".codex", "skills"),       platform: "codex" },
+  { name: "cursor",      dir: join(home, ".cursor", "skills"),      platform: "cursor" },
+  { name: "kiro",        dir: join(home, ".kiro", "skills"),        platform: "kiro" },
+  { name: "antigravity", dir: join(home, ".antigravity", "skills"), platform: "antigravity" },
 ];
 
 // Identity-marker gate for claude candidates. Without this, probing
@@ -112,14 +111,13 @@ let targets;
 
 if (pathArg && typeof pathArg === "string" && pathArg !== "") {
   const customPath = resolve(pathArg.replace(/^~/, () => home));
-  // Strip leading dot to match CLI_TARGETS names (e.g. ".claude" → "claude")
+  // Strip leading dot to match CLI_TARGETS names (e.g. ".claude" → "claude").
+  // The matched platform is still used to select the right hook template.
   const dirName = basename(customPath).replace(/^\./, "");
   const knownPlatform = CLI_TARGETS.find((t) => t.name === dirName);
-  const agentSubdir = knownPlatform?.agentSubdir ?? "agents";
   targets = [{
     name: dirName,
     dir: join(customPath, "skills"),
-    agentDir: join(customPath, agentSubdir),
     platform: knownPlatform?.platform ?? dirName,
   }];
   console.log(`Custom path: ${customPath}\n`);
@@ -169,31 +167,10 @@ for (const target of targets) {
   console.log(`  ${skillDirs.length} skills installed`);
 }
 
-// Copy platform-specific agents
-const agentsSource = join(__dirname, "skills", "wicked-brain-agent", "platform");
-
-for (const target of targets) {
-  const platformDir = join(agentsSource, target.platform);
-  if (!existsSync(platformDir)) {
-    console.log(`  No agent definitions for ${target.name}, skipping agents`);
-    continue;
-  }
-
-  if (!target.agentDir) continue;
-
-  mkdirSync(target.agentDir, { recursive: true });
-  const agentFiles = readdirSync(platformDir);
-  let agentCount = 0;
-
-  for (const file of agentFiles) {
-    const src = join(platformDir, file);
-    const dest = join(target.agentDir, file);
-    cpSync(src, dest, { force: true });
-    agentCount++;
-  }
-
-  console.log(`  Installed ${agentCount} agents to ${target.agentDir}`);
-}
+// Skills-only distribution: behavior that used to be materialized into
+// per-platform native agent files now lives entirely in first-class skills
+// (wicked-brain-consolidate / -onboard / -session-teardown / -context),
+// copied above like any other skill. No agent materialization step remains.
 
 // Optional hook installation (--hooks flag). Goes through flagValue so
 // `--hooks=false` correctly disables; bare `--hooks` and `--hooks=true`
@@ -202,7 +179,7 @@ const installHooks = flagValue("hooks") === true;
 
 if (installHooks) {
   console.log("\nInstalling hooks...");
-  const hooksSource = join(__dirname, "skills", "wicked-brain-agent", "hooks");
+  const hooksSource = join(__dirname, "skills", "wicked-brain-context", "hooks");
 
   for (const target of targets) {
     const hookFile = join(hooksSource, `${target.platform}-hooks.json`);
