@@ -1,9 +1,43 @@
-import { watch, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+/**
+ * Recursive fs.watch over brain content with a polling fallback.
+ *
+ * Watches chunks/, wiki/, memory/ and registered project dirs; on any watch
+ * error (EMFILE/ENOSPC, or recursive watch unsupported) it degrades to polling
+ * instead of crashing the server.
+ *
+ * @module lib/file-watcher
+ */
+import { watch, readFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
 
 function normalizePath(p) {
   return p.replace(/\\/g, "/");
+}
+
+// Canonicalize to the real (long) path before watching. On Windows, calling
+// fs.watch on an 8.3 short-name path (e.g. C:\Users\RUNNER~1\AppData\Local\Temp)
+// makes libuv abort the process with "Assertion failed: !_wcsnicmp(...)" in
+// fs-event.c — change events report the long filename, which no longer shares
+// the watched (short) directory prefix. That abort is a native crash, so it
+// bypasses the try/catch → polling fallback below. filename in the callbacks
+// stays relative to the watched dir, so the logical relPath construction is
+// unaffected.
+//
+// realpathSync.native (OS GetFinalPathNameByHandle) is required to expand 8.3
+// short names to their long form; the JS realpathSync only resolves symlinks
+// and leaves short-name components like RUNNER~1 intact. Fall back to the JS
+// implementation, then to the original path.
+function canonicalDir(p) {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    try {
+      return realpathSync(p);
+    } catch {
+      return p;
+    }
+  }
 }
 
 const IGNORE_DIRS = new Set([
@@ -23,12 +57,26 @@ export class FileWatcher {
   #pollInterval = null;
   #onChangeCallbacks = [];
   #projects = [];
+  #watch;
 
-  constructor(brainPath, db, brainId, projects = []) {
+  constructor(brainPath, db, brainId, projects = [], watchFn = watch) {
     this.#brainPath = brainPath;
     this.#db = db;
     this.#brainId = brainId;
     this.#projects = projects;
+    // Injectable so tests can drive the FSWatcher 'error' path deterministically
+    // without exhausting real file descriptors; defaults to node:fs watch.
+    this.#watch = watchFn;
+  }
+
+  /** Active fs watcher count (0 in polling mode). Exposed for tests/diagnostics. */
+  get watcherCount() {
+    return this.#watchers.length;
+  }
+
+  /** True once the watcher has fallen back to polling. For tests/diagnostics. */
+  get polling() {
+    return this.#pollInterval !== null;
   }
 
   onFileChange(callback) {
@@ -69,18 +117,14 @@ export class FileWatcher {
     for (const project of this.#projects) {
       if (!existsSync(project.path)) continue;
       this.#scanAndHashProject(project);
-      try {
-        const watcher = watch(project.path, { recursive: true }, (eventType, filename) => {
-          if (!filename) return;
-          const parts = filename.split(/[/\\]/);
-          if (parts.some(p => IGNORE_DIRS.has(p))) return;
-          const relPath = normalizePath(`projects/${project.name}/${filename}`);
-          this.#debounce(relPath, () => this.#handleProjectChange(project, filename));
-        });
-        this.#watchers.push(watcher);
-      } catch {
-        // recursive watch not supported — polling fallback already handles this
-      }
+      const watcher = this.#safeWatch(project.path, (eventType, filename) => {
+        if (!filename) return;
+        const parts = filename.split(/[/\\]/);
+        if (parts.some(p => IGNORE_DIRS.has(p))) return;
+        const relPath = normalizePath(`projects/${project.name}/${filename}`);
+        this.#debounce(relPath, () => this.#handleProjectChange(project, filename));
+      });
+      if (watcher) this.#watchers.push(watcher);
     }
 
     // If no watchers were set up (Linux), use polling fallback
@@ -95,18 +139,67 @@ export class FileWatcher {
   #tryWatch(dir) {
     const absDir = join(this.#brainPath, dir);
     if (!existsSync(absDir)) return false;
+    const watcher = this.#safeWatch(absDir, (eventType, filename) => {
+      if (!filename || !filename.endsWith(".md")) return;
+      const relPath = normalizePath(`${dir}/${filename}`);
+      this.#debounce(relPath, () => this.#handleChange(relPath));
+    });
+    if (!watcher) return false;
+    this.#watchers.push(watcher);
+    return true;
+  }
+
+  /**
+   * Create a recursive fs.watch with an 'error' handler attached. An unhandled
+   * 'error' event on an FSWatcher is rethrown by Node and crashes the entire
+   * server — that turned a common, recoverable condition (EMFILE when the
+   * open-file limit is low on macOS, ENOSPC/inotify exhaustion on Linux) into a
+   * fatal boot crash that left the brain permanently stale. On any watch error
+   * we degrade to polling, which holds no persistent watch descriptors.
+   *
+   * Returns the watcher, or null if watching could not be started (caller then
+   * relies on the polling fallback). The path is canonicalized first — see
+   * canonicalDir; required on Windows to avoid a libuv abort on 8.3 paths.
+   */
+  #safeWatch(absPath, listener) {
+    if (this.#pollInterval) return null; // already degraded — don't reopen fs watches
+    let watcher;
     try {
-      const watcher = watch(absDir, { recursive: true }, (eventType, filename) => {
-        if (!filename || !filename.endsWith(".md")) return;
-        const relPath = normalizePath(`${dir}/${filename}`);
-        this.#debounce(relPath, () => this.#handleChange(relPath));
-      });
-      this.#watchers.push(watcher);
-      return true;
-    } catch {
-      // recursive watch not supported (Linux) — polling fallback handles it
-      return false;
+      watcher = this.#watch(canonicalDir(absPath), { recursive: true }, listener);
+    } catch (err) {
+      // Resource exhaustion (EMFILE/ENFILE/ENOSPC) can throw synchronously, not
+      // only as an async 'error' event. Don't leave already-watched dirs in a
+      // half-watched state — degrade the whole watcher to polling. Other sync
+      // failures (e.g. recursive watch unsupported on older Linux) fall through
+      // to the polling fallback in start() when no watcher attaches.
+      if (err && (err.code === "EMFILE" || err.code === "ENFILE" || err.code === "ENOSPC")) {
+        this.#degradeToPolling();
+      }
+      return null;
     }
+    if (watcher && typeof watcher.on === "function") {
+      watcher.on("error", (err) => this.#onWatchError(err));
+    }
+    return watcher;
+  }
+
+  /** A watch backend errored. Log and fall back to polling rather than crash. */
+  #onWatchError(err) {
+    const code = (err && err.code) || "UNKNOWN";
+    console.error(
+      `[watcher] fs.watch error (${code}) — degrading to polling: ${(err && err.message) || err}`,
+    );
+    this.#degradeToPolling();
+  }
+
+  /** Tear down fs watchers and switch to polling. Idempotent. */
+  #degradeToPolling() {
+    if (this.#pollInterval) return; // already polling
+    for (const w of this.#watchers) {
+      try { w.close(); } catch {}
+    }
+    this.#watchers = [];
+    this.#startPolling();
   }
 
   stop() {
@@ -285,6 +378,7 @@ export class FileWatcher {
   }
 
   #startPolling() {
+    if (this.#pollInterval) return; // already polling — keep a single interval
     console.log("File watcher using polling mode (recursive watch not available)");
     this.#pollInterval = setInterval(() => {
       for (const dir of ["chunks", "wiki", "memory"]) {

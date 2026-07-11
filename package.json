@@ -1,6 +1,6 @@
 {
   "name": "wicked-brain",
-  "version": "0.3.8",
+  "version": "0.17.2",
   "type": "module",
   "description": "Digital brain as skills for AI coding CLIs — no vector DB, no embeddings, no infrastructure",
   "keywords": [
@@ -28,11 +28,12 @@
   "bugs": "https://github.com/mikeparcewski/wicked-brain/issues",
   "bin": {
     "wicked-brain": "./install.mjs",
-    "wicked-brain-server": "./server/bin/wicked-brain-server.mjs"
+    "wicked-brain-server": "./server/bin/wicked-brain-server.mjs",
+    "wicked-brain-call": "./server/bin/wicked-brain-call.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.0.0",
-    "wicked-bus": "^1.1.0"
+    "wicked-bus": "^2.0.0"
   },
   "files": [
     "install.mjs",
@@ -49,6 +50,6 @@
     "release": "npm version patch && git push && git push --tags"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }

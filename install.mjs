@@ -149,6 +149,20 @@ if (pathArg && typeof pathArg === "string" && pathArg !== "") {
 
   const cliFilter = (typeof cliArg === "string" && cliArg !== "") ? cliArg.split(",") : null;
   targets = cliFilter ? detected.filter((d) => cliFilter.includes(d.name)) : detected;
+
+  // A non-empty --cli filter that matches none of the detected CLIs must be a
+  // hard error. Otherwise targets is [], we copy zero skills, and exit 0 — a
+  // silent false success that looks like a clean install. Name the unmatched
+  // value(s) and what was actually detected so the user can correct the flag.
+  if (cliFilter && targets.length === 0) {
+    const detectedNames = detected.map((d) => d.name);
+    const unmatched = cliFilter.filter((n) => !detectedNames.includes(n));
+    console.error(
+      `Error: --cli filter matched no detected CLI. Unmatched: ${unmatched.join(", ")}. ` +
+      `Detected: ${detectedNames.join(", ")}.`
+    );
+    process.exit(1);
+  }
 }
 
 // Copy skills to each target CLI

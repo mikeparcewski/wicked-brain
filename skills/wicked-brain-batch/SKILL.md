@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:batch
+name: wicked-brain-batch
 description: |
   Pattern for batch operations that would otherwise fill context with repetitive
   tool calls. Detects the available runtime (Node, Python, shell), writes a

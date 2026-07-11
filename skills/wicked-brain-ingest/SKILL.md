@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:ingest
+name: wicked-brain-ingest
 description: |
   Ingest source files into the brain as structured chunks. Handles text files
   (md, txt, csv, html) deterministically and binary files (pdf, docx, pptx,
@@ -25,15 +25,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -43,18 +38,15 @@ project root.
 
 ### Step 0: Ensure server is running
 
-Before doing anything else, health-check the server:
+`wicked-brain-call` auto-starts the server on first invocation, so an
+explicit health check is not required. If you want to be defensive, run:
 
 ```bash
-curl -s -f -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health","params":{}}'
+npx wicked-brain-call health
 ```
 
-If this fails (connection refused or non-2xx), invoke `wicked-brain:server` to start it
-before continuing. Re-read `{brain_path}/_meta/config.json` (the resolved
-config from the Config section above) after the server starts to get the
-actual port it bound to.
+Exit code 0 means the server is up. Exit code 2 means an infra failure
+(server could not be reached or spawned) — surface the error to the user.
 
 ### Step 1: Assess scope
 
@@ -79,7 +71,7 @@ You are an ingest agent for the digital brain at {brain_path}.
 
 Source file: {source_path}
 Source name: {safe_name} (lowercase, hyphens for special chars)
-Server: http://localhost:{port}/api
+Server interactions: use `npx wicked-brain-call <action>` (auto-discovers brain + port).
 
 ## Detect file type
 
@@ -123,12 +115,36 @@ entities:
   people: [{people/roles}]
   programs: [{programs/initiatives}]
   metrics: ["{metric}: {value}"]
+method: {extraction method — see "Extraction method" below}
 confidence: {0.7 for text, 0.85 for vision}
 indexed_at: {current ISO timestamp}
 narrative_theme: {the "so what" in 8 words or fewer}
 ---
 
 {Extracted content in markdown format}
+
+## Extraction method
+
+The `method:` field records *how* the chunk's content was obtained — the
+provenance answer to "how do we know this?" It is distinct from `source_type`
+(which is the file format, e.g. `pdf`/`md`/`js`). Set it deterministically
+from the path you are already taking:
+
+- `deterministic-parse` — the TEXT path above (Read + split, no model judgement).
+- `llm-vision` — the BINARY path above (content extracted by the model viewing
+  the document/image).
+
+Use one of the shared controlled values (the same vocabulary across
+`wicked-brain:ingest`, `wicked-brain:memory`, and `wicked-brain:lint`):
+`deterministic-parse`, `llm-vision`, `llm-synthesis`, `session-capture`,
+`manual`, `unknown`. For ingested chunks you will almost always use
+`deterministic-parse` (text) or `llm-vision` (binary); `llm-synthesis` covers
+model-generated/inferred content and `manual` covers hand-authored content.
+`session-capture` applies to memories (see `wicked-brain:memory`), and `unknown`
+is the lint-applied fallback for content written before this field existed. The
+value is plain frontmatter — it is stored and returned verbatim by the server
+with no schema migration. If omitted, downstream lint stamps the chunk as
+`method: unknown`; prefer to set it explicitly.
 
 ## Tag Expansion
 
@@ -147,9 +163,10 @@ Example:
 
 ## After writing chunks, index them in the server:
 
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"index","params":{"id":"{chunk_path}","path":"{chunk_path}","content":"{chunk_content}","brain_id":"{brain_id}"}}'
+Pass the full payload as positional JSON because `content` is a long blob with
+quotes and newlines:
+
+npx wicked-brain-call index '{"id":"{chunk_path}","path":"{chunk_path}","content":"{chunk_content}","brain_id":"{brain_id}"}'
 
 ## Report back
 
@@ -171,7 +188,7 @@ Instead, write a batch script and run it. This preserves context and is dramatic
 2. Write a script to the brain's `_meta/` directory that:
    - Walks the source directory
    - Filters by file extension (text types for deterministic, binary types for listing)
-   - For each text file: reads content, splits into chunks, writes chunk .md files, curls the index API
+   - For each text file: reads content, splits into chunks, writes chunk .md files, calls the index API (via fetch in Node, or `npx wicked-brain-call index` in shell)
    - For binary files: lists them for separate vision-based ingest
    - Logs progress to stdout
    - Writes a summary at the end
@@ -341,6 +358,10 @@ async function ingestFile(filePath) {
       "  - text",
       "contains:",
       ...keywords.map(k => `  - ${k}`),
+      // method = HOW this chunk was obtained (provenance), distinct from
+      // source_type (file format). The batch path is a deterministic
+      // Read + split with no model judgement.
+      `method: deterministic-parse`,
       `confidence: 0.7`,
       `indexed_at: "${ts}"`,
       "---",
@@ -400,9 +421,7 @@ Archived files are invisible to the file watcher, so the server won't clean them
 1. List all .md files in `{brain_path}/chunks/extracted/{safe_name}/`
 2. For each file, call the server to remove it from the index:
    ```bash
-   curl -s -X POST http://localhost:{port}/api \
-     -H "Content-Type: application/json" \
-     -d '{"action":"remove","params":{"id":"chunks/extracted/{safe_name}/chunk-NNN.md"}}'
+   npx wicked-brain-call remove --param id=chunks/extracted/{safe_name}/chunk-NNN.md
    ```
 3. Then rename the directory to archive it:
    - macOS/Linux: `mv "{brain_path}/chunks/extracted/{safe_name}" "{brain_path}/chunks/extracted/{safe_name}.archived-$(date +%s)"`

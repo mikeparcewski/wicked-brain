@@ -1,0 +1,809 @@
+#!/usr/bin/env node
+// wicked-brain-call — thin CLI wrapper around the wicked-brain HTTP API.
+// Auto-starts the server (lock-guarded, detached) when no live process answers
+// the configured port, then forwards a single action call and prints the
+// JSON response. Skills can drop the "is the server up?" dance and just shell
+// out to this binary.
+
+import {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  closeSync,
+  statSync,
+} from "node:fs";
+import { join, resolve, basename } from "node:path";
+import { homedir } from "node:os";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const SERVER_BIN = join(__dirname, "wicked-brain-server.mjs");
+
+// ---------- arg parsing ----------
+
+function parseArgs(argv) {
+  const out = { flags: {}, params: {}, positional: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    switch (a) {
+      case "--help":
+      case "-h": out.flags.help = true; break;
+      case "--version":
+      case "-v": out.flags.version = true; break;
+      case "--pretty": out.flags.pretty = true; break;
+      case "--no-spawn": out.flags.noSpawn = true; break;
+      case "--no-audit": out.flags.noAudit = true; break;
+      case "--start": out.flags.start = true; break;
+      case "--stop": out.flags.stop = true; break;
+      case "--status": out.flags.status = true; break;
+      case "--brain":
+      case "-b": out.flags.brain = argv[++i]; break;
+      case "--port":
+      case "-p": out.flags.port = parseInt(argv[++i], 10); break;
+      case "--source": out.flags.source = argv[++i]; break;
+      case "--spawn-timeout": out.flags.spawnTimeoutMs = parseInt(argv[++i], 10); break;
+      case "--param": {
+        const kv = argv[++i] || "";
+        const idx = kv.indexOf("=");
+        if (idx === -1) die(`--param requires key=value, got: ${kv}`);
+        out.params[kv.slice(0, idx)] = coerce(kv.slice(idx + 1));
+        break;
+      }
+      default:
+        if (a.startsWith("--")) die(`Unknown flag: ${a}`);
+        out.positional.push(a);
+    }
+  }
+  return out;
+}
+
+// Coerce --param values: numbers, booleans, JSON. Plain strings stay strings.
+// Skills can pass primitives without quoting; complex shapes go via positional
+// JSON or stdin.
+function coerce(s) {
+  if (s === "true") return true;
+  if (s === "false") return false;
+  if (s === "null") return null;
+  if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+  if (/^-?\d+\.\d+$/.test(s)) return parseFloat(s);
+  if (s.startsWith("{") || s.startsWith("[")) {
+    try { return JSON.parse(s); } catch { /* fall through to string */ }
+  }
+  return s;
+}
+
+// ---------- brain path discovery ----------
+// Mirrors the resolution skills use: explicit flag → env → per-project →
+// legacy flat. Returning the per-project path even when nothing exists yet
+// lets `--start` create the directory cleanly.
+
+function resolveBrainPath(explicit) {
+  if (explicit) return resolve(explicit);
+  if (process.env.WICKED_BRAIN_PATH) return resolve(process.env.WICKED_BRAIN_PATH);
+  const cwdBase = basename(process.cwd());
+  const perProject = join(homedir(), ".wicked-brain", "projects", cwdBase);
+  if (
+    existsSync(join(perProject, "_meta", "config.json")) ||
+    existsSync(join(perProject, "brain.json"))
+  ) {
+    return perProject;
+  }
+  const flat = join(homedir(), ".wicked-brain");
+  if (existsSync(join(flat, "_meta", "config.json"))) return flat;
+  return perProject;
+}
+
+function readMetaConfig(brainPath) {
+  try {
+    return JSON.parse(readFileSync(join(brainPath, "_meta", "config.json"), "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+// The brain the caller EXPECTS to be on this port. The server derives its
+// brain_id from brain.json's `id` field (see wicked-brain-server.mjs), so we
+// read the same source here. Fall back to the per-project basename convention
+// when brain.json is absent — that's the id a freshly-init'd brain will carry.
+function readExpectedBrainId(brainPath) {
+  try {
+    const cfg = JSON.parse(readFileSync(join(brainPath, "brain.json"), "utf-8"));
+    if (cfg && typeof cfg.id === "string" && cfg.id) return cfg.id;
+  } catch {
+    // brain.json missing/unreadable — fall through to the basename convention.
+  }
+  return basename(brainPath);
+}
+
+// ---------- HTTP ----------
+
+async function callApi(port, action, params, { timeoutMs = 30000, auditFile } = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const headers = { "Content-Type": "application/json" };
+  if (auditFile) headers["x-wicked-audit-file"] = auditFile;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ action, params: params || {} }),
+      signal: ctrl.signal,
+    });
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function healthCheck(port, { timeoutMs = 800 } = {}) {
+  try {
+    const r = await callApi(port, "health", {}, { timeoutMs });
+    return !!(r && r.status === "ok");
+  } catch {
+    return false;
+  }
+}
+
+// Like healthCheck, but returns the full health body (which carries brain_id)
+// so callers can confirm WHICH brain is answering the port — not just that
+// SOMETHING is. Returns null when nothing responds healthily.
+async function healthInfo(port, { timeoutMs = 800 } = {}) {
+  try {
+    const r = await callApi(port, "health", {}, { timeoutMs });
+    return r && r.status === "ok" ? r : null;
+  } catch {
+    return null;
+  }
+}
+
+// Raised by ensureServer when a server answers the persisted port but it
+// belongs to a DIFFERENT brain than the one we resolved. The data path
+// (search/index/remove/forget/query/...) routes through ensureServer, so this
+// guard is the single choke point that stops a destructive op from silently
+// hitting the wrong brain on a shared/recycled port. Fail closed — never
+// operate on a mismatched brain.
+class PortConflictError extends Error {
+  constructor({ port, expectedBrainId, actualBrainId }) {
+    super(
+      `port_conflict: port ${port} is held by a different brain ` +
+        `(expected brain_id "${expectedBrainId}", got "${actualBrainId ?? "unknown"}"). ` +
+        `Refusing the operation so it can't hit the wrong brain. ` +
+        `Stop the other server, free the port, or pass the correct --port for this brain.`,
+    );
+    this.name = "PortConflictError";
+    this.code = "port_conflict";
+    this.port = port;
+    this.expectedBrainId = expectedBrainId;
+    this.actualBrainId = actualBrainId ?? null;
+  }
+}
+
+// ---------- spawn lock ----------
+// Cross-platform exclusive-create lock via { flag: "wx" }. Stale entries
+// (older than STALE_LOCK_MS) are reaped on contention so a crashed CLI
+// doesn't permanently block future spawns.
+
+const STALE_LOCK_MS = 30_000;
+
+function tryLock(lockPath) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      writeFileSync(
+        lockPath,
+        JSON.stringify({ pid: process.pid, t: Date.now() }),
+        { flag: "wx" },
+      );
+      return true;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+      if (attempt === 0) {
+        let stale = false;
+        try {
+          const lock = JSON.parse(readFileSync(lockPath, "utf-8"));
+          stale = !lock?.t || Date.now() - lock.t > STALE_LOCK_MS;
+        } catch {
+          stale = true;
+        }
+        if (stale) {
+          try { unlinkSync(lockPath); } catch {}
+          continue;
+        }
+      }
+      return false;
+    }
+  }
+  return false;
+}
+
+function releaseLock(lockPath) {
+  try { unlinkSync(lockPath); } catch {}
+}
+
+function pidAlive(pid) {
+  if (!pid || Number.isNaN(pid)) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM = exists but we lack permission to signal — still alive.
+    return err.code === "EPERM";
+  }
+}
+
+// ---------- server lifecycle ----------
+
+// Open {brain}/_meta/server.log for the detached daemon's stdout+stderr. Without
+// this the server is spawned with stdio:"ignore", so a boot crash (e.g. an
+// EMFILE watch error) vanishes and the only symptom is the "did not become
+// ready" timeout below. Caps growth: starts fresh if the existing log exceeds
+// 5 MB so a long-lived daemon stays diagnosable without growing unbounded.
+function openServerLog(brainPath) {
+  const logPath = join(brainPath, "_meta", "server.log");
+  let flag = "a";
+  try {
+    if (statSync(logPath).size > 5 * 1024 * 1024) flag = "w";
+  } catch {}
+  try {
+    return { fd: openSync(logPath, flag), logPath };
+  } catch {
+    return { fd: null, logPath };
+  }
+}
+
+// Reconcile the responding server's brain_id against the brain we resolved.
+// Returns true when the port is ours (or when expectedBrainId is unknown and
+// we choose not to gate). Throws PortConflictError when a DIFFERENT brain
+// answers — the fail-closed path that protects the data plane. One health
+// round-trip per resolution; cheap enough that we don't cache across calls
+// (each CLI invocation resolves the server exactly once anyway).
+function reconcileHealth(health, { port, expectedBrainId }) {
+  // No expected id to compare against (no brain.json id, no basename) — can't
+  // meaningfully gate, so don't. In practice readExpectedBrainId always yields
+  // at least the basename, so this is a defensive fallback only.
+  if (!expectedBrainId) return true;
+  if (health.brain_id === expectedBrainId) return true;
+  throw new PortConflictError({
+    port,
+    expectedBrainId,
+    actualBrainId: health.brain_id,
+  });
+}
+
+async function ensureServer(brainPath, opts) {
+  const { explicitPort, sourceOverride, noSpawn, log, spawnTimeoutMs = 10_000 } = opts;
+  const meta = readMetaConfig(brainPath);
+  const port = explicitPort || meta.server_port || 4242;
+  // The brain we EXPECT on this port — same source --status/--stop reconcile
+  // against (brain.json `id`, falling back to the per-project basename).
+  const expectedBrainId = opts.expectedBrainId ?? readExpectedBrainId(brainPath);
+
+  // Warm path: a server already answers the port. Confirm it's OUR brain before
+  // handing the port to the data plane. A foreign brain can occupy this port
+  // (stale config, manual restart, EADDRINUSE probe-up), and routing by port
+  // alone would let a destructive op (remove/forget) silently hit it.
+  const warmHealth = await healthInfo(port);
+  if (warmHealth) {
+    reconcileHealth(warmHealth, { port, expectedBrainId });
+    return port;
+  }
+  if (noSpawn) {
+    throw new Error(`server not reachable on port ${port} and --no-spawn was set`);
+  }
+
+  mkdirSync(join(brainPath, "_meta"), { recursive: true });
+  const lockPath = join(brainPath, "_meta", "spawn.lock");
+
+  if (!tryLock(lockPath)) {
+    log(`another process is starting the server; waiting...`);
+    const concurrentHealth = await waitForHealthInfo(port, spawnTimeoutMs);
+    if (concurrentHealth) {
+      // The peer that held the lock brought a server up — confirm it's OUR
+      // brain before we route the data plane at it.
+      reconcileHealth(concurrentHealth, { port, expectedBrainId });
+      return port;
+    }
+    throw new Error(`concurrent spawn timed out on port ${port}`);
+  }
+
+  try {
+    // Re-check after acquiring the lock — another process might have started
+    // and finished while we were contending. Reconcile brain_id here too: the
+    // server that came up while we waited could be a different brain probing up
+    // onto this port.
+    const relockHealth = await healthInfo(port);
+    if (relockHealth) {
+      reconcileHealth(relockHealth, { port, expectedBrainId });
+      return port;
+    }
+
+    const pidPath = join(brainPath, "_meta", "server.pid");
+    if (existsSync(pidPath)) {
+      const pid = parseInt(readFileSync(pidPath, "utf-8").trim(), 10);
+      if (pidAlive(pid)) {
+        throw new Error(
+          `server PID ${pid} is alive but not answering health on port ${port}. ` +
+          `Stop it manually or remove ${pidPath}.`,
+        );
+      }
+      try { unlinkSync(pidPath); } catch {}
+    }
+
+    log(`starting wicked-brain-server (brain=${brainPath} port=${port})`);
+    let sourcePath = sourceOverride || meta.source_path;
+    // Per-project brains are keyed on basename(cwd). Configs written before
+    // source_path persistence lack the field — derive it from cwd (only when
+    // the basename convention confirms cwd is the project root) so the server
+    // roots LSP at the project and persists source_path for port-resolution
+    // consumers (wicked-garden hooks match configs by source_path).
+    if (!sourcePath && basename(brainPath) === basename(process.cwd())) {
+      sourcePath = process.cwd();
+    }
+    const argv = [SERVER_BIN, "--brain", brainPath, "--port", String(port)];
+    if (sourcePath) argv.push("--source", sourcePath);
+
+    const { fd: logFd, logPath } = openServerLog(brainPath);
+    try {
+      const child = spawn(process.execPath, argv, {
+        detached: true,
+        stdio: logFd === null ? "ignore" : ["ignore", logFd, logFd],
+        windowsHide: true,
+      });
+      child.unref();
+    } finally {
+      // Close our copy of the fd in all cases — the child keeps its own. Without
+      // the finally a synchronous spawn() throw would leak the descriptor.
+      if (logFd !== null) {
+        try { closeSync(logFd); } catch {}
+      }
+    }
+    if (logFd !== null) log(`server logs -> ${logPath}`);
+
+    const ready = await waitForHealthInfo(port, spawnTimeoutMs);
+    if (ready) {
+      // We spawned with --brain brainPath, so the server that comes up should
+      // be ours. Reconcile anyway: a foreign brain could have won the bind in
+      // the race window before our child listened. Fail closed if so.
+      reconcileHealth(ready, { port, expectedBrainId });
+      return port;
+    }
+    throw new Error(
+      `server did not become ready within ${spawnTimeoutMs}ms on port ${port}` +
+        (logFd !== null ? ` — see ${logPath} for the cause` : ""),
+    );
+  } finally {
+    releaseLock(lockPath);
+  }
+}
+
+async function waitForHealth(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await healthCheck(port, { timeoutMs: 500 })) return true;
+    await sleep(150);
+  }
+  return false;
+}
+
+// Like waitForHealth but returns the health body (carrying brain_id) once the
+// port answers, so the spawn path can confirm WHICH brain came up.
+async function waitForHealthInfo(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const h = await healthInfo(port, { timeoutMs: 500 });
+    if (h) return h;
+    await sleep(150);
+  }
+  return null;
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// ---------- audit log ----------
+// Every action call gets a markdown breadcrumb at
+//   {brain}/calls/YYYY-MM-DD/HHMMSS-<action>-<id>.md
+// The file is opened with the request body and finalized after the response
+// returns (or after a failure) so a partial record still exists if the CLI
+// crashes mid-call. Lifecycle commands (--start/--stop/--status) are NOT
+// audited — they're operator commands, not data-plane traffic.
+//
+// Disabled with WICKED_BRAIN_AUDIT=0 or --no-audit.
+
+function isoStamp(d = new Date()) {
+  return d.toISOString();
+}
+
+function auditPaths(brainPath, action) {
+  const now = new Date();
+  const datePart = now.toISOString().slice(0, 10);             // YYYY-MM-DD
+  const timePart = now.toISOString().slice(11, 19).replace(/:/g, ""); // HHMMSS
+  const id = randomBytes(3).toString("hex");
+  const safeAction = String(action || "unknown").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+  const dir = join(brainPath, "calls", datePart);
+  const file = join(dir, `${timePart}-${safeAction}-${id}.md`);
+  return { dir, file, id, ts: now.toISOString() };
+}
+
+function fmtFrontmatter(obj) {
+  const lines = ["---"];
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined) continue;
+    if (v === null) { lines.push(`${k}: null`); continue; }
+    if (typeof v === "string") { lines.push(`${k}: "${v.replace(/"/g, '\\"')}"`); continue; }
+    lines.push(`${k}: ${v}`);
+  }
+  lines.push("---");
+  return lines.join("\n");
+}
+
+function fmtJsonBlock(label, value) {
+  return `## ${label}\n\n\`\`\`json\n${JSON.stringify(value ?? null, null, 2)}\n\`\`\``;
+}
+
+function writeAuditOpen(brainPath, action, params, port) {
+  try {
+    const a = auditPaths(brainPath, action);
+    mkdirSync(a.dir, { recursive: true });
+    const front = fmtFrontmatter({
+      action,
+      call_id: a.id,
+      timestamp: a.ts,
+      brain_path: brainPath,
+      port,
+      cwd: process.cwd(),
+      pid: process.pid,
+      status: "in_progress",
+    });
+    const body = [
+      front,
+      "",
+      `# wicked-brain-call \`${action}\``,
+      "",
+      fmtJsonBlock("Request params", params),
+      "",
+    ].join("\n");
+    writeFileSync(a.file, body, "utf-8");
+    return a;
+  } catch {
+    // Audit is best-effort. Never fail the call because we couldn't write a record.
+    return null;
+  }
+}
+
+function writeAuditClose(audit, { exitCode, durationMs, response, error }) {
+  if (!audit) return;
+  try {
+    const head = readFileSync(audit.file, "utf-8");
+    const closing = fmtFrontmatter({
+      finalized_at: isoStamp(),
+      exit_code: exitCode,
+      duration_ms: durationMs,
+      status: error ? "error" : "ok",
+    });
+    const responseSection = response !== undefined
+      ? fmtJsonBlock("Response", response)
+      : "";
+    const errorSection = error
+      ? `## Error\n\n\`\`\`\n${String(error)}\n\`\`\``
+      : "";
+    const tail = [closing, "", responseSection, errorSection]
+      .filter(Boolean)
+      .join("\n\n");
+    writeFileSync(audit.file, `${head}\n${tail}\n`, "utf-8");
+  } catch {
+    // Best-effort.
+  }
+}
+
+function auditEnabled(flagOff) {
+  if (flagOff) return false;
+  if (process.env.WICKED_BRAIN_AUDIT === "0") return false;
+  return true;
+}
+
+// ---------- stdin ----------
+// Stdin is only read when the caller writes `-` as the payload positional —
+// matches `kubectl apply -f -`. The implicit "no payload? try stdin" pattern
+// hangs whenever a parent forgets to close the child's stdin pipe (common in
+// supervisors, CI runners, the node spawn() default). Explicit opt-in keeps
+// the wrapper safe to drop into any execution context.
+
+async function readStdin() {
+  const chunks = [];
+  for await (const c of process.stdin) chunks.push(c);
+  const buf = Buffer.concat(chunks).toString("utf-8").trim();
+  return buf || null;
+}
+
+// ---------- main ----------
+// Exits go through process.exitCode + a sentinel throw, NOT process.exit().
+// On Windows, calling process.exit() after a fetch() resolves can fire
+// `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` in libuv async.c
+// because undici handles are still mid-close. Setting exitCode + letting the
+// IIFE return lets the event loop drain naturally before exit.
+
+class ExitSignal extends Error {
+  constructor(code, msg) {
+    super(msg || `exit ${code}`);
+    this.name = "ExitSignal";
+    this.code = code;
+    this.silent = !msg;
+  }
+}
+
+function die(msg, code = 2) {
+  throw new ExitSignal(code, msg);
+}
+
+const HELP = `wicked-brain-call — invoke the wicked-brain server, auto-starting if needed.
+
+Usage:
+  wicked-brain-call <action> [json-payload]
+  wicked-brain-call <action> --param key=value [--param key2=value2 ...]
+  echo '{"query":"foo"}' | wicked-brain-call <action> -
+
+Lifecycle:
+  wicked-brain-call --start                start the server (no call)
+  wicked-brain-call --stop                 stop the server
+  wicked-brain-call --status               print server state
+
+Options:
+  --brain <path>          brain directory (default: discover)
+  --port <n>              override port from _meta/config.json
+  --source <path>         LSP source root passed to spawned server
+  --no-spawn              fail if server is not running (don't auto-start)
+  --no-audit              skip writing audit markdown (also: WICKED_BRAIN_AUDIT=0)
+  --spawn-timeout <ms>    how long to wait for spawn readiness (default 10000)
+  --pretty                pretty-print JSON output
+  --param key=value       add an individual param (repeatable)
+  --version, -v           print version
+  --help, -h              print this help
+
+Exit codes:
+  0   success
+  1   API returned an error field
+  2   CLI / infrastructure failure (bad args, can't reach server, etc.)
+
+Examples:
+  wicked-brain-call health
+  wicked-brain-call search '{"query":"sqlite","topK":5}'
+  wicked-brain-call search --param query=sqlite --param topK=5
+`;
+
+(async () => {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.flags.version) {
+    const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf-8"));
+    process.stdout.write(pkg.version + "\n");
+    return;
+  }
+
+  if (args.flags.help) {
+    process.stdout.write(HELP);
+    return;
+  }
+
+  const noModeFlag = !args.flags.start && !args.flags.stop && !args.flags.status;
+  if (noModeFlag && args.positional.length === 0) {
+    process.stderr.write(HELP);
+    process.exitCode = 1;
+    return;
+  }
+
+  const log = (msg) => process.stderr.write(`[wicked-brain-call] ${msg}\n`);
+  const brainPath = resolveBrainPath(args.flags.brain);
+
+  // ---- --status ----
+  if (args.flags.status) {
+    const meta = readMetaConfig(brainPath);
+    const port = args.flags.port || meta.server_port || 4242;
+    const expectedBrainId = readExpectedBrainId(brainPath);
+    // Ask the responding server WHICH brain it is rather than trusting that the
+    // persisted port still belongs to us. A different brain's server can have
+    // claimed this port (probe-up on EADDRINUSE, stale config, manual restart),
+    // and a blind `running:true` would point an operator at the wrong process.
+    const health = await healthInfo(port);
+    let pid = null;
+    try { pid = parseInt(readFileSync(join(brainPath, "_meta", "server.pid"), "utf-8").trim(), 10); } catch {}
+
+    let payload;
+    if (!health) {
+      payload = {
+        brain_path: brainPath,
+        brain_id: expectedBrainId,
+        port,
+        running: false,
+        pid: null,
+      };
+    } else if (health.brain_id !== expectedBrainId) {
+      // Port is occupied — but by a DIFFERENT brain than the one we resolved.
+      payload = {
+        brain_path: brainPath,
+        brain_id: expectedBrainId,
+        port,
+        running: false,
+        port_conflict: true,
+        actual_brain_id: health.brain_id ?? null,
+        pid: null,
+      };
+    } else {
+      payload = {
+        brain_path: brainPath,
+        brain_id: expectedBrainId,
+        port,
+        running: true,
+        pid: pidAlive(pid) ? pid : null,
+      };
+    }
+    process.stdout.write(
+      (args.flags.pretty ? JSON.stringify(payload, null, 2) : JSON.stringify(payload)) + "\n",
+    );
+    return;
+  }
+
+  // ---- --stop ----
+  if (args.flags.stop) {
+    const meta = readMetaConfig(brainPath);
+    const port = args.flags.port || meta.server_port || 4242;
+    const expectedBrainId = readExpectedBrainId(brainPath);
+    const pidPath = join(brainPath, "_meta", "server.pid");
+    let pid = null;
+    try { pid = parseInt(readFileSync(pidPath, "utf-8").trim(), 10); } catch {}
+
+    // Reconcile the port's actual occupant before signalling anything. If a
+    // DIFFERENT brain answers this port, refuse — killing our persisted PID
+    // (or, worse, mistaking the port owner for ours) would take down an
+    // unrelated process. The operator must target the right brain or port.
+    const health = await healthInfo(port);
+    if (health && health.brain_id !== expectedBrainId) {
+      const payload = {
+        stopped: false,
+        reason: "port_conflict",
+        port,
+        brain_id: expectedBrainId,
+        actual_brain_id: health.brain_id ?? null,
+      };
+      process.stdout.write(
+        (args.flags.pretty ? JSON.stringify(payload, null, 2) : JSON.stringify(payload)) + "\n",
+      );
+      // Refused on purpose — surface a non-zero exit so scripted callers notice.
+      process.exitCode = 1;
+      return;
+    }
+
+    if (!pid || !pidAlive(pid)) {
+      process.stdout.write(JSON.stringify({ stopped: false, reason: "not running", port }) + "\n");
+      return;
+    }
+    try { process.kill(pid, "SIGTERM"); } catch (err) { die(`kill ${pid} failed: ${err.message}`); }
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      if (!pidAlive(pid)) break;
+      await sleep(100);
+    }
+    process.stdout.write(JSON.stringify({ stopped: !pidAlive(pid), pid, port }) + "\n");
+    return;
+  }
+
+  // ---- --start ----
+  if (args.flags.start) {
+    const port = await ensureServer(brainPath, {
+      explicitPort: args.flags.port,
+      sourceOverride: args.flags.source,
+      noSpawn: false,
+      spawnTimeoutMs: args.flags.spawnTimeoutMs,
+      log,
+    }).catch(err => die(err.message));
+    process.stdout.write(JSON.stringify({ started: true, port, brain_path: brainPath }) + "\n");
+    return;
+  }
+
+  // ---- default: forward an action call ----
+  const action = args.positional[0];
+  let params = Object.keys(args.params).length > 0 ? args.params : null;
+
+  if (args.positional.length > 1) {
+    const raw = args.positional.slice(1).join(" ");
+    if (raw === "-") {
+      const piped = await readStdin();
+      if (piped) {
+        try { params = { ...(params || {}), ...JSON.parse(piped) }; } catch (err) {
+          die(`stdin payload is not valid JSON: ${err.message}`);
+        }
+      }
+    } else {
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch (err) {
+        die(`positional payload is not valid JSON: ${err.message}`);
+      }
+      params = { ...(params || {}), ...parsed };
+    }
+  }
+
+  let port;
+  try {
+    port = await ensureServer(brainPath, {
+      explicitPort: args.flags.port,
+      sourceOverride: args.flags.source,
+      noSpawn: args.flags.noSpawn,
+      spawnTimeoutMs: args.flags.spawnTimeoutMs,
+      log,
+    });
+  } catch (err) {
+    if (err instanceof PortConflictError) {
+      // Fail closed: the persisted port is held by a different brain. Refuse the
+      // op (read OR mutate) so a destructive call (remove/forget/index) can't
+      // silently hit the wrong brain. Emit a structured payload on stdout that
+      // mirrors --stop/--status, plus a non-zero exit for scripted callers.
+      const payload = {
+        error: err.message,
+        action,
+        refused: true,
+        reason: "port_conflict",
+        port: err.port,
+        brain_id: err.expectedBrainId,
+        actual_brain_id: err.actualBrainId,
+      };
+      // Leave a refusal breadcrumb so the audit trail shows the op was blocked.
+      if (auditEnabled(args.flags.noAudit)) {
+        const a = writeAuditOpen(brainPath, action, params, err.port);
+        writeAuditClose(a, { exitCode: 1, durationMs: 0, response: payload, error: err.message });
+      }
+      process.stdout.write(
+        (args.flags.pretty ? JSON.stringify(payload, null, 2) : JSON.stringify(payload)) + "\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    die(err.message);
+  }
+
+  // Open audit BEFORE the call so a crash mid-flight still leaves a partial
+  // record. Audit is best-effort — write failures never block the request.
+  const audit = auditEnabled(args.flags.noAudit)
+    ? writeAuditOpen(brainPath, action, params, port)
+    : null;
+
+  const startedAt = Date.now();
+  let response;
+  let callError;
+  try {
+    response = await callApi(port, action, params, { auditFile: audit?.file });
+  } catch (err) {
+    callError = err;
+  }
+  const durationMs = Date.now() - startedAt;
+
+  if (callError) {
+    writeAuditClose(audit, { exitCode: 2, durationMs, error: callError.message });
+    die(`request failed: ${callError.message}`);
+  }
+
+  const exitCode = response && response.error ? 1 : 0;
+  writeAuditClose(audit, {
+    exitCode,
+    durationMs,
+    response,
+    error: response?.error,
+  });
+
+  process.stdout.write(
+    (args.flags.pretty ? JSON.stringify(response, null, 2) : JSON.stringify(response)) + "\n",
+  );
+  process.exitCode = exitCode;
+})().catch(err => {
+  if (err instanceof ExitSignal) {
+    if (!err.silent) process.stderr.write(`wicked-brain-call: ${err.message}\n`);
+    process.exitCode = err.code;
+    return;
+  }
+  process.stderr.write(`wicked-brain-call: ${err.message ?? String(err)}\n`);
+  process.exitCode = 2;
+});

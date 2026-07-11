@@ -6,12 +6,19 @@ import { argv, pid, exit } from "node:process";
 import { FileWatcher } from "../lib/file-watcher.mjs";
 import { SqliteSearch } from "../lib/sqlite-search.mjs";
 import { LspClient } from "../lib/lsp-client.mjs";
-import { emitEvent, waitForBus } from "../lib/bus.mjs";
+import {
+  emitEvent,
+  waitForBus,
+  listBusDeadLetters,
+  replayBusDeadLetter,
+  dropBusDeadLetter,
+} from "../lib/bus.mjs";
 import { startMemorySubscriber } from "../lib/memory-subscriber.mjs";
 import { renderViewerHtml } from "../lib/viewer-page.mjs";
 import { walkBrainContent, purgeBrainContent } from "../lib/brain-walker.mjs";
 import { runOnboardWiki } from "../lib/onboard-wiki.mjs";
 import { readFile as readFileAsync } from "node:fs/promises";
+import { makeGraphActions } from "../lib/codegraph-actions.mjs";
 
 // Parse args
 const args = argv.slice(2);
@@ -25,7 +32,7 @@ function getArg(name) {
 if (args.includes("--version") || args.includes("-v")) {
   const pkgUrl = new URL("../../package.json", import.meta.url);
   const pkg = JSON.parse(readFileSync(pkgUrl, "utf-8"));
-  console.log(pkg.version);
+  process.stdout.write(pkg.version + "\n");
   exit(0);
 }
 
@@ -106,13 +113,14 @@ try {
 
 // LSP client — pass source path so language servers are rooted at the project, not the brain dir
 const lsp = new LspClient(brainPath, db, sourcePath);
+const graphActions = makeGraphActions({ sourcePath, brainPath });
 
 // Auto-memorize subscriber handle (set after bus init in server.listen callback)
 let memorySubscriber = null;
 
 // Graceful shutdown
 async function shutdown() {
-  console.log("Shutting down...");
+  process.stdout.write("Shutting down...\n");
   try { unlinkSync(pidPath); } catch {}
   watcher.stop();
   if (memorySubscriber) {
@@ -133,14 +141,18 @@ const actions = {
     emitEvent("wicked.search.executed", "brain.search", {
       query: p.query, result_count: result.total_matches, brain_id: brainId,
     });
-    return result;
+    // Stamp the responding brain on the envelope so a `wicked-brain-call search`
+    // makes WHICH brain answered visible without a separate health round-trip.
+    // (A wrong-port hit is caught upstream by reconcileHealth, but this keeps
+    // the answer self-describing for the operator and the rendering skill.)
+    return { ...result, brain_id: brainId };
   },
   federated_search: (p) => {
     const result = db.federatedSearch(p);
     emitEvent("wicked.search.executed", "brain.search", {
       query: p.query, federated: true, brain_id: brainId,
     });
-    return result;
+    return { ...result, brain_id: brainId };
   },
   index: (p) => {
     db.index(p);
@@ -201,6 +213,17 @@ const actions = {
     emitEvent("wicked.link.confirmed", "brain.link", {
       source_id: p.source_id, target_path: p.target_path, verdict: p.verdict, brain_id: brainId,
     });
+    // Surface contradictions on a dedicated event stream so downstream
+    // consumers don't have to filter by verdict on the generic confirmed event.
+    if (p.verdict === "contradict") {
+      emitEvent("wicked.link.contradicted", "brain.link", {
+        source_id: p.source_id,
+        target_path: p.target_path,
+        confidence: result?.confidence ?? null,
+        evidence_count: result?.evidence_count ?? null,
+        brain_id: brainId,
+      });
+    }
     return result;
   },
   link_health: () => db.linkHealth(),
@@ -229,6 +252,8 @@ const actions = {
   "lsp-call-hierarchy-in": (p) => lsp.callHierarchyIn(p),
   "lsp-call-hierarchy-out": (p) => lsp.callHierarchyOut(p),
   "lsp-diagnostics": (p) => lsp.diagnostics(p),
+  // Graph (codegraph) actions
+  ...graphActions,
   reonboard: async () => {
     // Detect mode + stamp the CLAUDE.md/AGENTS.md pointer, then rebuild the
     // search index from whatever content is on disk in this brain. Does NOT
@@ -259,6 +284,21 @@ const actions = {
         : { skipped: true },
     };
   },
+  // DLQ inspection — read-only listing, scoped to wicked-brain's plugin.
+  // Surfaces dead-lettered fact events from the auto-memorize subscriber
+  // so operators can decide whether to replay or drop them.
+  dlq_list: (p = {}) => ({
+    dead_letters: listBusDeadLetters({
+      cursor_id: p.cursor_id,
+      limit: p.limit,
+    }),
+  }),
+  // Mark one DLQ entry for replay. The managed subscriber drains pending
+  // replays before each poll cycle — success here means queued, not delivered.
+  // dl_id alone identifies the row (it's the bus's primary key).
+  dlq_replay: (p = {}) => replayBusDeadLetter({ dl_id: p.dl_id }),
+  // Permanently delete a DLQ row. Use when replay would just dead-letter again.
+  dlq_drop: (p = {}) => dropBusDeadLetter({ dl_id: p.dl_id }),
   purge_brain: async (p = {}) => {
     // Destructive. Wipes chunks/, wiki/, and memory/ content and clears the
     // SQLite index. Requires p.confirm === "DELETE" to execute — typed
@@ -283,6 +323,11 @@ const WRITE_ACTIONS = new Set([
   "confirm_link",
   "reonboard",
   "purge_brain",
+  // DLQ replay/drop mutate the bus DB; list is read-only.
+  "dlq_replay",
+  "dlq_drop",
+  // Graph rebuild is a write — shells out to codegraph CLI.
+  "graph-index",
 ]);
 
 // HTTP server
@@ -357,12 +402,16 @@ try {
   let metaConfig = {};
   try { metaConfig = JSON.parse(readFileSync(metaConfigPath, "utf-8")); } catch {}
   metaConfig.server_port = port;
+  // Persist the source root alongside the port: external port resolution
+  // (wicked-garden hooks) matches per-project configs by source_path, and
+  // configs created before this field existed would otherwise never gain it.
+  if (sourcePath) metaConfig.source_path = sourcePath;
   writeFileSync(metaConfigPath, JSON.stringify(metaConfig, null, 2) + "\n");
 } catch (err) {
   console.error(`Warning: could not write port to config: ${err.message}`);
 }
 
-console.log(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})`);
+process.stdout.write(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})\n`);
 watcher.start();
 const busReady = await waitForBus();
 emitEvent("wicked.server.started", "brain.system", {

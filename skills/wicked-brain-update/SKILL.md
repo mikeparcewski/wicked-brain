@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:update
+name: wicked-brain-update
 description: |
   Check for and install wicked-brain updates. Compares installed version against
   npm registry, updates skills across all detected CLIs, and updates the server.
@@ -166,9 +166,7 @@ run in order, and are idempotent (safe to re-run).
 After server restart, verify the server started successfully and migrations ran:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"health"}'
+npx wicked-brain-call health --brain "{brain_dir}"
 ```
 
 If the health check fails, the migration may have errored. To diagnose:

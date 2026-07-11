@@ -795,10 +795,10 @@ export class SqliteSearch {
                 d.id,
                 d.path,
                 d.brain_id,
-                snippet(${attached}.documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet
+                snippet(documents_fts, 2, '<b>', '</b>', '…', 32) AS snippet
               FROM ${attached}.documents_fts f
               JOIN ${attached}.documents d ON d.id = f.id
-              WHERE ${attached}.documents_fts MATCH ?
+              WHERE documents_fts MATCH ?
               ORDER BY rank
               LIMIT ?
             `)

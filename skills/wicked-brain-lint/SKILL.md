@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:lint
+name: wicked-brain-lint
 description: |
   Check brain health and fix issues. Dispatches a lint subagent that runs
   deterministic checks (broken links, orphans, stale entries) and semantic
@@ -11,7 +11,7 @@ description: |
 
 # wicked-brain:lint
 
-You check brain quality by dispatching a lint subagent.
+Checks brain quality by dispatching a lint subagent.
 
 ## Cross-Platform Notes
 
@@ -25,15 +25,10 @@ For the brain path default:
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Process
 
@@ -41,7 +36,7 @@ Dispatch a lint subagent with these instructions:
 
 ```
 You are a quality assurance agent for the digital brain at {brain_path}.
-Server: http://localhost:{port}/api
+Server interactions: use `npx wicked-brain-call <action> [--param k=v ...]`.
 
 ## Pass 1: Deterministic checks
 
@@ -87,14 +82,30 @@ For each wiki article with source_hashes in frontmatter:
 ### Missing frontmatter
 Check each chunk has required frontmatter fields (source, chunk_id, confidence, indexed_at).
 
+Also check the **provenance** field `method` (how the chunk/memory was
+obtained). The shared controlled vocabulary — the same set documented by
+`wicked-brain:ingest` and `wicked-brain:memory` — is: `deterministic-parse`,
+`llm-vision`, `llm-synthesis`, `session-capture`, `manual`, `unknown`. In
+practice `deterministic-parse`/`llm-vision` come from ingested chunks,
+`session-capture` from memories, and `llm-synthesis`/`manual` from either.
+`method` is **optional** — it was added after some content was written, so a
+chunk/memory without it is still valid. When it is missing, auto-fix by
+stamping `method: unknown` and report the fix as `info` severity, type
+`missing_field` (do NOT raise it to a warning/error — that would invalidate
+pre-existing content). Surfacing `method: unknown` lets a reviewer distinguish
+facts with known provenance from those whose origin was never recorded.
+
+Lightweight provenance check (the "no source ⇒ assumption" rule): if a chunk has
+no `source`/`source_path` and its `method` is not one of the inferred kinds
+(`llm-synthesis`, `unknown`), flag it `info`, type `missing_field`:
+`unsourced fact with method "{method}" — add a source or set method to llm-synthesis`.
+
 ### Tag synonym candidates
 
 Call the server to get all tag frequencies:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"tag_frequency","params":{}}'
+npx wicked-brain-call tag_frequency
 ```
 
 The response contains `tags: [{tag, count}]`. Identify potential synonyms:
@@ -117,9 +128,7 @@ Only report pairs where both tags have at least 1 use.
 Call the server for link health:
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"link_health","params":{}}'
+npx wicked-brain-call link_health
 ```
 
 The response contains:
@@ -146,9 +155,7 @@ Read a sample of chunks and wiki articles. Check:
 - Are there factual contradictions between articles?
 - Check for `contradicts` typed links — query the server:
   ```bash
-  curl -s -X POST http://localhost:{port}/api \
-    -H "Content-Type: application/json" \
-    -d '{"action":"contradictions","params":{}}'
+  npx wicked-brain-call contradictions
   ```
   For each contradiction link, read both the source and target to determine
   if the contradiction is resolved. Flag unresolved contradictions as warnings.

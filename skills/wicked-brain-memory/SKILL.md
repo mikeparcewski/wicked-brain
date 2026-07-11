@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:memory
+name: wicked-brain-memory
 description: |
   Store and recall experiential learnings (decisions, patterns, preferences,
   gotchas, discoveries) in the brain's memory system.
@@ -14,22 +14,20 @@ Store and recall experiential learnings in the brain's memory system.
 
 ## Cross-Platform Notes
 
-- Uses `curl` for server API calls (available on Windows 10+, macOS, Linux)
+This skill uses `npx wicked-brain-call` for all server interaction. The CLI
+works on macOS, Linux, and Windows; it discovers the brain, auto-starts the
+server, and writes a per-call audit record under `{brain}/calls/`.
+
 - File writes use agent-native tools (Write/Edit), not shell commands
 - Path separator: always use forward slashes in `contains:` and `path` fields
 - Brain path default: `~/.wicked-brain/projects/{project-name}` (macOS/Linux), `%USERPROFILE%\.wicked-brain\projects\{project-name}` (Windows)
 
 ## Config
 
-Resolve the brain config via the shared resolution in
-wicked-brain:init § "Resolving the brain config". In short: try
-`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
-to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
-wicked-brain:init. Read the resolved file for brain path and server port.
-
-Do NOT read a bare relative `_meta/config.json` — the model will resolve it
-against the current working directory and brain files will end up in the
-project root.
+Brain discovery + server lifecycle are handled by `wicked-brain-call`. Pass
+`--brain <path>` to override the auto-detected brain, or set
+`WICKED_BRAIN_PATH`. The CLI starts the server on first call (no manual
+init required) and writes an audit record to `{brain}/calls/` per call.
 
 ## Parameters
 
@@ -102,6 +100,7 @@ Write to `{brain_path}/memory/{safe_name}.md`:
 ---
 type: {detected or provided type}
 tier: {resolved tier from Step 2b}
+method: {extraction method — see "Extraction method" below}
 confidence: 0.5
 importance: {from type defaults or override}
 ttl_days: {from type defaults or override, null if permanent}
@@ -119,6 +118,29 @@ indexed_at: "{ISO 8601 timestamp}"
 {memory content}
 ```
 
+#### Extraction method
+
+The `method:` field records *how* the memory was obtained — the provenance
+answer to "how do we know this?", mirroring the `method:` field on ingested
+chunks. Set it from how the memory came to be:
+
+- `session-capture` — captured live from the current session (the default for
+  "remember this" during work).
+- `manual` — explicitly stated by the user ("we decided X", interview-style).
+- `llm-synthesis` — inferred/derived by the agent rather than directly observed.
+
+These three are the values you will use for memories. They are drawn from the
+shared controlled vocabulary used across `wicked-brain:ingest`,
+`wicked-brain:memory`, and `wicked-brain:lint`: `deterministic-parse`,
+`llm-vision`, `llm-synthesis`, `session-capture`, `manual`, `unknown`. The
+remaining values (`deterministic-parse`, `llm-vision`) describe ingested
+chunks rather than memories, and `unknown` is the lint-applied fallback for
+content written before this field existed.
+
+Default to `session-capture` when unsure. The value is plain frontmatter,
+stored and returned verbatim by the server (no schema migration). If omitted,
+lint stamps the memory as `method: unknown` — prefer to set it explicitly.
+
 #### Tier definitions
 
 - **working**: Active, session-specific context. Expires quickly (hours to days). Use for in-progress decisions, temporary notes, and things only relevant to the current task.
@@ -133,6 +155,7 @@ New memories start at the tier resolved from importance (default `episodic` for 
 ---
 type: decision
 tier: semantic
+method: manual
 confidence: 0.9
 importance: 7
 ttl_days: null
@@ -190,9 +213,7 @@ Fire-and-forget — if the bus is not installed, silently skip.
 ### Step 1: Search
 
 ```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"{query}","limit":10,"session_id":"{session_id}"}}'
+npx wicked-brain-call search --param query={query} --param limit=10 --param session_id={session_id}
 ```
 
 Pass a session_id with every search call. This enables access tracking for

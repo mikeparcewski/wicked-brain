@@ -9,81 +9,19 @@ permissions:
   contents: write
   packages: write
   id-token: write
+  pull-requests: write
 
 jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - run: cd server && npm install
-      - run: cd server && npm test
-
-  publish-npm:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          registry-url: https://registry.npmjs.org
-
-      - name: Set version from tag
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
-          cd server && npm version "$VERSION" --no-git-tag-version --allow-same-version
-
-      - name: Install server deps
-        run: cd server && npm install --omit=dev
-
-      - name: Publish to npm (trusted publisher + provenance)
-        run: npm publish --access public --provenance
-
-  publish-github-packages:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          registry-url: https://npm.pkg.github.com
-          scope: '@mikeparcewski'
-
-      - name: Set version from tag
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
-
-      - name: Install deps (needed for prepublishOnly test run)
-        run: npm install --omit=dev
-
-      - name: Publish to GitHub Packages
-        run: |
-          npm pkg set name='@mikeparcewski/wicked-brain'
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  github-release:
-    needs: publish-npm
-    if: always() && needs.publish-npm.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    uses: mikeparcewski/wicked-ci/.github/workflows/node-release.yml@d8c9b0a14fb91c2d13f5da0468eeeff983c27e5a # v1.1.2
+    with:
+      package_name: wicked-brain
+      test_working_dir: server
+      version_dirs: |
+        .
+        server
+      pre_publish_install_dirs: |
+        .
+        server
+      enable_sync_pr: true
+    secrets: inherit
