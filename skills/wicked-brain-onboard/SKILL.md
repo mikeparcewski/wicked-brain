@@ -1,9 +1,29 @@
-# onboard
+---
+name: wicked-brain:onboard
+description: |
+  Full project understanding - detect repo mode, scan, investigate 5
+  perspectives, extract symbols, ingest chunks, compile support wiki,
+  configure CLI.
 
-## Depth 0 — Summary
-Full project understanding pipeline. Scans project, extracts findings from 5 perspectives (product, engineering, quality, ops, data), ingests as structured chunks, compiles a progressive-loading support wiki, and configures the CLI.
+  Use when: onboarding a new project, re-onboarding after big changes, brain
+  has no project wiki yet.
+model: sonnet
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+context: fork
+---
 
-## Depth 1 — Pipeline Steps
+# wicked-brain:onboard
+
+You are an onboarding agent for the digital brain. This is a heavy
+project-understanding pipeline that runs in an isolated (forked) context so it
+has a longer token budget and file-writing tools for large-scale compilation.
+
+## Overview (pipeline)
+
+Full project understanding pipeline. Scans project, extracts findings from 5
+perspectives (product, engineering, quality, ops, data), ingests as structured
+chunks, compiles a progressive-loading support wiki, and configures the CLI.
+
 0. Detect: run `wicked-brain-onboard-wiki` to classify repo mode, write `.wicked-brain/mode.json`, and stamp the contributor-wiki pointer into CLAUDE.md / AGENTS.md if present
 1. Scan: directory structure, key files, languages, frameworks, dependencies
 2. Investigate: gather facts from each of the 5 perspectives
@@ -15,13 +35,40 @@ Full project understanding pipeline. Scans project, extracts findings from 5 per
 Parameters: brain_path, port, project_path (defaults to cwd)
 Depends on: wicked-brain:ingest, wicked-brain:compile, wicked-brain:configure
 
-## Depth 2 — Full Subagent Instructions
+## Config
+
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file for brain path and server port.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
+
+## Bus event (start)
+
+At the start of the run, emit a dispatch event (fire-and-forget — if the bus is
+not installed, silently skip):
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.agent.dispatched" \
+  --domain "wicked-brain" \
+  --subdomain "brain.agent" \
+  --payload '{"agent":"onboard","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+## Pipeline
 
 You are an onboarding agent for the digital brain at {brain_path}.
 Server: http://localhost:{port}/api
 Project: {project_path}
 
-Your job: deeply understand a project from 5 perspectives and produce a support wiki that serves engineers, testers, ops, and product owners — all through progressive loading so only what's needed gets loaded.
+Your job: deeply understand a project from 5 perspectives and produce a support
+wiki that serves engineers, testers, ops, and product owners — all through
+progressive loading so only what's needed gets loaded.
 
 ### Step 0: Detect repo mode and stamp wiki pointer
 
@@ -80,9 +127,19 @@ Gather facts for each perspective. You'll write these as chunks in Step 4.
 - Module map: which file owns what responsibility
 - Data flow: request lifecycle from entry to storage to response
 - Extension points: where to add new functionality (new action, new migration, new skill)
+- Conventions (so new work matches the repo's style):
+  - **Naming**: file, function, and variable naming patterns
+  - **Code style**: formatting, comment conventions, and import
+    ordering/grouping — detect from config files (`.eslintrc*`, `.eslintrc.json`,
+    `.prettierrc`, `pyproject.toml` ruff/black config, `rustfmt.toml`) and from
+    grouping in existing source
+  - **Build/Deploy/CI-CD**: build commands, deploy scripts, and CI/CD patterns
+    (`.github/workflows/`, Makefile targets, package.json scripts, etc.)
 
 #### Quality perspective
-- Test infrastructure: framework, runner command, test file locations
+- Test infrastructure: framework, runner command, test file locations and
+  naming patterns — look for `*.test.*`, `*.spec.*`, `test_*.py`, and files
+  under `test/` or `__tests__/`
 - Test coverage: what's tested, what's manual-only
 - Functional capabilities: every feature × how to verify it works
 - Regression requirements: what MUST pass before a release
@@ -177,7 +234,20 @@ List symbols grouped by module/directory:
 
 Use standard chunk frontmatter with rich synonym-expanded `contains:` tags.
 
-If re-onboarding (chunks already exist), follow the archive-then-replace pattern:
+#### Monorepo guidance
+
+If the project has multiple top-level packages or apps (e.g., a `packages/`,
+`apps/`, or `services/` directory with independent `package.json` / `pyproject.toml`
+files), treat each package as a separate chunk group:
+- Write chunks to `{brain_path}/chunks/extracted/project-{safe_project_name}-{package_name}/`
+- Also write a shared overview chunk at `project-{safe_project_name}/chunk-000-overview.md`
+  that summarises the monorepo layout, inter-package relationships, and shared tooling.
+
+#### Re-onboarding
+
+Re-onboarding is triggered **manually** by the user saying "re-onboard this
+project" (or equivalent). It does not run automatically. When re-onboarding
+(chunks already exist), follow the archive-then-replace pattern:
 1. Remove old chunks from index via server API
 2. Archive old chunk directory with `.archived-{timestamp}` suffix
 3. Write new chunks
@@ -228,7 +298,7 @@ returns at depth 1. Put detail after the first paragraph.
 | Article | Depth 0 answers | Depth 1 answers | Depth 2 answers |
 |---------|-----------------|-----------------|-----------------|
 | product.md | "How many features?" | "What are the features?" | "How do I use each one? What are the limits?" |
-| engineering.md | "How many modules/deps?" | "What are the components and how do they connect?" | "What symbols does module X export? How do I extend it?" |
+| engineering.md | "How many modules/deps?" | "What are the components and how do they connect?" | "What symbols does module X export? How do I extend it? What naming/code-style/test/build conventions must I match?" |
 | quality.md | "What's the test coverage?" | "What capabilities need testing?" | "How do I verify capability X works? What are the edge cases?" |
 | operations.md | "How many config files?" | "What can go wrong?" | "How do I fix X? Full troubleshooting playbook." |
 | data.md | "What data sources?" | "What's the schema?" | "What are the constraints? How does the lifecycle work?" |
@@ -248,3 +318,11 @@ Report what was onboarded:
 - Chunks created: {N} (6 perspective-based)
 - Wiki articles: {list of 5 articles}
 - CLI config updated: {file}
+
+## Cross-Platform Notes
+
+- `curl` is cross-platform (Windows 10+) — OK for server API calls.
+- The `.archived-{timestamp}` rename on re-onboarding uses shell on
+  macOS/Linux; on Windows use the equivalent move. Preserve the
+  `.archived-{timestamp}` suffix convention either way.
+- All paths must use forward slashes.

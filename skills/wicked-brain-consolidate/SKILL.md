@@ -1,19 +1,61 @@
-# consolidate
+---
+name: wicked-brain:consolidate
+description: |
+  Multi-pass brain consolidation - archive noise, promote patterns, merge
+  duplicates, build synonym map.
 
-## Depth 0 — Summary
-Four-pass lifecycle: archive noise, promote patterns, merge duplicates, build synonym map.
-Triggers: manual invocation via `wicked-brain:agent dispatch consolidate`, or after reviewing consolidation_hint entries in log.jsonl.
+  Use when: brain needs maintenance, after significant ingestion, or reviewing
+  consolidation_hint entries in log.jsonl.
+model: sonnet
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+context: fork
+---
 
-## Depth 1 — Pipeline Steps
-Pass 1 (Archive): Call server candidates(archive) → review at depth 0 → check TTL expiry for memories → archive stale items + remove from index
-Pass 2 (Promote): Call server candidates(promote) → for chunks: log promote_candidate → for memories: update tier + bump confidence
-Pass 3 (Merge): Read promote candidates at depth 2 → LLM similarity comparison → keep highest-scored / archive duplicates / flag complementary for review
-Pass 4 (Synonyms): Aggregate synonym_hit/synonym_miss events from log → build/update learned synonym map at _meta/synonyms.json
+# wicked-brain:consolidate
+
+You are a consolidation agent for the digital brain. This is a heavy,
+multi-pass maintenance pipeline that runs in an isolated (forked) context so it
+has a longer token budget and file-writing tools for large-scale work.
+
+## Overview (pipeline)
+
+Four-pass lifecycle: archive noise, promote patterns, merge duplicates, build
+synonym map.
+
+- **Pass 1 (Archive)**: Call server candidates(archive) → review at depth 0 → check TTL expiry for memories → archive stale items + remove from index
+- **Pass 2 (Promote)**: Call server candidates(promote) → for chunks: log promote_candidate → for memories: update tier + bump confidence
+- **Pass 3 (Merge)**: Read promote candidates at depth 2 → LLM similarity comparison → keep highest-scored / archive duplicates / flag complementary for review
+- **Pass 4 (Synonyms)**: Aggregate synonym_hit/synonym_miss events from log → build/update learned synonym map at _meta/synonyms.json
 
 Parameters: brain_path, port, session_id
 Depends on: server candidates action, memory frontmatter schema, wicked-brain:memory skill
 
-## Depth 2 — Full Subagent Instructions
+## Config
+
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file for brain path and server port.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
+
+## Bus event (start)
+
+At the start of the run, emit a dispatch event (fire-and-forget — if the bus is
+not installed, silently skip):
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.agent.dispatched" \
+  --domain "wicked-brain" \
+  --subdomain "brain.agent" \
+  --payload '{"agent":"consolidate","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+## Pipeline
 
 You are a consolidation agent for the digital brain at {brain_path}.
 Server: http://localhost:{port}/api
@@ -136,3 +178,25 @@ After all four passes, report:
 - Merged: {N} near-duplicates
 - Flagged for review: {N} complementary pairs
 - Synonyms: {N} added, {N} removed, {N} total in map
+
+## Bus event (completion)
+
+On completion, emit the consolidation-complete event (fire-and-forget — if the
+bus is not installed, silently skip):
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.brain.consolidated" \
+  --domain "wicked-brain" \
+  --subdomain "brain" \
+  --payload '{"brain_id":"{brain_id}","archived":{N},"promoted":{M},"merged":{P}}' 2>/dev/null || true
+```
+
+## Cross-Platform Notes
+
+- `curl` is cross-platform (Windows 10+) — OK for server API calls.
+- The `mv ... .archived-$(date +%s)` rename uses shell; on Windows use the
+  equivalent (`Move-Item` / `ren`) or the agent-native move with a
+  `.archived-{unix_seconds}` suffix. Preserve the `.archived-{timestamp}`
+  convention either way.
+- All log/JSON appends should use forward-slash paths.

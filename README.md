@@ -176,6 +176,10 @@ The viewer has no auth. It's localhost-only, same-machine trust.
 | `wicked-brain:lsp` | Universal code intelligence via LSP — hover, go-to-definition, diagnostics, completions |
 | `wicked-brain:graph` | Code-relationship graph — blast radius, callers, lineage — backed by a static code graph |
 | `wicked-brain:ui` | Open the read-only browser viewer — Material-styled Search + Wiki tabs over `http://localhost:<port>/` |
+| `wicked-brain:context` | Surface relevant brain knowledge for the current prompt — runs inline on the hot path to enrich what you're working on |
+| `wicked-brain:onboard` | Full project-understanding pipeline — scans the repo, investigates from multiple perspectives, and builds the support wiki |
+| `wicked-brain:session-teardown` | Capture session learnings — decisions, patterns, gotchas, discoveries — as brain memories before a session ends |
+| `wicked-brain:consolidate` | Multi-pass brain maintenance — archive noise, promote patterns, merge duplicates, and rebuild the synonym map |
 
 ## Code Graph (offline / air-gapped)
 

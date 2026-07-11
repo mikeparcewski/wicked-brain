@@ -1,18 +1,71 @@
-# context
+---
+name: wicked-brain:context
+description: |
+  Surface relevant brain knowledge for the current prompt. Tiered routing - hot
+  path for simple prompts, fast path for complex.
 
-## Depth 0 — Summary
-Tiered knowledge surfacing for ambient context. Hot path for simple prompts (recent memories + high-confidence wiki). Fast path for complex prompts (full search + scoring pipeline).
+  Use when: starting a new topic/unfamiliar area, at the start of a work
+  session, prompt would benefit from prior decisions/patterns/wiki.
+model: haiku
+allowed-tools: Read, Bash, Grep, Glob
+---
 
-## Depth 1 — Pipeline Steps
+# wicked-brain:context
+
+You are a context assembly agent for the digital brain. This is a HOT-PATH
+enrichment skill: it runs INLINE in the current turn (it is what the
+UserPromptSubmit / BeforeAgent hook nudges) and must stay fast. It does NOT run
+in a forked context — return pointers to the host agent in the same turn.
+
+It emits a `wicked.agent.dispatched` bus event (see "Bus event" below) —
+fire-and-forget and non-blocking, so the hot path never waits on it. Only reads
+and returns pointers — no Write/Edit.
+
+## Overview (pipeline)
+
+Tiered knowledge surfacing for ambient context. Hot path for simple prompts
+(recent memories + high-confidence wiki). Fast path for complex prompts (full
+search + scoring pipeline).
+
 1. Classify prompt complexity (short/single-topic → hot, complex/multi-topic → fast)
-2. Hot path: search recent memories (7 days) + wiki (confidence > 0.8), return depth 0
+2. Hot path: recent memories (7 days) + wiki (confidence > 0.8), return depth 0
 3. Fast path: decompose query → synonym-expand → search all content → score by keyword overlap + type + tier + recency → return depth 0
 4. Agent reads deeper (depth 1/2) on promising results as needed
 
 Parameters: brain_path, port, session_id, prompt (the user's current prompt text)
 Depends on: server search action, synonym expansion
 
-## Depth 2 — Full Subagent Instructions
+## Config
+
+Resolve the brain config via the shared resolution in
+wicked-brain:init § "Resolving the brain config". In short: try
+`~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first, fall back
+to `~/.wicked-brain/_meta/config.json` (legacy flat), else trigger
+wicked-brain:init. Read the resolved file for brain path and server port.
+
+Do NOT read a bare relative `_meta/config.json` — the model will resolve it
+against the current working directory and brain files will end up in the
+project root.
+
+## Bus event
+
+At the start of the run, emit a dispatch event (fire-and-forget — if the bus is
+not installed, silently skip). Same type, domain, and subdomain as the sibling
+skills (`wicked-brain-consolidate`, `wicked-brain-onboard`,
+`wicked-brain-session-teardown`), with an `agent:context` payload.
+
+Because this is the inline hot path, run the emit non-blocking (background it)
+so returning pointers to the host agent never waits on it:
+
+```bash
+npx wicked-bus emit \
+  --type "wicked.agent.dispatched" \
+  --domain "wicked-brain" \
+  --subdomain "brain.agent" \
+  --payload '{"agent":"context","brain_id":"{brain_id}"}' 2>/dev/null || true
+```
+
+## Pipeline
 
 You are a context assembly agent for the digital brain at {brain_path}.
 Server: http://localhost:{port}/api
@@ -86,3 +139,8 @@ Context (fast path, {N} results):
 - Do NOT inject context silently — return it to the host agent for decision
 - Do NOT run both paths — pick one based on Step 1 classification
 - Do NOT spend more than 5 search calls on the hot path
+
+## Cross-Platform Notes
+
+- `curl` is cross-platform (Windows 10+) — OK for server API calls.
+- This skill only reads (Read, Bash, Grep, Glob) — no file writes.

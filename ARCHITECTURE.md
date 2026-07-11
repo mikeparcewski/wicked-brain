@@ -80,6 +80,7 @@ graph LR
         update["wicked-brain:update<br/>npm check + reinstall"]
         batch["wicked-brain:batch<br/>generates bulk scripts"]
         lsp["wicked-brain:lsp<br/>LSP queries via JSON-RPC"]
+        context["wicked-brain:context<br/>hot-path prompt enrichment (inline)"]
     end
 
     subgraph Subagent["Subagent (isolated worker)"]
@@ -90,10 +91,13 @@ graph LR
         lint["wicked-brain:lint<br/>links · orphans · confidence · synonyms"]
         enhance["wicked-brain:enhance<br/>fill gaps with inferred content"]
         retag["wicked-brain:retag<br/>backfill synonym tags"]
+        consolidate["wicked-brain:consolidate<br/>archive · promote · merge · synonym map"]
+        onboard["wicked-brain:onboard<br/>project-understanding pipeline"]
+        teardown["wicked-brain:session-teardown<br/>capture session learnings"]
     end
 ```
 
-**Installer:** `install.mjs` detects installed CLIs by checking for their config directories and copies all skills into `<cli-dir>/skills/`. Platform-specific agents go to `<cli-dir>/agents/`. Supports `--cli=<name>` to filter and `--path=<dir>` for non-standard locations.
+**Installer:** `install.mjs` detects installed CLIs by checking for their config directories and copies all skills into `<cli-dir>/skills/`. Supports `--cli=<name>` to filter and `--path=<dir>` for non-standard locations.
 
 ---
 
@@ -269,7 +273,7 @@ Language servers are auto-installed on first use if not found in PATH. Supported
 ├── wiki/
 │   ├── concepts/                 # Synthesized articles about specific concepts
 │   ├── topics/                   # Broader topic articles
-│   └── projects/                 # Per-project onboarding articles (from onboard agent)
+│   └── projects/                 # Per-project onboarding articles (from wicked-brain:onboard)
 ├── _meta/
 │   ├── config.json               # Brain path, server port (written by server on startup)
 │   ├── log.jsonl                 # Append-only event log

@@ -38,7 +38,7 @@ Read frontmatter of top results, count `contains:` tag frequency. Top 10 tags = 
 
 4. Read `{brain_path}/_meta/log.jsonl` (last 50 lines) for recent `search_miss` entries — these are knowledge gaps.
 
-5. List available agents by reading `skills/wicked-brain-agent/agents/` at depth 0.
+5. Note the brain workflow skills available: `wicked-brain:context` (surface context), `wicked-brain:session-teardown` (capture learnings), `wicked-brain:consolidate` (maintenance), and `wicked-brain:onboard` (project understanding).
 
 ### Step 2: Detect CLI/IDE
 
@@ -85,10 +85,10 @@ Digital brain: {brain_id} | {total} indexed items | {chunks} chunks, {wiki} wiki
 - **Search/explore**: use `wicked-brain:search` — replaces Grep, Glob, and Agent(Explore) for any open-ended search
 - **Answer questions**: use `wicked-brain:query` — replaces Agent(Explore) for conceptual questions
 - **Wiki catalog**: use `wicked-brain:read` at depth 0/1 to browse wiki articles progressively
-- **Surface context**: call `wicked-brain:agent` (context) at the start of any new topic
-- **Capture learnings**: call `wicked-brain:agent` (session-teardown) at session end
+- **Surface context**: call `wicked-brain:context` at the start of any new topic
+- **Capture learnings**: call `wicked-brain:session-teardown` at session end
 - **Store a decision/pattern/gotcha**: call `wicked-brain:memory` (store mode)
-- **Available agents**: consolidate, context, session-teardown, onboard (via `wicked-brain:agent`)
+- **Workflow skills**: `wicked-brain:consolidate`, `wicked-brain:context`, `wicked-brain:session-teardown`, `wicked-brain:onboard`
 
 ### Search result source types
 
@@ -104,9 +104,9 @@ Brain search/query results include `source_type` and `path` fields:
 - The server auto-starts on any `wicked-brain-call` / skill invocation — a "server not running" notice is NEVER a reason to skip the brain; just call the skill
 - Use `wicked-brain:search` for finding content ("find X", "where is Y", "look for Z", "show me W")
 - Use `wicked-brain:query` for questions ("what does X do", "how does Y work", "explain Z")
-- Use `wicked-brain:agent` (context) when starting a new topic or unfamiliar area
+- Use `wicked-brain:context` when starting a new topic or unfamiliar area
 - Only fall back to Grep/Glob for **exact pattern matching** after the brain returns no results
-- Do NOT read brain files directly — always go through skills and agents
+- Do NOT read brain files directly — always go through skills
 - Always pass `session_id` with search/query calls for access tracking
 - Capture non-obvious decisions, patterns, and gotchas with `wicked-brain:memory`
 - When search results include `source_type: wiki`, follow up with `wicked-brain:read` at depth 1-2
