@@ -12,7 +12,7 @@ wicked-brain gives your AI coding CLI a persistent, searchable knowledge base bu
 
 Works with **Claude Code**, **Gemini CLI**, **Copilot CLI**, **Cursor**, **Codex**, **Kiro**, and **Antigravity**.
 
-> **Status:** v0.17.2, published to npm as [`wicked-brain`](https://www.npmjs.com/package/wicked-brain).
+> **Status:** v0.18.1, published to npm as [`wicked-brain`](https://www.npmjs.com/package/wicked-brain).
 > Actively developed (JS). This is a **bridge-period adapter** — its memory and knowledge role is
 > destined to fold into [wicked-estate](https://github.com/mikeparcewski/wicked-estate).
 >
@@ -20,7 +20,7 @@ Works with **Claude Code**, **Gemini CLI**, **Copilot CLI**, **Cursor**, **Codex
 > explicit, confidence-scored `[[backlinks]]` instead of opaque embeddings — every claim traces to a
 > source file, and the agent (not a vector index) does the reasoning.
 
-wicked-brain is the **bridge-period memory** of the [wicked-* foundation](https://we.wickedagile.com):
+wicked-brain is the **bridge-period memory** of the [wicked-* foundation](https://wickedagile.com):
 a local-first stack for AI coding agents anchored by
 [wicked-estate](https://github.com/mikeparcewski/wicked-estate) (the code graph), with
 [wicked-core](https://github.com/mikeparcewski/wicked-core) (the runtime),
@@ -64,12 +64,12 @@ A lightweight background server handles the one thing that needs a database: ful
 │     Your AI CLI (Claude / Gemini / ...) │       │ Browser (you)        │
 │                                         │       │ http://localhost/…   │
 │  Skills:                                │       │ Search · Wiki viewer │
-│    wicked-brain:ingest   → add sources  │       └──────────┬───────────┘
-│    wicked-brain:search   → find content │                  │ GET /
-│    wicked-brain:query    → ask questions│                  ▼
-│    wicked-brain:compile  → build wiki   │       ┌──────────────────────┐
-│    wicked-brain:lint     → check quality│       │  Viewer HTML         │
-│    wicked-brain:ui       → open viewer  │       └──────────────────────┘
+│    wicked-brain-ingest   → add sources  │       └──────────┬───────────┘
+│    wicked-brain-search   → find content │                  │ GET /
+│    wicked-brain-query    → ask questions│                  ▼
+│    wicked-brain-compile  → build wiki   │       ┌──────────────────────┐
+│    wicked-brain-lint     → check quality│       │  Viewer HTML         │
+│    wicked-brain-ui       → open viewer  │       └──────────────────────┘
 │                                         │
 │  Your agent uses its own tools:         │
 │  Read, Write, Grep — no special APIs    │
@@ -134,7 +134,7 @@ Every running brain server serves a read-only HTML viewer at `GET /`. Open `http
 - **Header actions** — refresh (re-detect mode + re-index from disk) and delete (purge content; typed confirmation required).
 - **Read-only mode** — start the server with `--read-only` and destructive actions return 403; the viewer greys out the buttons and tells you why.
 
-Or let an agent do it: say *"open the brain viewer"* and the `wicked-brain:ui` skill resolves the brain, health-checks the server, and launches your default browser.
+Or let an agent do it: say *"open the brain viewer"* and the `wicked-brain-ui` skill resolves the brain, health-checks the server, and launches your default browser.
 
 The viewer has no auth. It's localhost-only, same-machine trust.
 
@@ -155,35 +155,35 @@ The viewer has no auth. It's localhost-only, same-machine trust.
 
 | Skill | What it does |
 |---|---|
-| `wicked-brain:init` | Set up a new brain — creates structure, starts the server, and ingests your project in one shot |
-| `wicked-brain:migrate` | Migrate a legacy flat brain at `~/.wicked-brain/` into the per-project layout |
-| `wicked-brain:ingest` | Add source files — text extracted deterministically, binary docs read via LLM vision |
-| `wicked-brain:search` | Parallel search across your brain and linked brains |
-| `wicked-brain:read` | Progressive loading: depth 0 (stats), depth 1 (summary), depth 2 (full content) |
-| `wicked-brain:query` | Answer questions with source citations |
-| `wicked-brain:compile` | Synthesize wiki articles from chunks |
-| `wicked-brain:lint` | Find broken links, orphan chunks, inconsistencies, tag synonyms, low-confidence links; auto-fix where possible |
-| `wicked-brain:enhance` | Identify and fill knowledge gaps with inferred content |
-| `wicked-brain:memory` | Store and recall experiential learnings across sessions (working / episodic / semantic tiers) |
-| `wicked-brain:status` | Brain health, stats, convergence debt detection, contradiction hotspots |
-| `wicked-brain:confirm` | Confirm or contradict a brain link — adjusts confidence score and tracks evidence |
-| `wicked-brain:synonyms` | Manage search synonym mappings; auto-suggest from search misses and tag frequency |
-| `wicked-brain:server` | Manage the background search server (auto-triggered) |
-| `wicked-brain:configure` | Write brain-aware context into your CLI's config (CLAUDE.md, GEMINI.md, etc.) |
-| `wicked-brain:batch` | Generate scripts for bulk operations — avoids burning context on repetitive tool calls |
-| `wicked-brain:retag` | Backfill synonym-expanded tags across all chunks for better search recall |
-| `wicked-brain:update` | Check npm for updates and reinstall skills across all detected CLIs |
-| `wicked-brain:lsp` | Universal code intelligence via LSP — hover, go-to-definition, diagnostics, completions |
-| `wicked-brain:graph` | Code-relationship graph — blast radius, callers, lineage — backed by a static code graph |
-| `wicked-brain:ui` | Open the read-only browser viewer — Material-styled Search + Wiki tabs over `http://localhost:<port>/` |
-| `wicked-brain:context` | Surface relevant brain knowledge for the current prompt — runs inline on the hot path to enrich what you're working on |
-| `wicked-brain:onboard` | Full project-understanding pipeline — scans the repo, investigates from multiple perspectives, and builds the support wiki |
-| `wicked-brain:session-teardown` | Capture session learnings — decisions, patterns, gotchas, discoveries — as brain memories before a session ends |
-| `wicked-brain:consolidate` | Multi-pass brain maintenance — archive noise, promote patterns, merge duplicates, and rebuild the synonym map |
+| `wicked-brain-init` | Set up a new brain — creates structure, starts the server, and ingests your project in one shot |
+| `wicked-brain-migrate` | Migrate a legacy flat brain at `~/.wicked-brain/` into the per-project layout |
+| `wicked-brain-ingest` | Add source files — text extracted deterministically, binary docs read via LLM vision |
+| `wicked-brain-search` | Parallel search across your brain and linked brains |
+| `wicked-brain-read` | Progressive loading: depth 0 (stats), depth 1 (summary), depth 2 (full content) |
+| `wicked-brain-query` | Answer questions with source citations |
+| `wicked-brain-compile` | Synthesize wiki articles from chunks |
+| `wicked-brain-lint` | Find broken links, orphan chunks, inconsistencies, tag synonyms, low-confidence links; auto-fix where possible |
+| `wicked-brain-enhance` | Identify and fill knowledge gaps with inferred content |
+| `wicked-brain-memory` | Store and recall experiential learnings across sessions (working / episodic / semantic tiers) |
+| `wicked-brain-status` | Brain health, stats, convergence debt detection, contradiction hotspots |
+| `wicked-brain-confirm` | Confirm or contradict a brain link — adjusts confidence score and tracks evidence |
+| `wicked-brain-synonyms` | Manage search synonym mappings; auto-suggest from search misses and tag frequency |
+| `wicked-brain-server` | Manage the background search server (auto-triggered) |
+| `wicked-brain-configure` | Write brain-aware context into your CLI's config (CLAUDE.md, GEMINI.md, etc.) |
+| `wicked-brain-batch` | Generate scripts for bulk operations — avoids burning context on repetitive tool calls |
+| `wicked-brain-retag` | Backfill synonym-expanded tags across all chunks for better search recall |
+| `wicked-brain-update` | Check npm for updates and reinstall skills across all detected CLIs |
+| `wicked-brain-lsp` | Universal code intelligence via LSP — hover, go-to-definition, diagnostics, completions |
+| `wicked-brain-graph` | Code-relationship graph — blast radius, callers, lineage — backed by a static code graph |
+| `wicked-brain-ui` | Open the read-only browser viewer — Material-styled Search + Wiki tabs over `http://localhost:<port>/` |
+| `wicked-brain-context` | Surface relevant brain knowledge for the current prompt — runs inline on the hot path to enrich what you're working on |
+| `wicked-brain-onboard` | Full project-understanding pipeline — scans the repo, investigates from multiple perspectives, and builds the support wiki |
+| `wicked-brain-session-teardown` | Capture session learnings — decisions, patterns, gotchas, discoveries — as brain memories before a session ends |
+| `wicked-brain-consolidate` | Multi-pass brain maintenance — archive noise, promote patterns, merge duplicates, and rebuild the synonym map |
 
 ## Code Graph (offline / air-gapped)
 
-`wicked-brain:graph` (blast radius, callers, lineage) is backed by the
+`wicked-brain-graph` (blast radius, callers, lineage) is backed by the
 [`@colbymchenry/codegraph`](https://www.npmjs.com/package/@colbymchenry/codegraph)
 CLI. By **default** the brain resolves that CLI by shelling out to
 `npx @colbymchenry/codegraph` — which **fetches from the npm registry and will
@@ -238,7 +238,7 @@ When you search, wicked-brain dispatches parallel search agents across all acces
 
 ## Per-Project Brains
 
-**Each project gets its own brain.** `wicked-brain:init` creates a brain under
+**Each project gets its own brain.** `wicked-brain-init` creates a brain under
 `~/.wicked-brain/projects/{project-name}/` by default, where `{project-name}`
 is the basename of your current working directory. This keeps unrelated
 codebases, clients, and research domains from crowding a single index — and
@@ -257,7 +257,7 @@ on each other. A supervising "meta-brain" can watch `~/.wicked-brain/projects/*`
 and federate queries across all of them via `brain.json` links.
 
 If you really want one brain for everything, you can pass a custom path to
-`wicked-brain:init` — but you'll fight the index as it grows.
+`wicked-brain-init` — but you'll fight the index as it grows.
 
 ## What's on Disk
 
@@ -303,7 +303,7 @@ Plain Node.js server (SQLite FTS5 + file watcher + optional LSP client + HTML vi
 Compare that to a typical RAG stack:
 
 ```
-Typical RAG:                           wicked-brain:
+Typical RAG:                           wicked-brain-
 - Embedding model API                 - SQLite (one file)
 - Vector database (Pinecone/Weaviate) - Markdown files
 - Chunking pipeline                   - Agent's native tools
