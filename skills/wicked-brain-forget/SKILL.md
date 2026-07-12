@@ -88,7 +88,7 @@ Append to `{brain_path}/_meta/log.jsonl`:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.memory.archived" \
+  --type "wicked.brain.memory.archived" \
   --domain "wicked-brain" \
   --subdomain "brain.memory" \
   --payload '{"path":"{path}","id":"{id}","mode":"{mode}","reason":"{reason}"}' 2>/dev/null || true

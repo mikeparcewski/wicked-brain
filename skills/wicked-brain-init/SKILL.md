@@ -319,7 +319,7 @@ If wicked-bus is available, emit an initialization event:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.brain.initialized" \
+  --type "wicked.brain.index.initialized" \
   --domain "wicked-brain" \
   --subdomain "brain" \
   --payload '{"brain_id":"{id}","brain_path":"{brain_path}","name":"{name}"}' 2>/dev/null || true

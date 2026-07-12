@@ -225,7 +225,7 @@ Append to `{brain_path}/_meta/log.jsonl`:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.memory.stored" \
+  --type "wicked.brain.memory.stored" \
   --domain "wicked-brain" \
   --subdomain "brain.memory" \
   --payload '{"path":"memory/{safe_name}.md","type":"{type}","tier":"{resolved tier}","brain_id":"{brain_id}"}' 2>/dev/null || true
