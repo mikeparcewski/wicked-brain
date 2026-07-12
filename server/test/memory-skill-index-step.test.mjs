@@ -20,17 +20,17 @@ const SKILL = path.join(
 test("memory skill invokes a synchronous index in the store flow", async () => {
   const md = await fs.readFile(SKILL, "utf8");
 
-  const idxCall = md.indexOf("wicked-brain-call index");
-  assert.ok(
-    idxCall >= 0,
-    "store flow must call `wicked-brain-call index` (synchronous FTS upsert), not rely on the watcher",
-  );
-
+  // Bound the search to the store flow (after the write step) so an `index`
+  // mention elsewhere (intro/config) can't satisfy this guard as a false positive.
+  const writeStep = md.indexOf("### Step 5: Write memory file");
   const logStep = md.indexOf("Log the store event");
+  assert.ok(writeStep >= 0, "expected the 'Write memory file' step to exist");
   assert.ok(logStep >= 0, "expected the 'Log the store event' step to exist");
+
+  const idxCall = md.indexOf("wicked-brain-call index", writeStep);
   assert.ok(
-    idxCall < logStep,
-    "the synchronous index call must come before the log step, i.e. inside the store flow before recall",
+    idxCall >= 0 && idxCall < logStep,
+    "store flow must call `wicked-brain-call index` (synchronous FTS upsert) between the write step and the log step — not rely on the watcher",
   );
 
   assert.ok(
