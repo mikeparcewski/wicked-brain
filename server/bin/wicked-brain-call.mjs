@@ -109,9 +109,18 @@ function hasBrainIndex(dir) {
 
 // True when `subdir` exists and is non-empty. Best-effort — a missing/unreadable
 // dir counts as empty.
-function dirNotEmpty(subdir) {
+function dirHasContent(subdir) {
   try {
-    return readdirSync(subdir).length > 0;
+    // Ignore the `.gitkeep` placeholders wicked-brain:init writes into an
+    // otherwise-empty brain, and recurse so an empty chunks/{extracted,inferred}
+    // scaffold doesn't read as content — otherwise a FRESH canonical brain would
+    // wrongly count as "populated" and defeat split-brain protection (serving the
+    // empty brain over a populated legacy one → silent data loss). Fix for #56.
+    return readdirSync(subdir, { withFileTypes: true }).some((entry) => {
+      if (entry.name === ".gitkeep") return false;
+      if (entry.isDirectory()) return dirHasContent(join(subdir, entry.name));
+      return true;
+    });
   } catch {
     return false;
   }
@@ -123,9 +132,9 @@ function dirNotEmpty(subdir) {
 // hasIndex alone would wrongly treat it as empty (#56 follow-up).
 function hasBrainContent(dir) {
   return (
-    dirNotEmpty(join(dir, "memory")) ||
-    dirNotEmpty(join(dir, "raw")) ||
-    dirNotEmpty(join(dir, "chunks"))
+    dirHasContent(join(dir, "memory")) ||
+    dirHasContent(join(dir, "raw")) ||
+    dirHasContent(join(dir, "chunks"))
   );
 }
 
