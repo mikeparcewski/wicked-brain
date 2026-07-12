@@ -180,9 +180,40 @@ indexed_at: "2026-04-07T14:23:01Z"
 Decided to use JWT with a 15-minute expiry for the auth-service API. Refresh tokens stored in HttpOnly cookies with 7-day TTL. Rationale: short access token lifetime limits blast radius if a token is leaked.
 ```
 
-The server's file watcher will auto-index this file.
+### Step 6: Index the memory synchronously
 
-### Step 6: Log the store event
+Immediately after writing the file, index it through the server so the memory
+is recallable in the *same* step. Do **not** rely on the file watcher alone —
+it is asynchronous and debounced, so a `store` followed by a `recall` in the
+same turn can miss the memory that was just written.
+
+The server's `index` action is a synchronous single-document upsert. It
+auto-extracts frontmatter from the content, so pass the full file body
+(frontmatter included) exactly as written in Step 5:
+
+```bash
+npx wicked-brain-call index '{"id":"memory/{safe_name}.md","path":"memory/{safe_name}.md","content":"{file_content}"}'
+```
+
+`content` is a JSON **string**, so the body must be JSON-encoded — newlines
+escaped as `\n` and embedded quotes as `\"`. A raw newline makes the payload
+invalid JSON and the call aborts *before* indexing, silently leaving the
+store→recall race in place. Build the payload with a real JSON encoder (not
+string concatenation); for a multi-line body, pipe the already-encoded JSON via
+stdin so the shell doesn't fight the outer quoting (the `\n` escaping *inside*
+the string is still required either way):
+
+```bash
+# $PAYLOAD holds a valid one-line JSON object (content already \n-escaped)
+printf '%s' "$PAYLOAD" | npx wicked-brain-call index -
+```
+
+`index` is idempotent and its `id` matches the file-watcher's id scheme, so
+re-running it upserts the same row — safe even though the watcher will also
+observe the write later. This synchronous call is what makes a freshly-stored
+memory immediately recallable in the same turn.
+
+### Step 7: Log the store event
 
 Append to `{brain_path}/_meta/log.jsonl`:
 
@@ -190,7 +221,7 @@ Append to `{brain_path}/_meta/log.jsonl`:
 {"ts":"{ISO}","op":"memory_store","path":"memory/{safe_name}.md","type":"{type}","tier":"{resolved tier}","author":"agent:memory"}
 ```
 
-### Step 7: Emit bus event
+### Step 8: Emit bus event
 
 ```bash
 npx wicked-bus emit \
