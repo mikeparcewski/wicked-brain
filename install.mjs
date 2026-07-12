@@ -48,12 +48,16 @@ function resolveClaudeCandidates() {
 // Canonical non-claude targets. Claude is expanded dynamically via
 // resolveClaudeCandidates() below so CLI_TARGETS stays a flat spec.
 const CLI_TARGETS = [
-  { name: "gemini",      dir: join(home, ".gemini", "skills"),      platform: "gemini" },
-  { name: "copilot",     dir: join(home, ".github", "skills"),      platform: "copilot" },
-  { name: "codex",       dir: join(home, ".codex", "skills"),       platform: "codex" },
-  { name: "cursor",      dir: join(home, ".cursor", "skills"),      platform: "cursor" },
-  { name: "kiro",        dir: join(home, ".kiro", "skills"),        platform: "kiro" },
-  { name: "antigravity", dir: join(home, ".antigravity", "skills"), platform: "antigravity" },
+  // Paths verified against each CLI's own source of truth:
+  //  - Copilot CLI loads personal custom skills from ~/.copilot/skills/ (not ~/.github/skills).
+  //  - Antigravity / Gemini CLI load global custom skills from ~/.gemini/config/skills/
+  //    (confirmed by the Antigravity agent; not ~/.gemini/skills or ~/.antigravity/skills).
+  { name: "gemini",      dir: join(home, ".gemini", "config", "skills"), platform: "gemini" },
+  { name: "copilot",     dir: join(home, ".copilot", "skills"),          platform: "copilot" },
+  { name: "codex",       dir: join(home, ".codex", "skills"),            platform: "codex" },
+  { name: "cursor",      dir: join(home, ".cursor", "skills"),           platform: "cursor" },
+  { name: "kiro",        dir: join(home, ".kiro", "skills"),             platform: "kiro" },
+  { name: "antigravity", dir: join(home, ".gemini", "config", "skills"), platform: "antigravity" },
 ];
 
 // Identity-marker gate for claude candidates. Without this, probing
