@@ -87,7 +87,8 @@ function posixRel(sourcePath, abs) {
  * @returns {{ frontmatter: string, body: string }}
  */
 function splitFrontmatter(text) {
-  const m = text.match(/^---[ \t]*\n([\s\S]*?)\n---[ \t]*\n?/);
+  // `\r?\n` throughout so CRLF (Windows) SKILL.md files parse identically to LF.
+  const m = text.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/);
   if (m) return { frontmatter: m[1], body: text.slice(m[0].length) };
   return { frontmatter: "", body: text };
 }
@@ -99,7 +100,10 @@ function splitFrontmatter(text) {
  * @returns {string|null}
  */
 function frontmatterField(frontmatter, field) {
-  const re = new RegExp(`^${field}:[ \\t]*(.+?)[ \\t]*$`, "m");
+  // Trailing `[ \t\r]*` (not just `[ \t]*`) so a CRLF line's `\r` is stripped
+  // instead of captured into the value — otherwise a quoted `"value"\r` keeps
+  // its trailing quote (the strip below anchors `$` past the `\r`).
+  const re = new RegExp(`^${field}:[ \\t]*(.+?)[ \\t\\r]*$`, "m");
   const m = frontmatter.match(re);
   if (!m) return null;
   return m[1].replace(/^["']|["']$/g, "").trim() || null;
@@ -224,19 +228,23 @@ export function extract({ db, sourcePath }) {
       if (!targets.has(targetRel)) targets.set(targetRel, ref);
     }
 
-    for (const [targetRel, ref] of targets) {
+    // `relpath` is constant for this file — resolve its node once, and only if
+    // there's at least one target (ensureFileNode is an INSERT OR IGNORE write).
+    if (targets.size > 0) {
       const src = ensureFileNode(db, relpath);
-      const tgt = ensureFileNode(db, targetRel);
+      for (const [targetRel, ref] of targets) {
+        const tgt = ensureFileNode(db, targetRel);
 
-      insertEdge.run(
-        src,
-        tgt,
-        "references",
-        JSON.stringify({ injected: "dispatch", dispatch: ref }),
-        INJECTED_PROVENANCE
-      );
-      edges_added++;
-      dispatches++;
+        insertEdge.run(
+          src,
+          tgt,
+          "references",
+          JSON.stringify({ injected: "dispatch", dispatch: ref }),
+          INJECTED_PROVENANCE
+        );
+        edges_added++;
+        dispatches++;
+      }
     }
   }
 

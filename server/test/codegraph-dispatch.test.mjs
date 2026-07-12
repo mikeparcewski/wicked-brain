@@ -272,6 +272,46 @@ subagent_type: wicked-garden:crew:reviewer
   }
 });
 
+test("dispatch/skills: CRLF line endings + quoted frontmatter name still resolve", () => {
+  const { repo, db } = makeRepo();
+  try {
+    // Windows-style CRLF throughout, with a QUOTED target name — the exact
+    // combination that used to break: `\r` was captured into the value and the
+    // trailing quote survived the strip, so the skill-index key was wrong
+    // (`wicked-garden-crew-reviewer"\r`) and the dispatch edge never resolved.
+    const crlf = (lines) => lines.join("\r\n");
+    writeFile(repo, "skills/jam-council/SKILL.md", crlf([
+      "---",
+      "name: wicked-garden-jam-council",
+      "subagent_type: wicked-garden:jam:council",
+      "context: fork",
+      "---",
+      "# Council",
+      'Skill(skill="wicked-garden-crew-reviewer", args="reviewer seat")',
+      "",
+    ]));
+    writeFile(repo, "skills/crew-reviewer/SKILL.md", crlf([
+      "---",
+      'name: "wicked-garden-crew-reviewer"',
+      "subagent_type: wicked-garden:crew:reviewer",
+      "---",
+      "# Reviewer",
+      "",
+    ]));
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 1, "CRLF + quoted name must still resolve the dispatch edge");
+    assert.equal(result.dispatches, 1);
+
+    const edge = db.prepare("SELECT * FROM edges WHERE provenance = 'injected:dispatch'").get();
+    assert.equal(edge.source, "file:skills/jam-council/SKILL.md");
+    assert.equal(edge.target, "file:skills/crew-reviewer/SKILL.md");
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("dispatch/skills: Task(subagent_type=\"handle\") body ref resolves via frontmatter index", () => {
   const { repo, db } = makeRepo();
   try {
