@@ -303,7 +303,7 @@ Plain Node.js server (SQLite FTS5 + file watcher + optional LSP client + HTML vi
 Compare that to a typical RAG stack:
 
 ```
-Typical RAG:                           wicked-brain-
+Typical RAG:                           wicked-brain:
 - Embedding model API                 - SQLite (one file)
 - Vector database (Pinecone/Weaviate) - Markdown files
 - Chunking pipeline                   - Agent's native tools

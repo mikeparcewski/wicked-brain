@@ -225,7 +225,7 @@ Even the worst case (Lead Developer, 19x) outperforms the naive approach by an o
 ## The Stack Comparison
 
 ```
-Traditional RAG Stack:              wicked-brain-
+Traditional RAG Stack:              wicked-brain:
 ─────────────────────               ──────────────
 Embedding model API                 (nothing)
 Vector database service             SQLite file
