@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:onboard
+name: wicked-brain-onboard
 description: |
   Full project understanding - detect repo mode, scan, investigate 5
   perspectives, extract symbols, ingest chunks, compile support wiki,

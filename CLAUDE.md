@@ -45,8 +45,8 @@ Two components:
 
 ### Skills (Markdown)
 - Each skill is a `SKILL.md` with YAML frontmatter (`name`, `description`).
-- Skill names use `wicked-brain:` prefix (e.g., `wicked-brain:search`).
-- Directory names use `wicked-brain-` prefix (colons aren't valid in dir names).
+- Skill frontmatter `name:` uses the `wicked-brain-` dash prefix (e.g., `wicked-brain-search`) — it must match the installed directory name so every CLI resolves the skill. A colon `name:` (`wicked-brain:search`) breaks the non-Claude hosts that rewrite `:`→`-` in directory names, producing a name/dir mismatch that drops the skill.
+- Directory names use the same `wicked-brain-` prefix; `name` == dir on every CLI.
 - Skills must be cross-platform: use agent-native tools (Read, Write, Grep, Glob) over shell commands. When shell is needed, provide macOS/Linux + Windows alternatives.
 - Skills include a "Cross-Platform Notes" section.
 - `curl` is cross-platform (Windows 10+) — OK to use for server API calls.
@@ -60,7 +60,7 @@ Two components:
 ### Naming
 - Package: `wicked-brain` (skills + installer)
 - Server: `wicked-brain-server` (npm package)
-- Skills: `wicked-brain:{operation}` (e.g., `wicked-brain:search`)
+- Skills: `wicked-brain-{operation}` (e.g., `wicked-brain-search`) — frontmatter `name` matches the directory
 - Directories: `wicked-brain-{operation}` (e.g., `wicked-brain-search/`)
 - Never use the old `fs-brain` or `brain-` names.
 

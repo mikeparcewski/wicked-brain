@@ -4,7 +4,7 @@
     "BeforeAgent": [{
       "hooks": [{
         "type": "command",
-        "command": "echo 'Use wicked-brain:context to enrich this prompt with brain knowledge'",
+        "command": "echo 'Use wicked-brain-context to enrich this prompt with brain knowledge'",
         "timeout": 5000
       }]
     }]

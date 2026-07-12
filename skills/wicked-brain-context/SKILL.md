@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:context
+name: wicked-brain-context
 description: |
   Surface relevant brain knowledge for the current prompt. Tiered routing - hot
   path for simple prompts, fast path for complex.

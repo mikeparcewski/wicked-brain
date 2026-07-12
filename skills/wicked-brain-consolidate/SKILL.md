@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:consolidate
+name: wicked-brain-consolidate
 description: |
   Multi-pass brain consolidation - archive noise, promote patterns, merge
   duplicates, build synonym map.
