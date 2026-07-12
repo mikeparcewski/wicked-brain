@@ -1,5 +1,5 @@
 ---
-name: wicked-brain:session-teardown
+name: wicked-brain-session-teardown
 description: |
   Capture session learnings - decisions, patterns, gotchas, discoveries - as
   brain memories before session ends.

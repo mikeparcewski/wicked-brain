@@ -3,7 +3,7 @@
   "version": 1,
   "hooks": {
     "userPromptSubmitted": [{
-      "command": "echo 'Use wicked-brain:context to enrich this prompt with brain knowledge'",
+      "command": "echo 'Use wicked-brain-context to enrich this prompt with brain knowledge'",
       "timeout": 30
     }]
   }
