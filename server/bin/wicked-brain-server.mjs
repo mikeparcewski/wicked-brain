@@ -138,7 +138,7 @@ const actions = {
   health: () => ({ ...db.health(), read_only: readOnly }),
   search: (p) => {
     const result = db.search(p);
-    emitEvent("wicked.search.executed", "brain.search", {
+    emitEvent("wicked.brain.search.executed", "brain.search", {
       query: p.query, result_count: result.total_matches, brain_id: brainId,
     });
     // Stamp the responding brain on the envelope so a `wicked-brain-call search`
@@ -149,26 +149,26 @@ const actions = {
   },
   federated_search: (p) => {
     const result = db.federatedSearch(p);
-    emitEvent("wicked.search.executed", "brain.search", {
+    emitEvent("wicked.brain.search.executed", "brain.search", {
       query: p.query, federated: true, brain_id: brainId,
     });
     return { ...result, brain_id: brainId };
   },
   index: (p) => {
     db.index(p);
-    emitEvent("wicked.chunk.indexed", "brain.chunk", {
+    emitEvent("wicked.brain.chunk.indexed", "brain.chunk", {
       id: p.id, path: p.path, brain_id: brainId,
     });
   },
   remove: (p) => {
     db.remove(p.id);
-    emitEvent("wicked.chunk.removed", "brain.chunk", {
+    emitEvent("wicked.brain.chunk.removed", "brain.chunk", {
       id: p.id, brain_id: brainId,
     });
   },
   reindex: (p) => {
     db.reindex(p.docs);
-    emitEvent("wicked.brain.reindexed", "brain", {
+    emitEvent("wicked.brain.index.reindexed", "brain", {
       doc_count: p.docs.length, brain_id: brainId,
     });
   },
@@ -210,13 +210,13 @@ const actions = {
   contradictions: () => ({ links: db.contradictions() }),
   confirm_link: (p) => {
     const result = db.confirmLink(p.source_id, p.target_path, p.verdict);
-    emitEvent("wicked.link.confirmed", "brain.link", {
+    emitEvent("wicked.brain.link.confirmed", "brain.link", {
       source_id: p.source_id, target_path: p.target_path, verdict: p.verdict, brain_id: brainId,
     });
     // Surface contradictions on a dedicated event stream so downstream
     // consumers don't have to filter by verdict on the generic confirmed event.
     if (p.verdict === "contradict") {
-      emitEvent("wicked.link.contradicted", "brain.link", {
+      emitEvent("wicked.brain.link.contradicted", "brain.link", {
         source_id: p.source_id,
         target_path: p.target_path,
         confidence: result?.confidence ?? null,
@@ -232,7 +232,7 @@ const actions = {
   wiki_list: (p) => db.wikiList(p),
   verify_wiki: (p = {}) => {
     const result = db.verifyWiki(p);
-    emitEvent("wicked.wiki.verified", "brain.wiki", {
+    emitEvent("wicked.brain.wiki.verified", "brain.wiki", {
       brain_id: brainId,
       total: result.summary.total,
       stale: result.summary.stale,
@@ -267,7 +267,7 @@ const actions = {
       docs.push({ id: entry.rel, path: entry.rel, content });
     }
     db.reindex(docs);
-    emitEvent("wicked.brain.reonboarded", "brain", {
+    emitEvent("wicked.brain.index.reonboarded", "brain", {
       brain_id: brainId,
       indexed: docs.length,
       mode: onboard?.detection?.mode ?? null,
@@ -308,7 +308,7 @@ const actions = {
     }
     const removed = await purgeBrainContent(brainPath);
     db.reindex([]);
-    emitEvent("wicked.brain.purged", "brain", { brain_id: brainId, removed });
+    emitEvent("wicked.brain.index.purged", "brain", { brain_id: brainId, removed });
     return { removed };
   },
 };
@@ -414,7 +414,7 @@ try {
 process.stdout.write(`wicked-brain-server running on port ${port} (brain: ${brainId}, pid: ${pid})\n`);
 watcher.start();
 const busReady = await waitForBus();
-emitEvent("wicked.server.started", "brain.system", {
+emitEvent("wicked.brain.server.started", "brain.system", {
   brain_id: brainId, port, pid,
 });
 if (busReady) {

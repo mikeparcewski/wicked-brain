@@ -4,7 +4,7 @@ import { promoteFact, computeContentHash, slugify } from "../lib/memory-promoter
 
 function makeEvent(overrides = {}) {
   return {
-    event_type: "wicked.fact.extracted",
+    event_type: "wicked.garden.fact.extracted",
     event_id: "evt-1",
     domain: "wicked-garden",
     emitted_at: 1700000000000,
@@ -40,7 +40,7 @@ test("discovery event → episodic, importance 4, ttl 14", () => {
 });
 
 test("skipped: wrong event_type", () => {
-  const r = promoteFact(makeEvent({ event_type: "wicked.chunk.indexed" }));
+  const r = promoteFact(makeEvent({ event_type: "wicked.brain.chunk.indexed" }));
   assert.equal(r.skip, true);
   assert.equal(r.memory, null);
 });

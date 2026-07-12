@@ -255,7 +255,7 @@ For each article written or updated, emit:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.article.compiled" \
+  --type "wicked.brain.article.compiled" \
   --domain "wicked-brain" \
   --subdomain "brain.wiki" \
   --payload '{"path":"{article_path}","brain_id":"{brain_id}","source_chunk_count":{N},"persona":"{synthesis_persona}"}' 2>/dev/null || true

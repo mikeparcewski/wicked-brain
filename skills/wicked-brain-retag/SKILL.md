@@ -89,7 +89,7 @@ After all files are updated (not in dry_run mode), emit a single summary event:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.tag.backfilled" \
+  --type "wicked.brain.tag.backfilled" \
   --domain "wicked-brain" \
   --subdomain "brain.chunk" \
   --payload '{"files_updated":{N},"files_scanned":{total},"brain_id":"{brain_id}"}' 2>/dev/null || true

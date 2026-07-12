@@ -299,7 +299,7 @@ The flat path is now a pure container with only `projects/` beneath it.
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.schema.migrated" \
+  --type "wicked.brain.schema.migrated" \
   --domain "wicked-brain" \
   --subdomain "brain.system" \
   --payload '{"from":"{flat_path}","to":"{target_path}","brain_id":"{brain_id}","doc_count":{N}}' 2>/dev/null || true

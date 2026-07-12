@@ -24,7 +24,7 @@ function makeBusDb({ events = [], cursorAt = null, plugin = "wicked-brain" } = {
   for (const id of events) insE.run(id);
   if (cursorAt !== null) {
     db.prepare("INSERT INTO subscriptions VALUES (?,?,?,?,?,?)").run(
-      "sub1", plugin, "subscriber", "wicked.fact.extracted", 1, null,
+      "sub1", plugin, "subscriber", "wicked.garden.fact.extracted", 1, null,
     );
     db.prepare("INSERT INTO cursors VALUES (?,?,?,?)").run("cur1", "sub1", cursorAt, null);
   }
@@ -39,7 +39,7 @@ test("repositions a cursor behind the TTL window to just before the oldest survi
   try {
     // oldest = 100 → reposition to 99 so the surviving events (100,150,200) are
     // still replayed rather than skipped.
-    const r = fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted");
+    const r = fastForwardStaleCursor(db, "wicked-brain", "wicked.garden.fact.extracted");
     assert.deepEqual(r, { from: 5, to: 99 });
     assert.equal(cursorOf(db), 99);
   } finally {
@@ -50,7 +50,7 @@ test("repositions a cursor behind the TTL window to just before the oldest survi
 test("no-op when the cursor is within the window", () => {
   const db = makeBusDb({ events: [100, 150, 200], cursorAt: 150 });
   try {
-    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted"), null);
+    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.garden.fact.extracted"), null);
     assert.equal(cursorOf(db), 150);
   } finally {
     db.close();
@@ -61,7 +61,7 @@ test("treats exactly oldest-1 as caught up (matches poll WB-003 boundary)", () =
   // oldest = 100, so WB-003 fires only when last_event_id < 99.
   const db = makeBusDb({ events: [100, 200], cursorAt: 99 });
   try {
-    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted"), null);
+    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.garden.fact.extracted"), null);
     assert.equal(cursorOf(db), 99);
   } finally {
     db.close();
@@ -71,7 +71,7 @@ test("treats exactly oldest-1 as caught up (matches poll WB-003 boundary)", () =
 test("no-op when there are no events", () => {
   const db = makeBusDb({ events: [], cursorAt: 5 });
   try {
-    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted"), null);
+    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.garden.fact.extracted"), null);
   } finally {
     db.close();
   }
@@ -80,7 +80,7 @@ test("no-op when there are no events", () => {
 test("no-op when no cursor exists yet (fresh subscriber)", () => {
   const db = makeBusDb({ events: [100, 200] });
   try {
-    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted"), null);
+    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.garden.fact.extracted"), null);
   } finally {
     db.close();
   }
@@ -89,7 +89,7 @@ test("no-op when no cursor exists yet (fresh subscriber)", () => {
 test("ignores cursors for a different plugin", () => {
   const db = makeBusDb({ events: [100, 200], cursorAt: 5, plugin: "other-plugin" });
   try {
-    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted"), null);
+    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.garden.fact.extracted"), null);
     assert.equal(cursorOf(db), 5); // untouched
   } finally {
     db.close();
@@ -99,7 +99,7 @@ test("ignores cursors for a different plugin", () => {
 test("never throws when the bus schema is missing", () => {
   const db = new Database(":memory:");
   try {
-    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.fact.extracted"), null);
+    assert.equal(fastForwardStaleCursor(db, "wicked-brain", "wicked.garden.fact.extracted"), null);
   } finally {
     db.close();
   }

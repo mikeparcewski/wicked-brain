@@ -1,5 +1,5 @@
 /**
- * Promotion policy for auto-memorizing wicked.fact.extracted bus events.
+ * Promotion policy for auto-memorizing wicked.garden.fact.extracted bus events.
  *
  * Pure function — no I/O, no side effects. Returns either a memory descriptor
  * (frontmatter + content + safeName + contentHash) or a skip reason.
@@ -43,7 +43,7 @@ function tierFromImportance(importance) {
  * @returns {{memory: object|null, skip: boolean, reason?: string}}
  */
 export function promoteFact(event) {
-  if (!event || event.event_type !== "wicked.fact.extracted") {
+  if (!event || event.event_type !== "wicked.garden.fact.extracted") {
     return { memory: null, skip: true, reason: "wrong event_type" };
   }
   const payload = event.payload || {};

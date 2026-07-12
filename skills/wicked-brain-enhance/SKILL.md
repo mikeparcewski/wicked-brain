@@ -136,7 +136,7 @@ For each inferred chunk created, emit:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.chunk.enhanced" \
+  --type "wicked.brain.chunk.enhanced" \
   --domain "wicked-brain" \
   --subdomain "brain.chunk" \
   --payload '{"path":"{chunk_path}","brain_id":"{brain_id}","topic":"{topic}","confidence":0.6}' 2>/dev/null || true

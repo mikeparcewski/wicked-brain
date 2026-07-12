@@ -186,7 +186,7 @@ bus is not installed, silently skip):
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.brain.consolidated" \
+  --type "wicked.brain.index.consolidated" \
   --domain "wicked-brain" \
   --subdomain "brain" \
   --payload '{"brain_id":"{brain_id}","archived":{N},"promoted":{M},"merged":{P}}' 2>/dev/null || true

@@ -2,7 +2,7 @@
 name: wicked-brain-dlq
 description: |
   Inspect, replay, or drop dead-lettered events from wicked-brain's bus
-  subscriber. The auto-memorize subscriber consumes `wicked.fact.extracted`
+  subscriber. The auto-memorize subscriber consumes `wicked.garden.fact.extracted`
   and dead-letters events that exhaust their retry budget. Without this
   skill, those events sit untouched forever — a fixable handler bug
   silently loses every fact.

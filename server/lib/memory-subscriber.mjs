@@ -1,7 +1,7 @@
 /**
  * Auto-memorize subscriber: bridges wicked-bus fact events into brain memories.
  *
- * Subscribes to `wicked.fact.extracted` via wicked-bus durable cursors,
+ * Subscribes to `wicked.garden.fact.extracted` via wicked-bus durable cursors,
  * runs each event through the promoter policy, dedups by content hash,
  * and writes a memory file. The brain file watcher picks it up and indexes it.
  *
@@ -17,7 +17,7 @@ import { promoteFact } from "./memory-promoter.mjs";
 // locate its cursor for the TTL self-heal — keep them in one place so the two
 // can't drift.
 const PLUGIN = "wicked-brain";
-const FACT_FILTER = "wicked.fact.extracted";
+const FACT_FILTER = "wicked.garden.fact.extracted";
 
 /**
  * Start the auto-memorize subscriber.
@@ -78,7 +78,7 @@ export async function startMemorySubscriber({ brainPath, brainId, db }) {
       const fileContent = renderMemoryFile(result.memory);
       writeFileSync(filePath, fileContent, "utf-8");
 
-      emitEvent("wicked.memory.stored", "brain.memory", {
+      emitEvent("wicked.brain.memory.stored", "brain.memory", {
         path: `memory/${result.memory.safeName}`,
         type: result.memory.frontmatter.type,
         tier: result.memory.frontmatter.tier,
@@ -91,7 +91,7 @@ export async function startMemorySubscriber({ brainPath, brainId, db }) {
     },
     onDeadLetter: (event, reason) => {
       console.error(`[memory-subscriber] dead-lettered event ${event?.event_id}: ${reason}`);
-      emitEvent("wicked.memory.dead_lettered", "brain.memory", {
+      emitEvent("wicked.brain.memory.dead_lettered", "brain.memory", {
         event_id: event?.event_id,
         reason,
         brain_id: brainId,

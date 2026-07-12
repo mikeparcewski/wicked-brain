@@ -107,7 +107,7 @@ Sources:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.query.executed" \
+  --type "wicked.brain.query.executed" \
   --domain "wicked-brain" \
   --subdomain "brain.query" \
   --payload '{"question":"{question}","sources_found":{count},"brain_id":"{brain_id}"}' 2>/dev/null || true

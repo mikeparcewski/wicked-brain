@@ -138,7 +138,7 @@ After any write to `synonyms.json` (add, remove, or auto-suggest apply), emit:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.synonym.updated" \
+  --type "wicked.brain.synonym.updated" \
   --domain "wicked-brain" \
   --subdomain "brain.taxonomy" \
   --payload '{"operation":"{add|remove|auto-apply}","term":"{term}","brain_id":"{brain_id}"}' 2>/dev/null || true

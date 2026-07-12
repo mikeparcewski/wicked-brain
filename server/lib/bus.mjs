@@ -46,7 +46,7 @@ const ready = init();
  * Emit an event to the bus.
  * Fire-and-forget — never throws, never blocks the caller.
  *
- * @param {string} eventType - e.g. "wicked.chunk.indexed"
+ * @param {string} eventType - e.g. "wicked.brain.chunk.indexed"
  * @param {string} subdomain - e.g. "brain.chunk"
  * @param {object} payload - event-specific data
  */

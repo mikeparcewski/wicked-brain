@@ -40,7 +40,7 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 | `server/lib/lsp-manager.mjs` | Manages language server processes — spawn, health check, crash recovery, shutdown. | `LspManager` | `./lsp-protocol.mjs` |
 | `server/lib/lsp-protocol.mjs` | LSP JSON-RPC protocol over stdio. Handles Content-Length framing, request/response matching, and notifications. | `MessageReader`, `RpcClient`, `writeMessage` | — |
 | `server/lib/lsp-servers.mjs` | Known language servers map — 40+ servers covering 70+ extensions. Extensible via {brainPath}/_meta/lsp.json. | `KNOWN_SERVERS`, `getKnownExtensions`, `loadUserConfig`, `resolveServer` | — |
-| `server/lib/memory-promoter.mjs` | Promotion policy for auto-memorizing wicked.fact.extracted bus events. | `computeContentHash`, `promoteFact`, `slugify` | — |
+| `server/lib/memory-promoter.mjs` | Promotion policy for auto-memorizing wicked.garden.fact.extracted bus events. | `computeContentHash`, `promoteFact`, `slugify` | — |
 | `server/lib/memory-subscriber.mjs` | Auto-memorize subscriber: bridges wicked-bus fact events into brain memories. | `fastForwardStaleCursor`, `renderMemoryFile`, `startMemorySubscriber` | `./bus.mjs`, `./memory-promoter.mjs` |
 | `server/lib/mode-config.mjs` | Validate a mode.json body. Returns { ok, errors } — does not throw. Kept in lockstep with mode.schema.json. The schema is the canonical documentation; this is the runtime enforcement. | `MODE_FILE_PATH`, `diffMode`, `readModeFile`, `validateMode`, `writeModeFile` | — |
 | `server/lib/onboard-wiki.mjs` | Onboard-wiki orchestrator. | `formatOnboardResult`, `runOnboardWiki` | `./detect-mode.mjs`, `./mode-config.mjs`, `./stamp-pointer.mjs` |

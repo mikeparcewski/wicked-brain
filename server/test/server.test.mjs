@@ -396,8 +396,8 @@ test("dlq_list parses string limit defensively (CLI/HTTP layer often passes stri
 
 test("confirm_link with verdict=contradict does not crash and returns ok", async () => {
   // No matching link exists; confirmLink returns null. The HTTP layer maps
-  // null to { ok: true }. The handler still fires both wicked.link.confirmed
-  // and (because verdict=contradict) wicked.link.contradicted — we can't
+  // null to { ok: true }. The handler still fires both wicked.brain.link.confirmed
+  // and (because verdict=contradict) wicked.brain.link.contradicted — we can't
   // observe the emit from here, but we verify the dispatch path is wired.
   const result = await api(port, "confirm_link", {
     source_id: "no-such-source",

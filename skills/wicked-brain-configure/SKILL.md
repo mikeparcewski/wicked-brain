@@ -116,7 +116,7 @@ Brain search/query results include `source_type` and `path` fields:
 
 ```bash
 npx wicked-bus emit \
-  --type "wicked.config.updated" \
+  --type "wicked.brain.config.updated" \
   --domain "wicked-brain" \
   --subdomain "brain.system" \
   --payload '{"config_file":"{path}","platform":"{detected_platform}","brain_id":"{brain_id}"}' 2>/dev/null || true

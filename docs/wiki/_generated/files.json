@@ -273,7 +273,7 @@
     },
     {
       "path": "server/lib/memory-promoter.mjs",
-      "purpose": "Promotion policy for auto-memorizing wicked.fact.extracted bus events.",
+      "purpose": "Promotion policy for auto-memorizing wicked.garden.fact.extracted bus events.",
       "exports": [
         "computeContentHash",
         "promoteFact",
