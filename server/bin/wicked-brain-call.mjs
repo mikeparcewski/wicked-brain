@@ -14,12 +14,15 @@ import {
   openSync,
   closeSync,
   statSync,
+  readdirSync,
+  realpathSync,
 } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
+import { projectId, resolvePerProjectBrain } from "../lib/project-id.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const SERVER_BIN = join(__dirname, "wicked-brain-server.mjs");
@@ -81,21 +84,100 @@ function coerce(s) {
 // Mirrors the resolution skills use: explicit flag → env → per-project →
 // legacy flat. Returning the per-project path even when nothing exists yet
 // lets `--start` create the directory cleanly.
+//
+// The per-project slug is CANONICAL (kebab-case via projectId) so the same repo
+// always maps to the same brain dir regardless of which tool resolved it — the
+// fix for the split-brain fragmentation in wicked-brain#56, where the CLI keyed
+// on the raw cwd basename (`command_iq`) while the init skill kebab-cased it
+// (`command-iq`). resolvePerProjectBrain also detects an existing legacy
+// raw-basename store alongside the canonical one and surfaces an actionable
+// warning (via onWarn) instead of silently serving a degraded/empty brain.
 
-function resolveBrainPath(explicit) {
+// True when `dir` is an initialized brain (has meta config or brain.json).
+function isBrainStore(dir) {
+  return (
+    existsSync(join(dir, "_meta", "config.json")) ||
+    existsSync(join(dir, "brain.json"))
+  );
+}
+
+// True when `dir` holds a built SQLite index. Presence of `.brain.db` is the
+// signal that separated the rich store from the degraded one in #56.
+function hasBrainIndex(dir) {
+  return existsSync(join(dir, ".brain.db"));
+}
+
+// True when `subdir` exists and is non-empty. Best-effort — a missing/unreadable
+// dir counts as empty.
+function dirHasContent(subdir) {
+  try {
+    // Ignore the `.gitkeep` placeholders wicked-brain:init writes into an
+    // otherwise-empty brain, and recurse so an empty chunks/{extracted,inferred}
+    // scaffold doesn't read as content — otherwise a FRESH canonical brain would
+    // wrongly count as "populated" and defeat split-brain protection (serving the
+    // empty brain over a populated legacy one → silent data loss). Fix for #56.
+    return readdirSync(subdir, { withFileTypes: true }).some((entry) => {
+      if (entry.name === ".gitkeep") return false;
+      if (entry.isDirectory()) return dirHasContent(join(subdir, entry.name));
+      return true;
+    });
+  } catch {
+    return false;
+  }
+}
+
+// True when `dir` holds real on-disk content independent of the built index —
+// any memory note or raw/chunk source file. In a split, a store can be fresh
+// (notes present, `.brain.db` not built yet) yet still hold the user's data;
+// hasIndex alone would wrongly treat it as empty (#56 follow-up).
+function hasBrainContent(dir) {
+  return (
+    dirHasContent(join(dir, "memory")) ||
+    dirHasContent(join(dir, "raw")) ||
+    dirHasContent(join(dir, "chunks"))
+  );
+}
+
+// True when two paths resolve to the SAME underlying directory. On a
+// case-insensitive filesystem (macOS APFS default, Windows) the legacy raw
+// basename and the canonical kebab slug can name one physical dir through two
+// case variants (`MyRepo` vs `myrepo`); realpath collapses both to the true
+// on-disk path so we don't misread a case variant as a split. `.native` returns
+// the OS-canonical casing; fall back to plain realpath where unavailable.
+function sameUnderlyingDir(a, b) {
+  const real = realpathSync.native || realpathSync;
+  try {
+    return real(a) === real(b);
+  } catch {
+    return false;
+  }
+}
+
+function resolveBrainPath(explicit, { onWarn } = {}) {
   if (explicit) return resolve(explicit);
   if (process.env.WICKED_BRAIN_PATH) return resolve(process.env.WICKED_BRAIN_PATH);
-  const cwdBase = basename(process.cwd());
-  const perProject = join(homedir(), ".wicked-brain", "projects", cwdBase);
-  if (
-    existsSync(join(perProject, "_meta", "config.json")) ||
-    existsSync(join(perProject, "brain.json"))
-  ) {
-    return perProject;
-  }
+
+  const projectsRoot = join(homedir(), ".wicked-brain", "projects");
+  const resolved = resolvePerProjectBrain({
+    cwd: process.cwd(),
+    projectsRoot,
+    storeExists: isBrainStore,
+    hasIndex: hasBrainIndex,
+    hasContent: hasBrainContent,
+    sameDir: sameUnderlyingDir,
+    joinPath: join,
+  });
+  if (resolved.warning && typeof onWarn === "function") onWarn(resolved.warning);
+
+  // A per-project store (canonical or legacy) already exists — use it.
+  if (isBrainStore(resolved.path)) return resolved.path;
+
+  // No per-project store yet — honor a legacy flat brain if one is present.
   const flat = join(homedir(), ".wicked-brain");
   if (existsSync(join(flat, "_meta", "config.json"))) return flat;
-  return perProject;
+
+  // Fresh brain: the canonical per-project dir (so new brains are never split).
+  return resolved.path;
 }
 
 function readMetaConfig(brainPath) {
@@ -335,12 +417,14 @@ async function ensureServer(brainPath, opts) {
 
     log(`starting wicked-brain-server (brain=${brainPath} port=${port})`);
     let sourcePath = sourceOverride || meta.source_path;
-    // Per-project brains are keyed on basename(cwd). Configs written before
-    // source_path persistence lack the field — derive it from cwd (only when
-    // the basename convention confirms cwd is the project root) so the server
-    // roots LSP at the project and persists source_path for port-resolution
-    // consumers (wicked-garden hooks match configs by source_path).
-    if (!sourcePath && basename(brainPath) === basename(process.cwd())) {
+    // Per-project brains are keyed on the canonical projectId(cwd). Configs
+    // written before source_path persistence lack the field — derive it from cwd
+    // (only when the canonical slug confirms this brain dir belongs to cwd) so
+    // the server roots LSP at the project and persists source_path for
+    // port-resolution consumers (wicked-garden hooks match configs by
+    // source_path). Compare via projectId so a raw-basename brain dir
+    // (`command_iq`) still matches its canonical cwd (`command-iq`) and vice versa.
+    if (!sourcePath && projectId(brainPath) === projectId(process.cwd())) {
       sourcePath = process.cwd();
     }
     const argv = [SERVER_BIN, "--brain", brainPath, "--port", String(port)];
@@ -598,7 +682,9 @@ Examples:
   }
 
   const log = (msg) => process.stderr.write(`[wicked-brain-call] ${msg}\n`);
-  const brainPath = resolveBrainPath(args.flags.brain);
+  const brainPath = resolveBrainPath(args.flags.brain, {
+    onWarn: (msg) => log(`WARNING: ${msg}`),
+  });
 
   // ---- --status ----
   if (args.flags.status) {

@@ -3,7 +3,7 @@ status: published
 canonical_for: [MAP-FILES]
 references: []
 owner: core
-last_reviewed: 2026-06-10
+last_reviewed: 2026-07-12
 generated: true
 source_roots: [server/lib, server/bin]
 ---
@@ -17,7 +17,7 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 | Path | Purpose | Exports | Local imports |
 |---|---|---|---|
 | `server/bin/onboard-wiki.mjs` | wicked-brain-onboard-wiki | — | `../lib/onboard-wiki.mjs` |
-| `server/bin/wicked-brain-call.mjs` | — | — | — |
+| `server/bin/wicked-brain-call.mjs` | — | — | `../lib/project-id.mjs` |
 | `server/bin/wicked-brain-server.mjs` | Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real server instance so the bind semantics (dual-stack IPv4+IPv6) match the eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only conflict and produce a false "free" result. | — | `../lib/brain-walker.mjs`, `../lib/bus.mjs`, `../lib/codegraph-actions.mjs`, `../lib/file-watcher.mjs`, `../lib/lsp-client.mjs`, `../lib/memory-subscriber.mjs`, `../lib/onboard-wiki.mjs`, `../lib/sqlite-search.mjs`, `../lib/viewer-page.mjs` |
 | `server/lib/brain-walker.mjs` | Walk a brain path and surface every authored `.md` file under the content subdirectories (chunks/, wiki/, memory/). Deliberately excludes `_meta/`, `raw/`, `.brain.db`, and any dotfile/dotdir. Paths returned are relative to the brain path and use forward slashes per INV-PATHS-FORWARD. | `purgeBrainContent`, `walkBrainContent` | — |
 | `server/lib/bus.mjs` | wicked-bus integration for wicked-brain-server. | `busAvailable`, `dropBusDeadLetter`, `emitEvent`, `getBusDb`, `isBusAvailable`, `listBusDeadLetters`, `replayBusDeadLetter`, `waitForBus` | — |
@@ -44,6 +44,7 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 | `server/lib/memory-subscriber.mjs` | Auto-memorize subscriber: bridges wicked-bus fact events into brain memories. | `fastForwardStaleCursor`, `renderMemoryFile`, `startMemorySubscriber` | `./bus.mjs`, `./memory-promoter.mjs` |
 | `server/lib/mode-config.mjs` | Validate a mode.json body. Returns { ok, errors } — does not throw. Kept in lockstep with mode.schema.json. The schema is the canonical documentation; this is the runtime enforcement. | `MODE_FILE_PATH`, `diffMode`, `readModeFile`, `validateMode`, `writeModeFile` | — |
 | `server/lib/onboard-wiki.mjs` | Onboard-wiki orchestrator. | `formatOnboardResult`, `runOnboardWiki` | `./detect-mode.mjs`, `./mode-config.mjs`, `./stamp-pointer.mjs` |
+| `server/lib/project-id.mjs` | Canonical project-id slug + per-project brain resolution. | `baseName`, `projectId`, `resolvePerProjectBrain`, `slugifyId` | — |
 | `server/lib/sqlite-search.mjs` | Parse a source_hashes entry of the form "{chunk_path}: {hash}". Returns null if the shape doesn't match — malformed entries are skipped rather than blocking the whole verify call. | `SqliteSearch`, `deriveSourceType` | `./frontmatter.mjs`, `./wikilinks.mjs` |
 | `server/lib/stamp-pointer.mjs` | CLAUDE.md / AGENTS.md contributor-wiki pointer stamping. | `buildSection`, `stampWikiPointer` | — |
 | `server/lib/viewer-page.mjs` | Read-only HTML viewer for a wicked-brain instance. | `renderViewerHtml` | — |

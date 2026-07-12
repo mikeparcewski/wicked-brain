@@ -48,6 +48,40 @@ npx wicked-brain-call stats
 
 If the call exits with code 2 (infra failure), surface the error to the user.
 
+**Watch stderr for a split-brain warning.** `wicked-brain-call` writes a
+`WARNING: split brain …` / `WARNING: … legacy id …` line to stderr when more
+than one `~/.wicked-brain/projects/*` dir maps to the same canonical id for this
+repo (the wicked-brain#56 fragmentation). If you see it, surface it verbatim and
+tell the user to run `wicked-brain:migrate` to merge the stores.
+
+### Step 2b: Detect split-brain fragmentation
+
+Independently confirm the repo's memory isn't fragmented across sibling stores.
+Compute the canonical id for the current repo with the same `projectId()` rule
+the CLI and `wicked-brain:init` use (`projectId()` in
+`server/lib/project-id.mjs` is the source of truth). For an ordinary ASCII repo
+name that is just the cwd basename lowercased with non-alphanumerics replaced by
+hyphens (`command_iq` → `command-iq`); the full rule also NFKD-folds Unicode
+(`Zürich` → `zurich`) and falls back to `brain-<sha1>` for names that fold to
+empty — see the `wicked-brain:init` canonical rule for the exact steps. Then
+list `~/.wicked-brain/projects/` (Windows:
+`%USERPROFILE%\.wicked-brain\projects\`) with Glob or:
+- macOS/Linux: `ls ~/.wicked-brain/projects/`
+- Windows PowerShell: `Get-ChildItem "$env:USERPROFILE\.wicked-brain\projects"`
+
+Flag a collision when **more than one** directory maps to the same canonical id
+(e.g. both `command_iq` and `command-iq` exist), or when the resolved brain has
+**0 chunks / no `.brain.db`** while a sibling dir for the same repo has content:
+
+```
+⚠ Split brain: {raw-dir} and {canonical-dir} both hold this repo's memory
+  (canonical id: {canonical-id}). The current session may be reading the empty
+  one. Run wicked-brain:migrate to merge them into "{canonical-id}".
+```
+
+Fail loud here — never let the user conclude "the brain knows nothing" when a
+populated sibling store exists.
+
 ### Step 3: Return at requested depth
 
 **Depth 0:**

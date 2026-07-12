@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-06-10",
+  "generated_at": "2026-07-12",
   "source_roots": [
     "server/lib",
     "server/bin"
   ],
   "canonical_id": "MAP-FILES",
-  "count": 32,
+  "count": 33,
   "files": [
     {
       "path": "server/bin/onboard-wiki.mjs",
@@ -19,7 +19,9 @@
       "path": "server/bin/wicked-brain-call.mjs",
       "purpose": "",
       "exports": [],
-      "imports": []
+      "imports": [
+        "../lib/project-id.mjs"
+      ]
     },
     {
       "path": "server/bin/wicked-brain-server.mjs",
@@ -316,6 +318,17 @@
         "./mode-config.mjs",
         "./stamp-pointer.mjs"
       ]
+    },
+    {
+      "path": "server/lib/project-id.mjs",
+      "purpose": "Canonical project-id slug + per-project brain resolution.",
+      "exports": [
+        "baseName",
+        "projectId",
+        "resolvePerProjectBrain",
+        "slugifyId"
+      ],
+      "imports": []
     },
     {
       "path": "server/lib/sqlite-search.mjs",
