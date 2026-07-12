@@ -60,8 +60,12 @@ will land in the project root.
 
 To locate the brain config for the current session:
 
-1. Compute `{cwd_basename}` — the basename of the current working directory,
-   lowercased, with non-alphanumerics replaced by hyphens.
+1. Compute `{cwd_basename}` — the basename of the current working directory run
+   through the canonical slug rule (`projectId()` in
+   `server/lib/project-id.mjs`; the full rule — NFKD fold, lowercase,
+   non-alphanumerics → hyphens, empty-fold `brain-<sha1>` fallback — is spelled
+   out under Step 1 below). For ordinary names this is just lowercase +
+   non-alphanumerics → hyphens.
 2. Try `~/.wicked-brain/projects/{cwd_basename}/_meta/config.json` first
    (Windows: `%USERPROFILE%\.wicked-brain\projects\{cwd_basename}\_meta\config.json`).
 3. If that file doesn't exist, fall back to the legacy flat path
@@ -104,7 +108,33 @@ or any installed tool. For example:
 - User is in `/Users/mike/Projects/wicked-brain` → default name is `wicked-brain` (only
   correct if they are literally indexing the wicked-brain repo itself)
 
-Lowercase the result and replace non-alphanumeric characters with hyphens.
+Apply the **canonical slug rule** below. It is byte-for-byte identical to
+`projectId()` in `server/lib/project-id.mjs` — **that function is the single
+source of truth**; this text just mirrors it so an agent computing the slug by
+hand lands on the same dir the CLI resolves. For an ordinary ASCII repo name it
+reduces to "lowercase, non-alphanumerics → hyphens", but the full rule is:
+
+1. Unicode-normalize with **NFKD** and strip combining marks, folding accents and
+   compatibility forms toward ASCII (`café` → `cafe`, `Zürich` → `zurich`,
+   `ﬁnance` → `finance`).
+2. Lowercase.
+3. Replace every run of non-`[a-z0-9]` characters with a single hyphen.
+4. Trim leading and trailing hyphens.
+5. **Fallback:** if nothing survives (e.g. an all-CJK name folds to empty), use
+   `brain-` + the first 8 hex chars of `sha1(original name)`, so two distinct
+   names never collapse to the same empty slug.
+
+> **Canonical project id.** This is the ONE canonical slug for a repo, produced
+> by `projectId()` in `server/lib/project-id.mjs` — treat that function as
+> authoritative and do not re-derive a simpler rule. The id you pick here and the
+> dir `wicked-brain-call` auto-resolves therefore always match. Underscores and
+> spaces collapse to hyphens: `command_iq` and `My Repo` become `command-iq` and
+> `my-repo`. Do NOT keep the raw basename (e.g. `command_iq`) as the id — a raw-basename brain dir
+> and a kebab brain dir for the same repo is the split-brain fragmentation from
+> wicked-brain#56, where one repo's memory ends up scattered across two stores
+> and lookups silently resolve to the empty one. If you find both a raw-basename
+> dir and a kebab dir under `~/.wicked-brain/projects/` for the same repo, run
+> `wicked-brain:migrate` to merge them into the canonical (kebab) id.
 
 Then ask **two questions, in order**:
 

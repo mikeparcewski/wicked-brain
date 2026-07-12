@@ -29,6 +29,59 @@ Read/Write/Glob tools over shell commands when possible.
 - `wicked-brain:init` detected a flat brain and invoked this skill
 - Another skill hit errors caused by the flat layout (e.g. port collisions
   with a second project, meta-brain federation not working)
+- **Split-brain merge** — two per-project dirs map to the same canonical id for
+  one repo (e.g. `projects/command_iq` AND `projects/command-iq`). `wicked-brain:status`
+  or a `WARNING: split brain …` line from `wicked-brain-call` flags this. See
+  the "Slug-merge" mode below.
+
+## Slug-merge mode (two dirs, same repo — wicked-brain#56)
+
+Before the canonical `projectId()` slug landed, the CLI keyed per-project brains
+on the RAW cwd basename (`command_iq`, underscore preserved) while
+`wicked-brain:init` kebab-cased the id (`command-iq`). A single repo could end
+up with its memory fragmented across both dirs, and a lookup could silently
+resolve to the empty/degraded one. This mode merges them into the canonical id.
+
+**Canonical id** = the repo's cwd basename run through `projectId()` in
+`server/lib/project-id.mjs` (the single source of truth). For an ordinary ASCII
+name that is just lowercase + non-alphanumerics → hyphens (`command_iq` →
+`command-iq`); the full rule also NFKD-folds Unicode (`Zürich` → `zurich`) and
+falls back to `brain-<sha1>` for names that fold to empty — see the
+`wicked-brain:init` canonical rule for the exact steps. The canonical dir is
+always the kebab one.
+
+### Slug-merge process
+
+1. **Identify the two dirs.** Under `~/.wicked-brain/projects/`, find the
+   raw-basename dir and the canonical (kebab) dir that collapse to the same
+   canonical id. Read each `brain.json`, count `memory/*.md`, and check for
+   `.brain.db` so you know which store is richer.
+2. **Pick the survivor = the canonical (kebab) dir.** All data merges INTO it.
+   If only the raw dir has a `.brain.db`, that's fine — you'll move it over.
+3. **Stop any server on BOTH dirs** (same procedure as Step 3 below — read each
+   `_meta/server.pid`, verify liveness cross-platform, stop, wait, delete the
+   stale PID). SQLite files must not be locked during the move.
+4. **Merge data from the raw dir into the canonical dir.** For `memory/`,
+   `raw/`, `chunks/`, `wiki/`, `calls/`: move files that don't already exist in
+   the canonical dir; for name collisions keep BOTH (suffix the incoming file,
+   e.g. `-legacy`) — never overwrite. For `.brain.db`/`-shm`/`-wal`: if the
+   canonical dir has no `.brain.db`, move the raw dir's over; if BOTH have one,
+   move the canonical dir's index aside and rebuild after the merge (see step 6)
+   rather than trying to merge two SQLite files.
+5. **Never delete the raw dir until the merge is verified.** Rename it aside
+   (e.g. `command_iq.pre-merge`) so rollback stays possible.
+6. **Start the server on the canonical dir and `reindex`** so the SQLite index
+   reflects the merged files:
+   ```bash
+   npx wicked-brain-call --brain "~/.wicked-brain/projects/{canonical-id}" reindex
+   npx wicked-brain-call --brain "~/.wicked-brain/projects/{canonical-id}" stats
+   ```
+   Confirm the merged memory/chunk counts are the SUM (minus true duplicates) of
+   the two source dirs.
+7. **Only after verification, remove the renamed `…​.pre-merge` dir.** Report the
+   before/after counts and the surviving canonical path to the user.
+
+The rest of this skill covers the original **flat → per-project** migration.
 
 ## Parameters
 

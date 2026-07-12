@@ -467,6 +467,47 @@ test("data path: matching brain_id lets the op THROUGH to the server", async () 
   }
 });
 
+test("path resolution uses the canonical (kebab) slug and warns on a split brain (#56)", () => {
+  // Reproduce the fragmentation: a repo dir with an underscore basename, a
+  // populated LEGACY raw-basename store, and an empty CANONICAL kebab store.
+  // The resolver must (a) NOT silently serve the empty canonical store, and
+  // (b) surface an actionable split-brain warning on stderr.
+  const home = mkdtempSync(join(tmpdir(), "wb-home-"));
+  const projectsRoot = join(home, ".wicked-brain", "projects");
+  const cwdDir = mkdtempSync(join(tmpdir(), "repo_")); // underscore-friendly parent
+  const repoDir = join(cwdDir, "command_iq");
+  mkdirSync(repoDir, { recursive: true });
+
+  const legacyDir = join(projectsRoot, "command_iq"); // raw basename, populated
+  const canonDir = join(projectsRoot, "command-iq");  // canonical, degraded
+  mkdirSync(join(legacyDir, "_meta"), { recursive: true });
+  writeFileSync(join(legacyDir, "brain.json"), JSON.stringify({ id: "command-iq" }));
+  writeFileSync(join(legacyDir, ".brain.db"), "not empty");
+  mkdirSync(join(canonDir, "_meta"), { recursive: true });
+  writeFileSync(join(canonDir, "brain.json"), JSON.stringify({ id: "command-iq" }));
+
+  // --status reads config only (no spawn); resolveBrainPath still runs.
+  const res = spawnSync(
+    process.execPath,
+    [callBin, "--status"],
+    {
+      encoding: "utf-8",
+      cwd: repoDir,
+      env: { ...process.env, HOME: home, USERPROFILE: home, WICKED_BRAIN_PATH: "" },
+      timeout: 15_000,
+    },
+  );
+  assert.equal(res.status, 0, `status exit ${res.status}; stderr: ${res.stderr}`);
+  const parsed = tryJson(res.stdout || "");
+  assert.ok(parsed, `status not JSON: ${res.stdout}`);
+  // Must serve the POPULATED legacy store, not the empty canonical one.
+  assert.equal(basename(parsed.brain_path), "command_iq",
+    `resolved to ${parsed.brain_path}, expected the populated legacy store`);
+  // Actionable split-brain warning on stderr.
+  assert.match(res.stderr, /WARNING: split brain/,
+    `expected split-brain warning on stderr, got: ${res.stderr}`);
+});
+
 test("cold spawn derives --source from cwd when basename matches, and persists source_path", async () => {
   // Per-project brains are keyed on basename(cwd) — when the brain dir name
   // matches the cwd name and config has no source_path, the CLI passes cwd
