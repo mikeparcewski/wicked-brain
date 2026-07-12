@@ -231,3 +231,217 @@ test("dispatch: end-to-end blastRadius — agent surfaces the dispatching comman
     rmSync(repo, { recursive: true, force: true });
   }
 });
+
+// ─── Skills layout (agents→skills / commands→skill-actions consolidation) ──────
+
+test("dispatch/skills: Skill(skill=\"<name>\") body ref → edge to that skill", () => {
+  const { repo, db } = makeRepo();
+  try {
+    // Dispatcher skill references another skill by its frontmatter `name:` form.
+    writeFile(repo, "skills/jam-council/SKILL.md", `---
+name: wicked-garden-jam-council
+subagent_type: wicked-garden:jam:council
+context: fork
+---
+# Council
+Dispatch each seat as the forked reviewer skill:
+Skill(skill="wicked-garden-crew-reviewer",
+      args="You are the COUNCIL's reviewer seat.")
+`);
+    writeFile(repo, "skills/crew-reviewer/SKILL.md", `---
+name: wicked-garden-crew-reviewer
+subagent_type: wicked-garden:crew:reviewer
+---
+# Reviewer
+`);
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 1, "one dispatch edge from council → reviewer");
+    assert.equal(result.dispatches, 1);
+
+    const edge = db.prepare("SELECT * FROM edges WHERE provenance = 'injected:dispatch'").get();
+    assert.equal(edge.source, "file:skills/jam-council/SKILL.md");
+    assert.equal(edge.target, "file:skills/crew-reviewer/SKILL.md");
+    assert.equal(edge.kind, "references");
+    const meta = JSON.parse(edge.metadata);
+    assert.equal(meta.injected, "dispatch");
+    assert.equal(meta.dispatch, "wicked-garden-crew-reviewer");
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("dispatch/skills: CRLF line endings + quoted frontmatter name still resolve", () => {
+  const { repo, db } = makeRepo();
+  try {
+    // Windows-style CRLF throughout, with a QUOTED target name — the exact
+    // combination that used to break: `\r` was captured into the value and the
+    // trailing quote survived the strip, so the skill-index key was wrong
+    // (`wicked-garden-crew-reviewer"\r`) and the dispatch edge never resolved.
+    const crlf = (lines) => lines.join("\r\n");
+    writeFile(repo, "skills/jam-council/SKILL.md", crlf([
+      "---",
+      "name: wicked-garden-jam-council",
+      "subagent_type: wicked-garden:jam:council",
+      "context: fork",
+      "---",
+      "# Council",
+      'Skill(skill="wicked-garden-crew-reviewer", args="reviewer seat")',
+      "",
+    ]));
+    writeFile(repo, "skills/crew-reviewer/SKILL.md", crlf([
+      "---",
+      'name: "wicked-garden-crew-reviewer"',
+      "subagent_type: wicked-garden:crew:reviewer",
+      "---",
+      "# Reviewer",
+      "",
+    ]));
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 1, "CRLF + quoted name must still resolve the dispatch edge");
+    assert.equal(result.dispatches, 1);
+
+    const edge = db.prepare("SELECT * FROM edges WHERE provenance = 'injected:dispatch'").get();
+    assert.equal(edge.source, "file:skills/jam-council/SKILL.md");
+    assert.equal(edge.target, "file:skills/crew-reviewer/SKILL.md");
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("dispatch/skills: Task(subagent_type=\"handle\") body ref resolves via frontmatter index", () => {
+  const { repo, db } = makeRepo();
+  try {
+    writeFile(repo, "skills/orchestrator/SKILL.md", `---
+name: wicked-garden-orchestrator
+subagent_type: wicked-garden:core:orchestrator
+---
+# Orchestrator
+Delegate the security pass:
+Task(subagent_type="wicked-garden:platform:security-engineer")
+`);
+    writeFile(repo, "skills/platform-security-engineer/SKILL.md", `---
+name: wicked-garden-platform-security-engineer
+subagent_type: wicked-garden:platform:security-engineer
+---
+# Security Engineer
+`);
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 1);
+
+    const edge = db.prepare("SELECT * FROM edges WHERE provenance = 'injected:dispatch'").get();
+    assert.equal(edge.source, "file:skills/orchestrator/SKILL.md");
+    assert.equal(edge.target, "file:skills/platform-security-engineer/SKILL.md");
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("dispatch/skills: self-reference (frontmatter compat note) is skipped", () => {
+  const { repo, db } = makeRepo();
+  try {
+    // The agent-style skill documents its own compat handle in the body — must NOT
+    // produce a self-edge.
+    writeFile(repo, "skills/platform-security-engineer/SKILL.md", `---
+name: wicked-garden-platform-security-engineer
+subagent_type: wicked-garden:platform:security-engineer
+---
+# Security Engineer
+Subagent form: Task(subagent_type="wicked-garden:platform:security-engineer")
+maps to this fork skill. Also Skill(skill="wicked-garden-platform-security-engineer").
+`);
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 0, "self-references produce no edges");
+    assert.equal(result.dispatches, 0);
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("dispatch/skills: refs to external plugins / templates are skipped", () => {
+  const { repo, db } = makeRepo();
+  try {
+    writeFile(repo, "skills/ground/SKILL.md", `---
+name: wicked-garden-ground
+---
+# Ground
+Skill(wicked-brain:query, question="{q}")
+Skill(skill="wicked-garden-{domain}-{role}")
+Skill("superpowers:systematic-debugging")
+`);
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 0, "external/template refs don't resolve to a skill");
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("dispatch/skills: handle + name to same target yields a single edge", () => {
+  const { repo, db } = makeRepo();
+  try {
+    writeFile(repo, "skills/dispatcher/SKILL.md", `---
+name: wicked-garden-dispatcher
+---
+# Dispatcher
+Task(subagent_type="wicked-garden:crew:reviewer")
+Skill(skill="wicked-garden-crew-reviewer")
+`);
+    writeFile(repo, "skills/crew-reviewer/SKILL.md", `---
+name: wicked-garden-crew-reviewer
+subagent_type: wicked-garden:crew:reviewer
+---
+# Reviewer
+`);
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 1, "deduped by target skill — one edge, not two");
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("dispatch/skills: end-to-end blastRadius — target skill surfaces the dispatcher", () => {
+  const { repo, db } = makeRepo();
+  try {
+    writeFile(repo, "skills/jam-council/SKILL.md", `---
+name: wicked-garden-jam-council
+subagent_type: wicked-garden:jam:council
+---
+# Council
+Skill(skill="wicked-garden-crew-reviewer")
+`);
+    writeFile(repo, "skills/crew-reviewer/SKILL.md", `---
+name: wicked-garden-crew-reviewer
+subagent_type: wicked-garden:crew:reviewer
+---
+# Reviewer
+`);
+
+    extract({ db, sourcePath: repo });
+    db.close();
+
+    const client = new CodegraphClient(repo);
+    try {
+      const result = client.blastRadius({ node: "file:skills/crew-reviewer/SKILL.md" });
+      const ids = result.dependents.map((n) => n.id);
+      assert.ok(
+        ids.includes("file:skills/jam-council/SKILL.md"),
+        `Expected file:skills/jam-council/SKILL.md in dependents; got: ${JSON.stringify(ids)}`
+      );
+    } finally {
+      client.close();
+    }
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});

@@ -1,17 +1,29 @@
 /**
- * codegraph-extractors/dispatch.mjs — command→agent injected edges.
+ * codegraph-extractors/dispatch.mjs — dispatch injected edges (command/skill → agent/skill).
  *
- * A slash command dispatches to a subagent via a `subagent_type: <plugin>:<domain>:<name>`
- * string (in Task(subagent_type="...") or YAML frontmatter). The command file never
- * references the agent file — grep/static can't link them. This extractor injects
- * those edges so blast-radius traversal can surface the dispatching commands when
- * an agent changes.
+ * A dispatcher hands work to another agent. Two layouts express this, and this
+ * extractor supports both (backward-compatible):
  *
- * Edge direction: source=command (dependent) → target=agent (dependency).
- * DEPENDENTS_BY="target": blastRadius(agent) = WHERE target=agent → source=command ✓
+ *   1. Legacy commands/agents layout: a slash command under `commands/**` dispatches
+ *      via a `subagent_type: <plugin>:<domain>:<name>` string, resolved to the agent
+ *      file `agents/<domain>/<name>.md`.
  *
- * Port of wicked-garden's inject_dispatch_edges.py. Direction is already correct
- * in the garden version for our blast-radius convention (no reversal needed, unlike bus).
+ *   2. Consolidated skills layout (wicked-garden's agents→skills / commands→skill-actions
+ *      cleanup): every dispatchable unit is a skills/.../SKILL.md file. A skill declares its
+ *      own identity in frontmatter (`name:`, `subagent_type:`), and a *dispatching* skill
+ *      references another skill in its body via `Task(subagent_type="plugin:domain:name")`
+ *      or `Skill(skill="wicked-garden-<domain>-<role>")`. Those cross-skill references
+ *      become dispatch edges.
+ *
+ * The referencing file never links the target file — grep/static can't join them. This
+ * extractor injects the edges so blast-radius traversal surfaces the dispatchers when a
+ * target agent/skill changes.
+ *
+ * Edge direction: source=dispatcher (dependent) → target=agent/skill (dependency).
+ * DEPENDENTS_BY="target": blastRadius(target) = WHERE target=target → source=dispatcher ✓
+ *
+ * Port of wicked-garden's inject_dispatch_edges.py, extended for the skills layout.
+ * Direction is already correct for our blast-radius convention (no reversal, unlike bus).
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
@@ -21,8 +33,16 @@ import { ensureFileNode } from "../codegraph-nodes.mjs";
 const INJECTED_PROVENANCE = "injected:dispatch";
 
 // Matches subagent_type: "plugin:domain:name" or subagent_type="plugin:domain:name"
-// (with or without quotes, colon or equals separator)
+// (with or without quotes, colon or equals separator).
 const SUBAGENT_RE = /subagent_type\s*[:=]\s*["']?([a-z0-9_-]+:[a-z0-9_-]+:[a-z0-9_-]+)["']?/g;
+
+// Matches a Skill(...) dispatch call, capturing the first skill identifier argument:
+//   Skill(skill="wicked-garden-crew-reviewer", ...)
+//   Skill("wicked-garden:jam:council")
+//   Skill(wicked-garden:platform:prereq-doctor, ...)
+// Template placeholders (Skill(skill="wicked-garden-{domain}-{role}")) capture only the
+// literal prefix and simply fail to resolve against the skill index, so they're ignored.
+const SKILL_CALL_RE = /Skill\(\s*(?:skill\s*=\s*)?["']?([a-z0-9_:-]+)["']?/g;
 
 /**
  * Recursively collect all .md files under dir.
@@ -47,7 +67,50 @@ function collectMdFiles(dir) {
 }
 
 /**
- * Given a handle `plugin:domain:name`, resolve to the agent relpath
+ * Recursively collect all SKILL.md files under dir.
+ * @param {string} dir
+ * @returns {string[]} absolute file paths
+ */
+function collectSkillFiles(dir) {
+  return collectMdFiles(dir).filter((p) => p.split(sep).pop() === "SKILL.md");
+}
+
+/** POSIX relpath of abs relative to sourcePath. */
+function posixRel(sourcePath, abs) {
+  return relative(sourcePath, abs).split(sep).join("/");
+}
+
+/**
+ * Split a markdown file into YAML frontmatter and body.
+ * Returns { frontmatter, body }; frontmatter is "" when no leading --- fence.
+ * @param {string} text
+ * @returns {{ frontmatter: string, body: string }}
+ */
+function splitFrontmatter(text) {
+  // `\r?\n` throughout so CRLF (Windows) SKILL.md files parse identically to LF.
+  const m = text.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/);
+  if (m) return { frontmatter: m[1], body: text.slice(m[0].length) };
+  return { frontmatter: "", body: text };
+}
+
+/**
+ * Read a single-line scalar field from frontmatter text, stripping quotes.
+ * @param {string} frontmatter
+ * @param {string} field
+ * @returns {string|null}
+ */
+function frontmatterField(frontmatter, field) {
+  // Trailing `[ \t\r]*` (not just `[ \t]*`) so a CRLF line's `\r` is stripped
+  // instead of captured into the value — otherwise a quoted `"value"\r` keeps
+  // its trailing quote (the strip below anchors `$` past the `\r`).
+  const re = new RegExp(`^${field}:[ \\t]*(.+?)[ \\t\\r]*$`, "m");
+  const m = frontmatter.match(re);
+  if (!m) return null;
+  return m[1].replace(/^["']|["']$/g, "").trim() || null;
+}
+
+/**
+ * Given a handle `plugin:domain:name`, resolve to the legacy agent relpath
  * `agents/<domain>/<name>.md`. Returns the relpath if the file exists, else null.
  * @param {string} sourcePath
  * @param {string} handle  e.g. "wicked-garden:d:my-agent"
@@ -63,7 +126,32 @@ function resolveHandle(sourcePath, handle) {
 }
 
 /**
- * Extract command→agent dispatch injected edges into the codegraph DB.
+ * Build a lookup from skill identifiers to their SKILL.md relpath.
+ * Indexes each skill by its frontmatter `name:` (dir-name form, e.g.
+ * `wicked-garden-crew-reviewer`) and its `subagent_type:` handle (e.g.
+ * `wicked-garden:crew:reviewer`) — the two forms a dispatcher may reference by.
+ *
+ * @param {string} sourcePath
+ * @param {string[]} skillFiles  absolute SKILL.md paths
+ * @returns {Map<string, string>} identifier → relpath
+ */
+function buildSkillIndex(sourcePath, skillFiles) {
+  const index = new Map();
+  for (const absPath of skillFiles) {
+    let text;
+    try { text = readFileSync(absPath, "utf8"); } catch { continue; }
+    const relpath = posixRel(sourcePath, absPath);
+    const { frontmatter } = splitFrontmatter(text);
+    const name = frontmatterField(frontmatter, "name");
+    const handle = frontmatterField(frontmatter, "subagent_type");
+    if (name) index.set(name, relpath);
+    if (handle) index.set(handle, relpath);
+  }
+  return index;
+}
+
+/**
+ * Extract dispatch injected edges into the codegraph DB.
  *
  * @param {{ db: import("better-sqlite3").Database, sourcePath: string }} opts
  * @returns {{ edges_added: number, dispatches: number }}
@@ -79,27 +167,20 @@ export function extract({ db, sourcePath }) {
   let edges_added = 0;
   let dispatches = 0;
 
-  // 2. Scan commands/**/*.md
-  const commandsDir = join(sourcePath, "commands");
-  const commandFiles = collectMdFiles(commandsDir);
+  // ── Legacy layout: commands/**/*.md → agents/<domain>/<name>.md ──────────────
+  const commandFiles = collectMdFiles(join(sourcePath, "commands"));
 
   for (const absPath of commandFiles) {
     let text;
     try { text = readFileSync(absPath, "utf8"); } catch { continue; }
+    const relpath = posixRel(sourcePath, absPath);
 
-    // Posix relpath relative to sourcePath
-    const relpath = relative(sourcePath, absPath).split(sep).join("/");
-
-    // 3. Find distinct handles in this file
     SUBAGENT_RE.lastIndex = 0;
     const handles = new Set();
     let m;
-    while ((m = SUBAGENT_RE.exec(text)) !== null) {
-      handles.add(m[1]);
-    }
+    while ((m = SUBAGENT_RE.exec(text)) !== null) handles.add(m[1]);
 
     for (const handle of handles) {
-      // 4. Resolve handle to agent file
       const agentRelpath = resolveHandle(sourcePath, handle);
       if (!agentRelpath) continue; // not an agent file, or file doesn't exist
 
@@ -115,6 +196,55 @@ export function extract({ db, sourcePath }) {
       );
       edges_added++;
       dispatches++;
+    }
+  }
+
+  // ── Consolidated layout: skills/**/SKILL.md → skills/**/SKILL.md ─────────────
+  const skillFiles = collectSkillFiles(join(sourcePath, "skills"));
+  const skillIndex = buildSkillIndex(sourcePath, skillFiles);
+
+  for (const absPath of skillFiles) {
+    let text;
+    try { text = readFileSync(absPath, "utf8"); } catch { continue; }
+    const relpath = posixRel(sourcePath, absPath);
+    const { body } = splitFrontmatter(text);
+
+    // Collect referenced identifiers from the body only (frontmatter carries the
+    // skill's own identity, not its dispatches).
+    const refs = new Set();
+    SUBAGENT_RE.lastIndex = 0;
+    let m;
+    while ((m = SUBAGENT_RE.exec(body)) !== null) refs.add(m[1]);
+    SKILL_CALL_RE.lastIndex = 0;
+    while ((m = SKILL_CALL_RE.exec(body)) !== null) refs.add(m[1]);
+
+    // Resolve each reference to a target skill, deduped by target relpath so a
+    // handle + name pointing at the same skill yields a single edge.
+    const targets = new Map(); // targetRelpath → the identifier that resolved it
+    for (const ref of refs) {
+      const targetRel = skillIndex.get(ref);
+      if (!targetRel) continue;      // external plugin, template, or unknown → skip
+      if (targetRel === relpath) continue; // self-reference (compat note) → skip
+      if (!targets.has(targetRel)) targets.set(targetRel, ref);
+    }
+
+    // `relpath` is constant for this file — resolve its node once, and only if
+    // there's at least one target (ensureFileNode is an INSERT OR IGNORE write).
+    if (targets.size > 0) {
+      const src = ensureFileNode(db, relpath);
+      for (const [targetRel, ref] of targets) {
+        const tgt = ensureFileNode(db, targetRel);
+
+        insertEdge.run(
+          src,
+          tgt,
+          "references",
+          JSON.stringify({ injected: "dispatch", dispatch: ref }),
+          INJECTED_PROVENANCE
+        );
+        edges_added++;
+        dispatches++;
+      }
     }
   }
 
