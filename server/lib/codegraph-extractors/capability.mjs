@@ -1,15 +1,21 @@
 /**
- * codegraph-extractors/capability.mjs — agent→capability injected edges.
+ * codegraph-extractors/capability.mjs — agent/skill→capability injected edges.
  *
- * An agent declares needed capabilities via a `tool-capabilities:` YAML frontmatter
- * block list. This extractor reads those declarations and creates synthetic
- * `capability:<name>` nodes plus edges from the agent file to each capability.
+ * An agent (or, post-consolidation, a skill) declares needed capabilities via a
+ * `tool-capabilities:` YAML frontmatter block list. This extractor reads those
+ * declarations and creates synthetic `capability:<name>` nodes plus edges from the
+ * declaring file to each capability.
  *
- * Edge direction: source=agent (dependent) → target=capability (dependency).
- * DEPENDENTS_BY="target": blastRadius(capability) = WHERE target=capability → source=agent ✓
+ * Two layouts are supported (backward-compatible):
+ *   1. Legacy: agents/.../ markdown files with `tool-capabilities:` frontmatter.
+ *   2. Consolidated skills layout (wicked-garden's agents→skills cleanup): the same
+ *      `tool-capabilities:` frontmatter now lives in skills/.../SKILL.md files.
  *
- * Frontmatter-only port of wicked-garden's inject_capability_edges.py.
- * No capability registry is imported — brain stays dependency-free.
+ * Edge direction: source=agent/skill (dependent) → target=capability (dependency).
+ * DEPENDENTS_BY="target": blastRadius(capability) = WHERE target=capability → source=file ✓
+ *
+ * Frontmatter-only port of wicked-garden's inject_capability_edges.py, extended for
+ * the skills layout. No capability registry is imported — brain stays dependency-free.
  *
  * This extractor OWNS the capability nodes:
  *   - DELETE edges WHERE provenance='injected:capability'
@@ -101,11 +107,20 @@ export function extract({ db, sourcePath }) {
   let edges_added = 0;
   const distinctCaps = new Set();
 
-  // 2. Scan agents/**/*.md
-  const agentsDir = join(sourcePath, "agents");
-  const agentFiles = collectMdFiles(agentsDir);
+  // 2. Scan both layouts: legacy agents/**/*.md and consolidated skills/**/SKILL.md.
+  //    Dedup by relpath so a repo carrying both never double-counts a file.
+  const agentFiles = collectMdFiles(join(sourcePath, "agents"));
+  const skillFiles = collectMdFiles(join(sourcePath, "skills"))
+    .filter((p) => p.split(sep).pop() === "SKILL.md");
+  const seen = new Set();
+  const declaringFiles = [];
+  for (const absPath of [...agentFiles, ...skillFiles]) {
+    if (seen.has(absPath)) continue;
+    seen.add(absPath);
+    declaringFiles.push(absPath);
+  }
 
-  for (const absPath of agentFiles) {
+  for (const absPath of declaringFiles) {
     let text;
     try { text = readFileSync(absPath, "utf8"); } catch { continue; }
 

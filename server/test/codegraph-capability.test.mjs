@@ -271,3 +271,92 @@ tool-capabilities:
     rmSync(repo, { recursive: true, force: true });
   }
 });
+
+// ─── Skills layout (agents→skills consolidation) ──────────────────────────────
+
+test("capability/skills: SKILL.md tool-capabilities frontmatter → edges + cap nodes", () => {
+  const { repo, db } = makeRepo();
+  try {
+    writeFile(repo, "skills/platform-security-engineer/SKILL.md", `---
+name: wicked-garden-platform-security-engineer
+subagent_type: wicked-garden:platform:security-engineer
+context: fork
+allowed-tools: Read, Grep, Glob, Bash
+tool-capabilities:
+  - security-scanning
+  - version-control
+---
+# Security Engineer
+`);
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 2, "two capability edges from the skill");
+    assert.equal(result.capabilities, 2);
+
+    const edges = db.prepare(
+      "SELECT * FROM edges WHERE provenance = 'injected:capability' ORDER BY target"
+    ).all();
+    assert.equal(edges.length, 2);
+    for (const edge of edges) {
+      assert.equal(edge.source, "file:skills/platform-security-engineer/SKILL.md");
+    }
+    const targets = edges.map((e) => e.target).sort();
+    assert.deepEqual(targets, [
+      "capability:security-scanning",
+      "capability:version-control",
+    ]);
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("capability/skills: non-SKILL.md files under skills/ are ignored", () => {
+  const { repo, db } = makeRepo();
+  try {
+    // A refs/*.md doc that happens to contain a tool-capabilities block must NOT
+    // be treated as a capability-declaring agent.
+    writeFile(repo, "skills/foo/refs/notes.md", `---
+tool-capabilities:
+  - should-not-count
+---
+`);
+
+    const result = extract({ db, sourcePath: repo });
+    assert.equal(result.edges_added, 0);
+    assert.equal(result.capabilities, 0);
+  } finally {
+    db.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("capability/skills: end-to-end blastRadius — capability surfaces the declaring skill", () => {
+  const { repo, db } = makeRepo();
+  try {
+    writeFile(repo, "skills/agentic-safety-reviewer/SKILL.md", `---
+name: wicked-garden-agentic-safety-reviewer
+tool-capabilities:
+  - security-scanning
+---
+# Safety Reviewer
+`);
+
+    extract({ db, sourcePath: repo });
+    db.close();
+
+    const client = new CodegraphClient(repo);
+    try {
+      const result = client.blastRadius({ node: "capability:security-scanning" });
+      const ids = result.dependents.map((n) => n.id);
+      assert.ok(
+        ids.includes("file:skills/agentic-safety-reviewer/SKILL.md"),
+        `Expected declaring skill in dependents; got: ${JSON.stringify(ids)}`
+      );
+    } finally {
+      client.close();
+    }
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
