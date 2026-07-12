@@ -166,7 +166,7 @@ no new deps.
 
 ## Open questions
 
-- Should `verify_wiki` emit a `wicked.wiki.verified` bus event? Leaning
+- Should `verify_wiki` emit a `wicked.brain.wiki.verified` bus event? Leaning
   yes, fire-once-per-scan (not per-article) to avoid flooding the bus on
   a 200-article brain. Deferred until the bus naming pattern review.
 - Should `missing` distinguish "chunk was never ingested" from "chunk was

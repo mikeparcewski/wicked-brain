@@ -63,7 +63,7 @@ There's nothing to deploy, no API keys to configure, no service to maintain. A d
 npx wicked-brain
 ```
 
-Skills are installed into their AI CLI. The first time they invoke `wicked-brain:init`, it handles everything in one shot: creates the brain directory structure, starts the background server (on a free port — no port configuration required), and immediately ingests the current project. By the time init finishes, the brain is queryable. The server auto-reindexes when files change.
+Skills are installed into their AI CLI. The first time they invoke `wicked-brain-init`, it handles everything in one shot: creates the brain directory structure, starts the background server (on a free port — no port configuration required), and immediately ingests the current project. By the time init finishes, the brain is queryable. The server auto-reindexes when files change.
 
 **What the team manages:**
 - A directory of markdown files (git-committable, human-readable)
@@ -142,7 +142,7 @@ wicked-brain includes an LSP (Language Server Protocol) client. This means your 
 ```
 Agent asks: "What does this function return?"
      ↓
-wicked-brain:lsp → starts language server if not running
+wicked-brain-lsp → starts language server if not running
      ↓
 Sends textDocument/hover request
      ↓
@@ -250,7 +250,7 @@ Opaque retrieval                    Human-readable markdown
 
 **Week 2:** The team starts querying. "What does our brain say about the SLA policy?" Results are instant, cited, and traceable to source documents.
 
-**Week 3:** Someone runs `wicked-brain:compile`. The brain generates wiki articles that synthesize scattered information into coherent concepts. These articles become the team's reference material.
+**Week 3:** Someone runs `wicked-brain-compile`. The brain generates wiki articles that synthesize scattered information into coherent concepts. These articles become the team's reference material.
 
 **Week 4:** A new team member joins. Instead of reading 50 docs, they ask the brain. The onboarding guide the brain writes cites the same source docs — but organized around what a newcomer actually needs to know.
 

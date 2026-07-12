@@ -69,31 +69,31 @@ Skills are SKILL.md files installed into your CLI's skills directory by the inst
 ```mermaid
 graph LR
     subgraph Inline["Inline (runs in conversation)"]
-        read["wicked-brain:read<br/>progressive depth 0/1/2"]
-        status["wicked-brain:status<br/>health + convergence debt + hotspots"]
-        memory["wicked-brain:memory<br/>working/episodic/semantic tiers"]
-        confirm["wicked-brain:confirm<br/>strengthen/weaken link confidence"]
-        synonyms["wicked-brain:synonyms<br/>manage search synonym map"]
-        init["wicked-brain:init<br/>structure → server → ingest"]
-        server["wicked-brain:server<br/>start/check/stop"]
-        configure["wicked-brain:configure<br/>writes CLAUDE.md / GEMINI.md"]
-        update["wicked-brain:update<br/>npm check + reinstall"]
-        batch["wicked-brain:batch<br/>generates bulk scripts"]
-        lsp["wicked-brain:lsp<br/>LSP queries via JSON-RPC"]
-        context["wicked-brain:context<br/>hot-path prompt enrichment (inline)"]
+        read["wicked-brain-read<br/>progressive depth 0/1/2"]
+        status["wicked-brain-status<br/>health + convergence debt + hotspots"]
+        memory["wicked-brain-memory<br/>working/episodic/semantic tiers"]
+        confirm["wicked-brain-confirm<br/>strengthen/weaken link confidence"]
+        synonyms["wicked-brain-synonyms<br/>manage search synonym map"]
+        init["wicked-brain-init<br/>structure → server → ingest"]
+        server["wicked-brain-server<br/>start/check/stop"]
+        configure["wicked-brain-configure<br/>writes CLAUDE.md / GEMINI.md"]
+        update["wicked-brain-update<br/>npm check + reinstall"]
+        batch["wicked-brain-batch<br/>generates bulk scripts"]
+        lsp["wicked-brain-lsp<br/>LSP queries via JSON-RPC"]
+        context["wicked-brain-context<br/>hot-path prompt enrichment (inline)"]
     end
 
     subgraph Subagent["Subagent (isolated worker)"]
-        ingest["wicked-brain:ingest<br/>chunk + index source files"]
-        search["wicked-brain:search<br/>synonym expansion + parallel search"]
-        compile["wicked-brain:compile<br/>persona-driven synthesis + consensus"]
-        query["wicked-brain:query<br/>search → read → answer"]
-        lint["wicked-brain:lint<br/>links · orphans · confidence · synonyms"]
-        enhance["wicked-brain:enhance<br/>fill gaps with inferred content"]
-        retag["wicked-brain:retag<br/>backfill synonym tags"]
-        consolidate["wicked-brain:consolidate<br/>archive · promote · merge · synonym map"]
-        onboard["wicked-brain:onboard<br/>project-understanding pipeline"]
-        teardown["wicked-brain:session-teardown<br/>capture session learnings"]
+        ingest["wicked-brain-ingest<br/>chunk + index source files"]
+        search["wicked-brain-search<br/>synonym expansion + parallel search"]
+        compile["wicked-brain-compile<br/>persona-driven synthesis + consensus"]
+        query["wicked-brain-query<br/>search → read → answer"]
+        lint["wicked-brain-lint<br/>links · orphans · confidence · synonyms"]
+        enhance["wicked-brain-enhance<br/>fill gaps with inferred content"]
+        retag["wicked-brain-retag<br/>backfill synonym tags"]
+        consolidate["wicked-brain-consolidate<br/>archive · promote · merge · synonym map"]
+        onboard["wicked-brain-onboard<br/>project-understanding pipeline"]
+        teardown["wicked-brain-session-teardown<br/>capture session learnings"]
     end
 ```
 
@@ -237,7 +237,7 @@ Uses `fs.watch({ recursive: true })` on macOS and Windows. Falls back to 3-secon
 
 ## Component: LSP Client
 
-`wicked-brain:lsp` provides code intelligence by connecting to language servers via JSON-RPC over stdio. No additional npm dependencies — the JSON-RPC layer is hand-rolled.
+`wicked-brain-lsp` provides code intelligence by connecting to language servers via JSON-RPC over stdio. No additional npm dependencies — the JSON-RPC layer is hand-rolled.
 
 ```mermaid
 sequenceDiagram
@@ -273,7 +273,7 @@ Language servers are auto-installed on first use if not found in PATH. Supported
 ├── wiki/
 │   ├── concepts/                 # Synthesized articles about specific concepts
 │   ├── topics/                   # Broader topic articles
-│   └── projects/                 # Per-project onboarding articles (from wicked-brain:onboard)
+│   └── projects/                 # Per-project onboarding articles (from wicked-brain-onboard)
 ├── _meta/
 │   ├── config.json               # Brain path, server port (written by server on startup)
 │   ├── log.jsonl                 # Append-only event log
@@ -297,7 +297,7 @@ Language servers are auto-installed on first use if not found in PATH. Supported
 flowchart TD
     Source["Source file<br/>(PDF · DOCX · MD · code · image)"]
     Raw["raw/<br/>(original, untouched)"]
-    Ingest["wicked-brain:ingest<br/>(subagent)"]
+    Ingest["wicked-brain-ingest<br/>(subagent)"]
     TextSplit["Text: split on headings<br/>or 800-word windows"]
     BinarySplit["Binary: LLM reads via vision<br/>writes structured chunks"]
     Chunks["chunks/extracted/<br/>(YAML frontmatter + content)"]
@@ -319,9 +319,9 @@ flowchart TD
 ```mermaid
 flowchart TD
     Q["User question"]
-    Search["wicked-brain:search<br/>(parallel workers per brain)"]
+    Search["wicked-brain-search<br/>(parallel workers per brain)"]
     Results["Ranked results<br/>(depth 0: one-line summaries)"]
-    Read["wicked-brain:read<br/>(depth 1/2 on relevant hits)"]
+    Read["wicked-brain-read<br/>(depth 1/2 on relevant hits)"]
     Follow["Follow [[backlinks]]<br/>and typed relationships"]
     Synthesize["Synthesize answer<br/>with source citations"]
 
@@ -380,7 +380,7 @@ graph TB
     CB -->|"parents (inherited)"| TB
     CB -->|"links (peer)"| PB
 
-    Search["wicked-brain:search<br/>(one subagent per accessible brain)"]
+    Search["wicked-brain-search<br/>(one subagent per accessible brain)"]
     Search --> PB
     Search --> TB
     Search --> CB
