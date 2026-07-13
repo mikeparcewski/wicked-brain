@@ -2,7 +2,7 @@
   "generated_at": "2026-07-13",
   "source": "server/lib/sqlite-search.mjs",
   "canonical_id": "CONTRACT-SCHEMA",
-  "head_version": 7,
+  "head_version": 8,
   "tables": [
     {
       "name": "documents",
@@ -588,6 +588,126 @@
           "notes": ""
         }
       ]
+    },
+    {
+      "name": "conformance_rule_sets",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "project_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "brain_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "schema_version",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "source",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER NOT NULL",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "conformance_rules",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "set_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "rule_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "rule_type",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "statement",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "severity",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "language",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "layer",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "framework",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "symbol_ref",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "confidence",
+          "type": "REAL NOT NULL",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "conformance_rule_provenance",
+      "columns": [
+        {
+          "name": "rule_id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "source",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "ref",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "source_kinds",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        }
+      ]
     }
   ],
   "migrations": [
@@ -668,6 +788,17 @@
         "CREATE INDEX idx_entfields_entity ON entity_fields",
         "CREATE INDEX idx_vocab_model ON vocabulary_terms",
         "CREATE INDEX idx_coverage_model ON coverage_ledger"
+      ]
+    },
+    {
+      "version": 8,
+      "summary": "",
+      "ops": [
+        "CREATE TABLE conformance_rule_sets",
+        "CREATE TABLE conformance_rules",
+        "CREATE TABLE conformance_rule_provenance",
+        "CREATE INDEX idx_confrules_set ON conformance_rules",
+        "CREATE INDEX idx_confrules_facets ON conformance_rules"
       ]
     }
   ]

@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wickedagile.com/schemas/conformance-rules/1.0.0",
+  "title": "wicked conformance-rules (v1.0.0)",
+  "description": "PRESCRIPTIVE sibling of the descriptive domain-model — the store of architecture/design PATTERN rules and compliance/security POLICY rules that agent outputs are checked AGAINST (garden STEERS, crew GOVERNS, wicked-testing ASSERTS). Where domain-model facts are MINED FROM code (descriptive), conformance rules are AUTHORED/INGESTED and applied TO code (prescriptive). It rides the SAME spine as @wicked/domain-model-schema: every rule carries a numeric `confidence` in [0,1] AND a `provenance{source, ref, source_kinds}` (identical $def to domain-model), and a rule may bind to code via an OPTIONAL estate `symbol_ref` SymbolId REFERENCE — never a copy of the symbol's code/name/file/line (contract invariant #5). TWO rule_types: `pattern` (architecture/design, e.g. 'the repository layer must not import the web layer') and `policy` (compliance/security, e.g. 'no secret literals in source'). `severity` (info|warn|error|critical) advises the downstream enforcer how hard to fail; the store does NOT enforce — enforcement + any conform/violate verdict is a garden/crew/wicked-testing concern, so a rule carries NO coverage field (coverage in the descriptive world means 'every behavior-bearing SymbolId is accounted for'; the prescriptive analogue — does code CONFORM — is an enforcement-time result owned downstream, not a property of the rule). HARD INVARIANTS mirrored from the donor: `metadata.schema_version` is REQUIRED + `const` '1.0.0' — a consumer REJECTS a schema_version it has no validator for (no silent best-effort); `confidence` is a REQUIRED number in [0,1] (a confidence-less or non-numeric-confidence rule is a hard validation failure, not a warning — here confidence measures INGEST FIDELITY: how sure we are this is a real, correctly-transcribed rule from its source, since a doc-only source rests on source_kinds:['doc'] and is trust-eligible only, not proven); `additionalProperties:false` EVERYWHERE. The `id`/`rule_type` coupling (PAT-* => pattern, POL-* => policy) is enforced WRITE-TIME by conformance-store's enforceConformanceInvariants (INV-C1), not by the schema — the bundle's hand-rolled draft-07 validator supports a single if/then per object but no else/allOf, so a bidirectional two-branch coupling lives in the store exactly as domain-store's INV-1/2/3 do.",
+  "type": "object",
+  "required": ["metadata", "rules"],
+  "additionalProperties": false,
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "description": "Where a rule came from and how it is grounded. IDENTICAL shape to @wicked/domain-model-schema domain-model.schema.json#/$defs/provenance — the shared spine, not a parallel representation. A conformance rule ingested from a wiki/doc carries source_kinds:['doc'] (trust-eligible only, per the spine's TRUST RULE); a rule hand-verified against code may carry ['code-body'] / ['type-def'].",
+      "required": ["source", "ref", "source_kinds"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The origin unit the rule came from — repo / service / wiki space / doc set."
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The specific reference within the source — file#anchor, wiki page id, or an estate SymbolId. A REFERENCE, never a copy of the symbol's structure."
+        },
+        "source_kinds": {
+          "type": "array",
+          "description": "The grounding tier: code-body = executable logic read directly; type-def = type/schema/interface declaration; comment = inline prose; doc = README/wiki/external. TRUST RULE (shared with domain-model): a rule is 'trusted' only when grounded in code-body and/or type-def; resting on comment/doc alone makes it trust-eligible, not proven.",
+          "items": {
+            "type": "string",
+            "enum": ["code-body", "type-def", "comment", "doc"]
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "description": "Targeting facets that scope WHERE a rule applies — the recall query keys. Every facet is OPTIONAL; an ABSENT facet is a WILDCARD (the rule applies to all values of that facet). conformance-store's recall API matches a rule when, for each queried facet, the rule's facet is absent (applies broadly) OR equals the query value.",
+      "additionalProperties": false,
+      "properties": {
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Programming language the rule scopes to (e.g. 'python', 'rust', 'typescript'). Absent = all languages."
+        },
+        "layer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Architectural layer the rule scopes to (e.g. 'repository', 'domain', 'web', 'service'). Absent = all layers."
+        },
+        "framework": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Framework the rule scopes to (e.g. 'express', 'django', 'axum'). Absent = all frameworks."
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "description": "A single prescriptive conformance rule. HARD INVARIANT: confidence is a REQUIRED number in [0,1] and provenance is REQUIRED — a confidence-less, non-numeric-confidence, or provenance-less rule is a hard validation failure, not a warning (mirrors domain-model's rule $def). The id/rule_type coupling (PAT-* => pattern, POL-* => policy) is enforced write-time by the store (INV-C1), not here.",
+      "required": ["id", "rule_type", "statement", "severity", "confidence", "provenance"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(PAT|POL)-[0-9]{3,6}$",
+          "description": "Stable rule id. PAT- prefix for pattern rules, POL- prefix for policy rules, + 3-to-6-digit zero-padded ordinal. Unique within rules[]. The prefix MUST agree with rule_type — enforced write-time (INV-C1)."
+        },
+        "rule_type": {
+          "type": "string",
+          "enum": ["pattern", "policy"],
+          "description": "pattern = architecture/design rule (structural: what may/may not depend on what, layering, boundaries). policy = compliance/security rule (safety: secrets, authn, PII, licensing). The distinction is advisory metadata for routing to the right enforcer, not a shape difference — both variants share the identical field set."
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The prescriptive rule text — an imperative the enforcer checks agent output against (e.g. 'The repository layer must not import the web layer')."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warn", "error", "critical"],
+          "description": "How hard a violation should fail downstream. ADVISORY: the store persists it; the enforcer (garden/crew) and the QE gate (wicked-testing) decide the mapping (e.g. error/critical => block a gate; info/warn => annotate). The store does NOT gate on severity."
+        },
+        "targets": {
+          "$ref": "#/$defs/targets"
+        },
+        "symbol_ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "OPTIONAL estate SymbolId this rule binds to — a REFERENCE, never a copy of the symbol's code/name/file/line (contract invariant #5, same as domain facts). estate GROUNDS the symbol; brain owns the rule content. Absent when the rule is a free-standing architectural/policy constraint not yet bound to a specific symbol."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "REQUIRED numeric ingest-fidelity confidence in [0,1] — how sure we are this is a real, correctly-transcribed rule from its source. Not fabricated: a doc-ingested rule defaults conservatively; a human-ratified rule is higher. Non-numeric/absent is a hard validation failure (mirrors domain-model ISS-11)."
+        },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    }
+  },
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["schema_version"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "description": "The conformance-rules schema contract version. Every emitted document MUST carry this; a consumer REJECTS a schema_version it has no validator for (no silent best-effort). Independent of the @wicked/domain-model-schema bundle semver (VERSION file), exactly as vocabulary.meta.vocabulary_version is independent."
+        },
+        "source": {
+          "type": "string",
+          "description": "The repo/service/wiki the rule set was ingested from (optional)."
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "description": "The prescriptive rule set. Each item is a pattern or policy Rule. May be empty (a freshly-provisioned, not-yet-ingested store).",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  }
+}

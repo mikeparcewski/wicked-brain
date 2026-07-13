@@ -5,7 +5,7 @@
     "server/bin"
   ],
   "canonical_id": "MAP-FILES",
-  "count": 35,
+  "count": 38,
   "files": [
     {
       "path": "server/bin/onboard-wiki.mjs",
@@ -72,6 +72,44 @@
       ],
       "imports": [
         "./frontmatter.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/conformance-fixture.mjs",
+      "purpose": "@returns {object} a valid conformance-rules.schema.json document.",
+      "exports": [
+        "conformanceFixture"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/conformance-ingest.mjs",
+      "purpose": "Default ingest-fidelity confidence for a doc-sourced rule that does not declare its own. Conservative on purpose: a doc-only source rests on source_kinds:['doc'] (trust-eligible, not proven per the spine's TRUST RULE), so an un-annotated ingested rule sits at the midpoint until a human ratifies it upward. A doc MAY override via a `confidence:` field.",
+      "exports": [
+        "DEFAULT_INGEST_CONFIDENCE",
+        "DEFAULT_SEVERITY",
+        "confluenceAdapter",
+        "filesystemAdapter",
+        "normalizeDoc",
+        "parseMarkdownDoc",
+        "sharepointAdapter",
+        "toDocument"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/conformance-store.mjs",
+      "purpose": "Severity ordering — exported so a downstream enforcer can map severity to a gate policy. The store does NOT gate on it (severity is advisory metadata).",
+      "exports": [
+        "SEVERITY_ORDER",
+        "deleteRuleSet",
+        "enforceConformanceInvariants",
+        "persistConformanceRules",
+        "recallRules"
+      ],
+      "imports": [
+        "../../schemas/index.mjs",
+        "./schema-validate.mjs"
       ]
     },
     {

@@ -199,6 +199,42 @@ Generated from `server/lib/sqlite-search.mjs`. Do not hand-edit — regenerate w
 | `rule_id` | `TEXT` |  |
 | `risk_reason` | `TEXT` |  |
 
+### `conformance_rule_sets`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `TEXT PRIMARY KEY` |  |
+| `project_id` | `TEXT NOT NULL` |  |
+| `brain_id` | `TEXT NOT NULL` |  |
+| `schema_version` | `TEXT NOT NULL` |  |
+| `source` | `TEXT` |  |
+| `created_at` | `INTEGER NOT NULL` |  |
+
+### `conformance_rules`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `TEXT PRIMARY KEY` |  |
+| `set_id` | `TEXT NOT NULL` |  |
+| `rule_id` | `TEXT NOT NULL` |  |
+| `rule_type` | `TEXT NOT NULL` |  |
+| `statement` | `TEXT NOT NULL` |  |
+| `severity` | `TEXT NOT NULL` |  |
+| `language` | `TEXT` |  |
+| `layer` | `TEXT` |  |
+| `framework` | `TEXT` |  |
+| `symbol_ref` | `TEXT` |  |
+| `confidence` | `REAL NOT NULL` |  |
+
+### `conformance_rule_provenance`
+
+| Column | Type | Notes |
+|---|---|---|
+| `rule_id` | `TEXT PRIMARY KEY` |  |
+| `source` | `TEXT NOT NULL` |  |
+| `ref` | `TEXT NOT NULL` |  |
+| `source_kinds` | `TEXT NOT NULL` |  |
+
 ## Migration ladder
 
 | Version | Summary | Operations |
@@ -210,6 +246,7 @@ Generated from `server/lib/sqlite-search.mjs`. Do not hand-edit — regenerate w
 | 5 | add translation_of + version_of columns for locale/version | `ADD COLUMN documents.translation_of`, `ADD COLUMN documents.version_of` |
 | 6 | add last_verified_at for wiki staleness detection | `ADD COLUMN documents.last_verified_at` |
 | 7 | domain-model / vocabulary / coverage relational store. | `CREATE TABLE domain_models`, `CREATE TABLE domains`, `CREATE TABLE requirements`, `CREATE TABLE requirement_components`, `CREATE TABLE rules`, `CREATE TABLE rule_provenance`, `CREATE TABLE rule_symbol_refs`, `CREATE TABLE entities`, `CREATE TABLE entity_fields`, `CREATE TABLE vocabulary_terms`, `CREATE TABLE term_sources`, `CREATE TABLE coverage_ledger`, `CREATE INDEX idx_domains_model ON domains`, `CREATE INDEX idx_requirements_domain ON requirements`, `CREATE INDEX idx_reqcomp_req ON requirement_components`, `CREATE INDEX idx_rules_req ON rules`, `CREATE INDEX idx_rulesym_symbol ON rule_symbol_refs`, `CREATE INDEX idx_entities_domain ON entities`, `CREATE INDEX idx_entfields_entity ON entity_fields`, `CREATE INDEX idx_vocab_model ON vocabulary_terms`, `CREATE INDEX idx_coverage_model ON coverage_ledger` |
+| 8 | — | `CREATE TABLE conformance_rule_sets`, `CREATE TABLE conformance_rules`, `CREATE TABLE conformance_rule_provenance`, `CREATE INDEX idx_confrules_set ON conformance_rules`, `CREATE INDEX idx_confrules_facets ON conformance_rules` |
 
-Current head: **v7**.
+Current head: **v8**.
 

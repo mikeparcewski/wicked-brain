@@ -33,11 +33,11 @@ test("extractSchema: includes canonical_ownership table", async () => {
   assert.ok(colNames.includes("doc_id"));
 });
 
-test("extractSchema: migrations include versions 1..7 in order with summaries", async () => {
+test("extractSchema: migrations include versions 1..8 in order with summaries", async () => {
   const src = await fs.readFile(serverLib, "utf8");
   const schema = extractSchema(src);
   const versions = schema.migrations.map((m) => m.version);
-  assert.deepEqual(versions, [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(versions, [1, 2, 3, 4, 5, 6, 7, 8]);
   // v7 lands the domain-model / vocabulary / coverage relational store.
   const m7 = schema.migrations.find((m) => m.version === 7);
   assert.ok(m7.summary.length > 0, "v7 summary should be captured");

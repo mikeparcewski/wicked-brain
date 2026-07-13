@@ -6,14 +6,15 @@ import { DOMAIN_MODEL_VERSION, schemas } from "../../schemas/index.mjs";
 // (PR #90 hardening ask) + the schema-hardening the bots requested.
 
 test("index.mjs loads the bundle version from the VERSION file", () => {
-  assert.equal(DOMAIN_MODEL_VERSION, "1.0.0");
+  assert.equal(DOMAIN_MODEL_VERSION, "1.1.0");
 });
 
-test("index.mjs exposes the three sibling schemas, each with a versioned $id", () => {
-  assert.deepEqual(Object.keys(schemas).sort(), ["coverage", "domain-model", "vocabulary"]);
+test("index.mjs exposes the four sibling schemas, each with a versioned $id", () => {
+  assert.deepEqual(Object.keys(schemas).sort(), ["conformance-rules", "coverage", "domain-model", "vocabulary"]);
   assert.match(schemas["domain-model"].$id, /\/domain-model\/1\.0\.0$/);
   assert.match(schemas.vocabulary.$id, /\/vocabulary\/1\.0\.0$/);
   assert.match(schemas.coverage.$id, /\/coverage\/1\.0\.0$/);
+  assert.match(schemas["conformance-rules"].$id, /\/conformance-rules\/1\.0\.0$/);
 });
 
 test("schemas object is frozen (single source of truth, not mutable)", () => {
