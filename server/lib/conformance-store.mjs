@@ -58,8 +58,8 @@ export function persistConformanceRules(db, { set_id, project_id, brain_id, docu
       document.metadata.schema_version, document.metadata.source ?? null, now);
 
     const insRule = db.prepare(`INSERT INTO conformance_rules
-      (id, set_id, rule_id, rule_type, statement, severity, language, layer, framework, symbol_ref, confidence)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+      (id, set_id, rule_id, rule_type, statement, severity, language, layer, framework, symbol_ref, confidence, compliance_framework, compliance_control_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     const insProv = db.prepare(`INSERT INTO conformance_rule_provenance
       (rule_id, source, ref, source_kinds) VALUES (?,?,?,?)`);
 
@@ -69,7 +69,8 @@ export function persistConformanceRules(db, { set_id, project_id, brain_id, docu
       const t = rule.targets ?? {};
       insRule.run(rowId, setId, rule.id, rule.rule_type, rule.statement, rule.severity,
         t.language ?? null, t.layer ?? null, t.framework ?? null,
-        rule.symbol_ref ?? null, rule.confidence);
+        rule.symbol_ref ?? null, rule.confidence,
+        rule.compliance?.framework ?? null, rule.compliance?.control_id ?? null);
       insProv.run(rowId, rule.provenance.source, rule.provenance.ref,
         JSON.stringify(rule.provenance.source_kinds ?? []));
       n += 1;
@@ -125,6 +126,7 @@ export function recallRules(db, q = {}) {
   const sql = `
     SELECT r.id AS row_id, r.rule_id, r.rule_type, r.statement, r.severity,
            r.language, r.layer, r.framework, r.symbol_ref, r.confidence,
+           r.compliance_framework, r.compliance_control_id,
            p.source, p.ref, p.source_kinds
     FROM conformance_rules r
     LEFT JOIN conformance_rule_provenance p ON p.rule_id = r.id
@@ -152,6 +154,9 @@ function reconstructRule(row) {
   if (row.framework != null) targets.framework = row.framework;
   if (Object.keys(targets).length) rule.targets = targets;
   if (row.symbol_ref != null) rule.symbol_ref = row.symbol_ref;
+  if (row.compliance_framework != null) {
+    rule.compliance = { framework: row.compliance_framework, control_id: row.compliance_control_id };
+  }
   if (row.source != null) {
     rule.provenance = {
       source: row.source,

@@ -89,6 +89,16 @@
           "minLength": 1,
           "description": "OPTIONAL estate SymbolId this rule binds to — a REFERENCE, never a copy of the symbol's code/name/file/line (contract invariant #5, same as domain facts). estate GROUNDS the symbol; brain owns the rule content. Absent when the rule is a free-standing architectural/policy constraint not yet bound to a specific symbol."
         },
+        "compliance": {
+          "type": "object",
+          "description": "OPTIONAL binding of a (typically policy) rule to an external compliance framework's control (e.g. framework 'soc2', control_id 'CC6.1'). RESOLVED/EXECUTED at load time by a pluggable ComplianceFramework (conformance-frameworks.mjs): the shipped default is a config-driven NO-OP that accepts any framework/control, and real frameworks (SOC2/PCI/HIPAA) drop in behind the same interface — so the store + downstream enforcement test the SEAM once, not each framework.",
+          "additionalProperties": false,
+          "required": ["framework", "control_id"],
+          "properties": {
+            "framework": { "type": "string", "minLength": 1, "description": "Compliance framework name resolved by the framework registry (e.g. 'soc2', 'pci-dss'). Distinct from targets.framework (the CODE framework like 'express'). The no-op default accepts any name." },
+            "control_id": { "type": "string", "minLength": 1, "description": "The specific control within the framework (e.g. 'CC6.1', '6.5.1') a violation traces to." }
+          }
+        },
         "confidence": {
           "type": "number",
           "minimum": 0,

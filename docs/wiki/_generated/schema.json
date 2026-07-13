@@ -681,6 +681,16 @@
           "name": "confidence",
           "type": "REAL NOT NULL",
           "notes": ""
+        },
+        {
+          "name": "compliance_framework",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "compliance_control_id",
+          "type": "TEXT",
+          "notes": ""
         }
       ]
     },

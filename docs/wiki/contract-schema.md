@@ -225,6 +225,8 @@ Generated from `server/lib/sqlite-search.mjs`. Do not hand-edit — regenerate w
 | `framework` | `TEXT` |  |
 | `symbol_ref` | `TEXT` |  |
 | `confidence` | `REAL NOT NULL` |  |
+| `compliance_framework` | `TEXT` |  |
+| `compliance_control_id` | `TEXT` |  |
 
 ### `conformance_rule_provenance`
 

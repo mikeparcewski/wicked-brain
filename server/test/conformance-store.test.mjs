@@ -155,3 +155,36 @@ test("deleteRuleSet: removes rules + provenance", () => {
   assert.equal(db.prepare(`SELECT COUNT(*) c FROM conformance_rule_provenance`).get().c, 0);
   db.close();
 });
+
+test("compliance round-trips: a policy rule's {framework, control_id} persists + recalls", () => {
+  const db = freshDb();
+  const doc = {
+    metadata: { schema_version: "1.0.0" },
+    rules: [{
+      id: "POL-100", rule_type: "policy", statement: "no secret literals in source",
+      severity: "critical", confidence: 0.9,
+      provenance: { source: "policy-wiki", ref: "sec/secrets", source_kinds: ["doc"] },
+      compliance: { framework: "soc2", control_id: "CC6.1" },
+    }],
+  };
+  persistConformanceRules(db, { project_id: "p", brain_id: "b", document: doc });
+  const [rule] = recallRules(db, { rule_type: "policy" });
+  assert.deepEqual(rule.compliance, { framework: "soc2", control_id: "CC6.1" });
+  db.close();
+});
+
+test("compliance is optional: an unbound rule recalls with no compliance field", () => {
+  const db = freshDb();
+  const doc = {
+    metadata: { schema_version: "1.0.0" },
+    rules: [{
+      id: "PAT-100", rule_type: "pattern", statement: "repository layer must not import web",
+      severity: "error", confidence: 0.8,
+      provenance: { source: "arch-doc", ref: "layers", source_kinds: ["doc"] },
+    }],
+  };
+  persistConformanceRules(db, { project_id: "p", brain_id: "b", document: doc });
+  const [rule] = recallRules(db, {});
+  assert.ok(!("compliance" in rule), "no compliance field when unbound");
+  db.close();
+});

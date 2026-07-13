@@ -5,7 +5,7 @@
     "server/bin"
   ],
   "canonical_id": "MAP-FILES",
-  "count": 38,
+  "count": 39,
   "files": [
     {
       "path": "server/bin/onboard-wiki.mjs",
@@ -79,6 +79,18 @@
       "purpose": "@returns {object} a valid conformance-rules.schema.json document.",
       "exports": [
         "conformanceFixture"
+      ],
+      "imports": []
+    },
+    {
+      "path": "server/lib/conformance-frameworks.mjs",
+      "purpose": "The shipped DEFAULT framework: a config-driven no-op. It never fails and, by default, treats every control as `known` (a passthrough), so a rule with a compliance binding LOADS + EXECUTES today with zero real framework wired. Pass `{ controls: { \"<id>\": \"<title>\" } }` (or an array of ids) to turn it into a testable fixture — then unknown controls resolve `known:false`. @param {{name?: string, controls?: (object|string[]|null)}} [config]",
+      "exports": [
+        "executeCompliance",
+        "hasFramework",
+        "loadFramework",
+        "noopFramework",
+        "registerFramework"
       ],
       "imports": []
     },

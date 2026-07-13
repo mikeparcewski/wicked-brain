@@ -523,7 +523,8 @@ export class SqliteSearch {
           rule_id TEXT NOT NULL, rule_type TEXT NOT NULL,
           statement TEXT NOT NULL, severity TEXT NOT NULL,
           language TEXT, layer TEXT, framework TEXT,
-          symbol_ref TEXT, confidence REAL NOT NULL);
+          symbol_ref TEXT, confidence REAL NOT NULL,
+          compliance_framework TEXT, compliance_control_id TEXT);
         CREATE INDEX IF NOT EXISTS idx_confrules_set ON conformance_rules(set_id);
         CREATE INDEX IF NOT EXISTS idx_confrules_facets ON conformance_rules(language, layer, framework, severity);
 
