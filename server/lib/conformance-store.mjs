@@ -86,6 +86,7 @@ export function persistConformanceRules(db, { set_id, project_id, brain_id, docu
  * first violation.
  */
 export function enforceConformanceInvariants(document) {
+  const seen = new Set();
   for (const rule of document.rules ?? []) {
     const where = rule.id ?? "<no-id>";
     const expectedPrefix = rule.rule_type === "policy" ? "POL-" : rule.rule_type === "pattern" ? "PAT-" : null;
@@ -94,6 +95,12 @@ export function enforceConformanceInvariants(document) {
     }
     if (typeof rule.confidence !== "number" || Number.isNaN(rule.confidence) || rule.confidence < 0 || rule.confidence > 1) {
       throw new Error(`INV-C2 (${where}): confidence must be a number in [0,1], got ${JSON.stringify(rule.confidence)}`);
+    }
+    // INV-C3: rule ids are unique within the bundle. The schema can't express it and the
+    // store keys rows on a UUID, so a duplicate rule_id would silently persist twice.
+    if (typeof rule.id === "string") {
+      if (seen.has(rule.id)) throw new Error(`INV-C3 (${where}): duplicate rule id within the bundle`);
+      seen.add(rule.id);
     }
   }
 }
@@ -169,10 +176,9 @@ function reconstructRule(row) {
 
 /** Delete a rule set and all its rows (idempotent replace helper). */
 export function deleteRuleSet(db, setId) {
-  const ruleRowIds = db.prepare(`SELECT id FROM conformance_rules WHERE set_id = ?`).all(setId).map((r) => r.id);
-  for (const rowId of ruleRowIds) {
-    db.prepare(`DELETE FROM conformance_rule_provenance WHERE rule_id = ?`).run(rowId);
-  }
+  // Single set-scoped DELETE via subquery rather than N per-rule DELETEs.
+  db.prepare(`DELETE FROM conformance_rule_provenance
+    WHERE rule_id IN (SELECT id FROM conformance_rules WHERE set_id = ?)`).run(setId);
   db.prepare(`DELETE FROM conformance_rules WHERE set_id = ?`).run(setId);
   db.prepare(`DELETE FROM conformance_rule_sets WHERE id = ?`).run(setId);
 }

@@ -173,6 +173,15 @@ test("compliance round-trips: a policy rule's {framework, control_id} persists +
   db.close();
 });
 
+test("INV-C3: a duplicate rule id within the bundle is rejected before any write", () => {
+  const db = freshDb();
+  const r = (statement) => ({ id: "PAT-100", rule_type: "pattern", statement, severity: "info", confidence: 0.5, provenance: { source: "s", ref: "r", source_kinds: ["doc"] } });
+  const doc = { metadata: { schema_version: "1.0.0" }, rules: [r("first"), r("dup")] };
+  assert.throws(() => persistConformanceRules(db, { document: doc }), /INV-C3|duplicate rule id/);
+  assert.equal(db.prepare(`SELECT COUNT(*) c FROM conformance_rules`).get().c, 0, "no partial write");
+  db.close();
+});
+
 test("compliance is optional: an unbound rule recalls with no compliance field", () => {
   const db = freshDb();
   const doc = {

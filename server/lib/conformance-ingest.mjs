@@ -73,8 +73,12 @@ export function normalizeDoc(fields, { source, ref, sourceKinds = ["doc"], ordin
   const severity = fields.severity ?? DEFAULT_SEVERITY;
 
   const targets = {};
+  // Read facets from a nested `targets{}` (a schema-shaped JSON rule doc) OR from
+  // flat top-level fields (md frontmatter) — else a JSON doc's nested targets are
+  // silently dropped on ingest.
+  const facetSrc = (fields.targets && typeof fields.targets === "object") ? fields.targets : fields;
   for (const facet of ["language", "layer", "framework"]) {
-    if (fields[facet] != null && String(fields[facet]).trim() !== "") targets[facet] = String(fields[facet]).trim();
+    if (facetSrc[facet] != null && String(facetSrc[facet]).trim() !== "") targets[facet] = String(facetSrc[facet]).trim();
   }
 
   const rule = {
@@ -87,6 +91,11 @@ export function normalizeDoc(fields, { source, ref, sourceKinds = ["doc"], ordin
   };
   if (Object.keys(targets).length) rule.targets = targets;
   if (fields.symbol_ref != null && String(fields.symbol_ref).trim() !== "") rule.symbol_ref = String(fields.symbol_ref).trim();
+  // Preserve a compliance binding on a schema-shaped JSON doc.
+  const comp = fields.compliance;
+  if (comp && typeof comp === "object" && comp.framework && comp.control_id) {
+    rule.compliance = { framework: String(comp.framework), control_id: String(comp.control_id) };
+  }
   return rule;
 }
 
@@ -138,7 +147,7 @@ export function confluenceAdapter(opts = {}) {
         "conformance-ingest: Confluence adapter not implemented. SEAM: authenticate to the Confluence REST API, page a space via CQL " +
         "(GET /wiki/rest/api/content?spaceKey=...), then for each page call normalizeDoc(parsedFields, " +
         "{ source: spaceKey, ref: 'confluence:' + pageId, sourceKinds: ['doc'] }) and return the candidates. " +
-        `Opts received: ${JSON.stringify(opts)}`,
+        `(received option keys: ${Object.keys(opts).join(", ") || "none"})`,
       );
     },
   };
@@ -153,7 +162,7 @@ export function sharepointAdapter(opts = {}) {
         "conformance-ingest: SharePoint adapter not implemented. SEAM: authenticate via Microsoft Graph, enumerate a document library " +
         "(GET /sites/{siteId}/drives/{driveId}/root/children), then for each rule doc call normalizeDoc(parsedFields, " +
         "{ source: siteId, ref: 'sharepoint:' + itemId, sourceKinds: ['doc'] }) and return the candidates. " +
-        `Opts received: ${JSON.stringify(opts)}`,
+        `(received option keys: ${Object.keys(opts).join(", ") || "none"})`,
       );
     },
   };
