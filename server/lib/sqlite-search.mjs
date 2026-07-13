@@ -436,104 +436,11 @@ export class SqliteSearch {
       currentVersion = 6;
     }
 
-    // Migration 7: domain-model / vocabulary / coverage relational store.
-    // Persists a @wicked/domain-model-schema@1.0.0 document (schema_version
-    // 1.0.0 -> DB migration 7) as normalized rows — NOT a blob — so estate
-    // structure is REFERENCED by symbol_id, never copied. See
-    // .product/DES-DOMAIN-BRAIN-CONTRACT.md §4.
-    if (currentVersion < 7) {
-      this.#db.exec(`
-        CREATE TABLE IF NOT EXISTS domain_models (
-          id TEXT PRIMARY KEY, project_id TEXT NOT NULL, brain_id TEXT NOT NULL,
-          schema_version TEXT NOT NULL, migration_mode TEXT NOT NULL,
-          source TEXT, created_at INTEGER NOT NULL);
-
-        CREATE TABLE IF NOT EXISTS domains (
-          id TEXT PRIMARY KEY, model_id TEXT NOT NULL, domain_key TEXT NOT NULL,
-          description TEXT, cluster_id INTEGER);
-        CREATE INDEX IF NOT EXISTS idx_domains_model ON domains(model_id);
-
-        CREATE TABLE IF NOT EXISTS requirements (
-          id TEXT PRIMARY KEY, domain_id TEXT NOT NULL, req_key TEXT NOT NULL,
-          title TEXT NOT NULL, description TEXT NOT NULL,
-          status TEXT, disposition TEXT, disposition_reason TEXT);
-        CREATE INDEX IF NOT EXISTS idx_requirements_domain ON requirements(domain_id);
-
-        CREATE TABLE IF NOT EXISTS requirement_components (
-          requirement_id TEXT NOT NULL, kind TEXT NOT NULL, value TEXT NOT NULL);
-        CREATE INDEX IF NOT EXISTS idx_reqcomp_req ON requirement_components(requirement_id);
-
-        CREATE TABLE IF NOT EXISTS rules (
-          id TEXT PRIMARY KEY, requirement_id TEXT NOT NULL,
-          rule_kind TEXT NOT NULL, rule_id TEXT NOT NULL,
-          statement TEXT NOT NULL, confidence REAL,
-          field TEXT, error_ref TEXT, code TEXT, source_ref TEXT);
-        CREATE INDEX IF NOT EXISTS idx_rules_req ON rules(requirement_id);
-
-        CREATE TABLE IF NOT EXISTS rule_provenance (
-          rule_id TEXT PRIMARY KEY, source TEXT NOT NULL, ref TEXT NOT NULL,
-          source_kinds TEXT NOT NULL);
-
-        CREATE TABLE IF NOT EXISTS rule_symbol_refs (
-          rule_id TEXT NOT NULL, db_id TEXT NOT NULL, symbol_id TEXT NOT NULL,
-          validated INTEGER DEFAULT 0, cluster_id INTEGER);
-        CREATE INDEX IF NOT EXISTS idx_rulesym_symbol ON rule_symbol_refs(symbol_id);
-
-        CREATE TABLE IF NOT EXISTS entities (
-          id TEXT PRIMARY KEY, domain_id TEXT NOT NULL, entity_key TEXT NOT NULL, description TEXT);
-        CREATE INDEX IF NOT EXISTS idx_entities_domain ON entities(domain_id);
-
-        CREATE TABLE IF NOT EXISTS entity_fields (
-          entity_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, description TEXT);
-        CREATE INDEX IF NOT EXISTS idx_entfields_entity ON entity_fields(entity_id);
-
-        CREATE TABLE IF NOT EXISTS vocabulary_terms (
-          id TEXT PRIMARY KEY, model_id TEXT NOT NULL, canonical TEXT NOT NULL,
-          term_type TEXT NOT NULL, definition TEXT,
-          status TEXT NOT NULL, verification TEXT NOT NULL, freq INTEGER NOT NULL, mined_from TEXT);
-        CREATE INDEX IF NOT EXISTS idx_vocab_model ON vocabulary_terms(model_id);
-
-        CREATE TABLE IF NOT EXISTS term_sources (
-          term_id TEXT NOT NULL, kind TEXT NOT NULL,
-          ref TEXT NOT NULL, node_kind TEXT, file TEXT, freq INTEGER);
-
-        CREATE TABLE IF NOT EXISTS coverage_ledger (
-          model_id TEXT NOT NULL, symbol_id TEXT NOT NULL,
-          resolved INTEGER NOT NULL, rule_id TEXT, risk_reason TEXT);
-        CREATE INDEX IF NOT EXISTS idx_coverage_model ON coverage_ledger(model_id);
-      `);
-      currentVersion = 7;
-    }
-
-    // Migration 8: prescriptive conformance-rules store (brain#91).
-    // Persists a @wicked/domain-model-schema conformance-rules document — the
-    // PRESCRIPTIVE sibling of the Migration-7 domain-model store. Pattern/policy
-    // rules are normalized (NOT a blob); an estate binding is a symbol_ref
-    // REFERENCE, never a copy. Recall (conformance-store.recallRules) is a
-    // SUPPORTED, UN-GATED consumer surface for wicked-testing (the QE pipeline)
-    // as well as garden/crew. See conformance-store.mjs.
-    if (currentVersion < 8) {
-      this.#db.exec(`
-        CREATE TABLE IF NOT EXISTS conformance_rule_sets (
-          id TEXT PRIMARY KEY, project_id TEXT NOT NULL, brain_id TEXT NOT NULL,
-          schema_version TEXT NOT NULL, source TEXT, created_at INTEGER NOT NULL);
-
-        CREATE TABLE IF NOT EXISTS conformance_rules (
-          id TEXT PRIMARY KEY, set_id TEXT NOT NULL,
-          rule_id TEXT NOT NULL, rule_type TEXT NOT NULL,
-          statement TEXT NOT NULL, severity TEXT NOT NULL,
-          language TEXT, layer TEXT, framework TEXT,
-          symbol_ref TEXT, confidence REAL NOT NULL,
-          compliance_framework TEXT, compliance_control_id TEXT);
-        CREATE INDEX IF NOT EXISTS idx_confrules_set ON conformance_rules(set_id);
-        CREATE INDEX IF NOT EXISTS idx_confrules_facets ON conformance_rules(language, layer, framework, severity);
-
-        CREATE TABLE IF NOT EXISTS conformance_rule_provenance (
-          rule_id TEXT PRIMARY KEY, source TEXT NOT NULL, ref TEXT NOT NULL,
-          source_kinds TEXT NOT NULL);
-      `);
-      currentVersion = 8;
-    }
+    // Versions 7 and 8 are BURNED: they held the retired domain-model / conformance stores
+    // (RET-BRAIN-DOMAIN-001). A `.brain.db` that already ran them stays at version 7/8 with dead
+    // `domain_*`/`conformance_*` tables (harmless — nothing reads them; migrations only upgrade, never
+    // downgrade). The NEXT migration MUST start at version 9, never reuse 7/8 — an old v7/v8 db would
+    // silently skip a reused number (`currentVersion < 7` is false), leaving its schema unmigrated.
 
     // Persist the current version
     this.#db.exec(`DELETE FROM _schema_version`);

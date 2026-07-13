@@ -5,7 +5,7 @@
     "server/bin"
   ],
   "canonical_id": "MAP-FILES",
-  "count": 39,
+  "count": 27,
   "files": [
     {
       "path": "server/bin/onboard-wiki.mjs",
@@ -75,129 +75,12 @@
       ]
     },
     {
-      "path": "server/lib/conformance-fixture.mjs",
-      "purpose": "@returns {object} a valid conformance-rules.schema.json document.",
-      "exports": [
-        "conformanceFixture"
-      ],
-      "imports": []
-    },
-    {
-      "path": "server/lib/conformance-frameworks.mjs",
-      "purpose": "The shipped DEFAULT framework: a config-driven no-op. It never fails and, by default, treats every control as `known` (a passthrough), so a rule with a compliance binding LOADS + EXECUTES today with zero real framework wired. Pass `{ controls: { \"<id>\": \"<title>\" } }` (or an array of ids) to turn it into a testable fixture — then unknown controls resolve `known:false`. @param {{name?: string, controls?: (object|string[]|null)}} [config]",
-      "exports": [
-        "executeCompliance",
-        "hasFramework",
-        "loadFramework",
-        "noopFramework",
-        "registerFramework"
-      ],
-      "imports": []
-    },
-    {
-      "path": "server/lib/conformance-ingest.mjs",
-      "purpose": "Default ingest-fidelity confidence for a doc-sourced rule that does not declare its own. Conservative on purpose: a doc-only source rests on source_kinds:['doc'] (trust-eligible, not proven per the spine's TRUST RULE), so an un-annotated ingested rule sits at the midpoint until a human ratifies it upward. A doc MAY override via a `confidence:` field.",
-      "exports": [
-        "DEFAULT_INGEST_CONFIDENCE",
-        "DEFAULT_SEVERITY",
-        "confluenceAdapter",
-        "filesystemAdapter",
-        "normalizeDoc",
-        "parseMarkdownDoc",
-        "sharepointAdapter",
-        "toDocument"
-      ],
-      "imports": []
-    },
-    {
-      "path": "server/lib/conformance-store.mjs",
-      "purpose": "Severity ordering — exported so a downstream enforcer can map severity to a gate policy. The store does NOT gate on it (severity is advisory metadata).",
-      "exports": [
-        "SEVERITY_ORDER",
-        "deleteRuleSet",
-        "enforceConformanceInvariants",
-        "persistConformanceRules",
-        "recallRules"
-      ],
-      "imports": [
-        "../../schemas/index.mjs",
-        "./schema-validate.mjs"
-      ]
-    },
-    {
-      "path": "server/lib/coverage.mjs",
-      "purpose": "@param {import(\"./estate-client.mjs\").EstateClient} estate @param {object} [partialConfig] overrides for config.coverage.* @returns {{ report: object, ok: boolean, unaccounted: string[] }}",
-      "exports": [
-        "classifyNode",
-        "computeCoverage"
-      ],
-      "imports": [
-        "./domain-config.mjs"
-      ]
-    },
-    {
       "path": "server/lib/detect-mode.mjs",
       "purpose": "Pure classifier. Takes shallow scan inputs, returns mode verdict.",
       "exports": [
         "classifyRepo",
         "defaultWikiRoots",
         "detectRepoMode"
-      ],
-      "imports": []
-    },
-    {
-      "path": "server/lib/domain-config.mjs",
-      "purpose": "Shallow-merge a partial config over the defaults (coverage.* only for v1).",
-      "exports": [
-        "DEFAULT_CONFIG",
-        "withConfig"
-      ],
-      "imports": []
-    },
-    {
-      "path": "server/lib/domain-model.mjs",
-      "purpose": "@param {import(\"./estate-client.mjs\").EstateClient} estate @param {object} [opts] @param {object} [opts.config] kind-set overrides (config.coverage.*) @param {string} [opts.source] repo/service the model was mined from @param {\"functional\"|\"structural\"} [opts.migrationMode] default \"functional\" @param {number} [opts.minClusterSize] passed to read_clusters (default 2) @returns {{ document: object }}",
-      "exports": [
-        "buildDomainModel"
-      ],
-      "imports": [
-        "./domain-config.mjs",
-        "./estate-client.mjs"
-      ]
-    },
-    {
-      "path": "server/lib/domain-store.mjs",
-      "purpose": "Validate + persist a domain-model document. Idempotent per model_id: an existing model with the same id is replaced. @returns {{ model_id: string, domains: number, requirements: number, rules: number }}",
-      "exports": [
-        "enforceWriteInvariants",
-        "persistCoverageHoles",
-        "persistDomainModel",
-        "persistVocabulary",
-        "readCoverageLedger"
-      ],
-      "imports": [
-        "../../schemas/index.mjs",
-        "./schema-validate.mjs"
-      ]
-    },
-    {
-      "path": "server/lib/estate-client-fake.mjs",
-      "purpose": "@param {object} fixtures @param {Array} [fixtures.clusters] Community objects (id/members/...). @param {Array} [fixtures.nodes] Node rows (symbol_id/name/kind/file/out_edges/...). @param {object} [fixtures.annotations] Map symbol_id -> [Annotation]. @returns {import(\"./estate-client.mjs\").EstateClient & { writes: object }}",
-      "exports": [
-        "makeFakeEstateClient",
-        "sampleFixtures"
-      ],
-      "imports": [
-        "./estate-client.mjs"
-      ]
-    },
-    {
-      "path": "server/lib/estate-client.mjs",
-      "purpose": "@typedef {object} EstateClient @property {(params?: object) => Array} read_clusters @property {(name: string, opts?: object) => string[]} resolve @property {(opts?: object) => Array} list_nodes @property {(symbolId: string, type?: string) => Array} read_annotations @property {(key: string, value?: string) => string[]} find_by_annotation @property {(symbolId: string) => (object|null)} source @property {(spec: object) => object} annotate @property {(symbolId: string, requirement: string, validated: boolean) => object} set_requirement",
-      "exports": [
-        "EstateCliClient",
-        "appFromFile",
-        "normalizeNode"
       ],
       "imports": []
     },
@@ -381,15 +264,6 @@
       "imports": []
     },
     {
-      "path": "server/lib/schema-validate.mjs",
-      "purpose": "Validate `data` against `schema`. `root` is the schema document used to resolve local `$ref`s (defaults to `schema`). @returns {string[]} error messages; empty array means valid.",
-      "exports": [
-        "assertValid",
-        "validate"
-      ],
-      "imports": []
-    },
-    {
       "path": "server/lib/sqlite-search.mjs",
       "purpose": "Parse a source_hashes entry of the form \"{chunk_path}: {hash}\". Returns null if the shape doesn't match — malformed entries are skipped rather than blocking the whole verify call.",
       "exports": [
@@ -417,18 +291,6 @@
         "renderViewerHtml"
       ],
       "imports": []
-    },
-    {
-      "path": "server/lib/vocabulary.mjs",
-      "purpose": "@param {import(\"./estate-client.mjs\").EstateClient} estate @param {object} [opts] @param {object} [opts.config] overrides for config.coverage.* kind-sets @param {number} [opts.minFreq] drop terms recurring fewer than this (default 1) @param {string} [opts.db] recorded in meta.bootstrap_run (provenance only) @returns {{ vocabulary: object }}",
-      "exports": [
-        "isAbbreviation",
-        "mineVocabulary",
-        "tokenize"
-      ],
-      "imports": [
-        "./domain-config.mjs"
-      ]
     },
     {
       "path": "server/lib/wikilinks.mjs",
