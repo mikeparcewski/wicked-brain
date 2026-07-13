@@ -10,8 +10,6 @@
 > estate GROUNDS · brain EQUIPS (owns schema+engine) · garden STEERS (skills) · crew GOVERNS (workflow).
 > The only thing crossing repo lines: a document validating @wicked/domain-model-schema@1.0.0 + a SymbolId string.
 
-I have everything I need. Here is the contract.
-
 ---
 
 # CONTRACT 1 — Canonical Domain-Model Schema (`wicked.domain-model` **v1.0.0**)
@@ -279,10 +277,6 @@ crew never parses the domain-model JSON's *content*; it reads brain's `coverage_
 
 ---
 
-Contract grounded. Returning it as my final response.
-
----
-
 # CONTRACT 2 — The Estate Surface (the read/write seam the brain engine calls)
 
 **Status of ground truth:** verified against wicked-estate v0.13.1 source (not the v0.0.1 the anti-legacy Python seam was written against — several of that seam's "gotchas" are now obsolete, flagged inline). Every claim below cites `file:line`.
@@ -455,10 +449,6 @@ Freeze exactly this so estate / brain / garden / crew each build and mock agains
 
 ---
 
-I have everything I need. Here is the grounded contract.
-
----
-
 # CONTRACT 3 — Crew's Governed Domain-Extraction WorkflowDef + Invocation Protocol
 
 **Scope.** How wicked-crew (on the wicked-core engine) runs the front-half domain-extraction pipeline (`survey → analyze → extract → coverage → domain-graph`, gated on `coverage == 1.0`) as a governed, data-defined workflow that invokes **garden** extraction skills and the **brain** domain-model engine, grounds on **estate**, and gates on coverage + evaluator≠creator. This is crew's *disjoint-workflow* contract: it fixes crew's surface precisely enough that garden, brain, and estate each build against it while mocking the others.
@@ -597,10 +587,6 @@ Each product implements its side against these fixed interfaces and stubs the re
 - **estate** grounds: `index / list_nodes / rank / clusters (Louvain) / context / annotate` (`wicked_estate.py:9-28`). It is already stable; the contract only requires it keep the read-side structural CLI + the `requirement` annotation write-path that brain consumes.
 
 **The load-bearing invariants that must not drift across the four builds:** (1) coverage is `(resolved + risk_flagged)/behavior_bearing_total`, DoD `== 1.0`, and the coverage gate is a **deterministic, no-LLM re-verify** in the worktree that deny-dominates; (2) `extract` = Creator, `coverage` = Evaluator, and the judge seat is **provably distinct** from the extraction seat; (3) the brain engine owns the loop, the garden skill injects the LLM rule step, estate owns structure — no product re-implements another's half; (4) capability lands as **data** (the WorkflowDef JSON + the approved validator pin), never a wicked-core edit.
-
----
-
-I have everything grounded. Returning the contract.
 
 ---
 
