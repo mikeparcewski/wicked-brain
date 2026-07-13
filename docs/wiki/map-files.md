@@ -3,7 +3,7 @@ status: published
 canonical_for: [MAP-FILES]
 references: []
 owner: core
-last_reviewed: 2026-07-12
+last_reviewed: 2026-07-13
 generated: true
 source_roots: [server/lib, server/bin]
 ---
@@ -18,17 +18,17 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 |---|---|---|---|
 | `server/bin/onboard-wiki.mjs` | wicked-brain-onboard-wiki | — | `../lib/onboard-wiki.mjs` |
 | `server/bin/wicked-brain-call.mjs` | — | — | `../lib/project-id.mjs` |
-| `server/bin/wicked-brain-server.mjs` | Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real server instance so the bind semantics (dual-stack IPv4+IPv6) match the eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only conflict and produce a false "free" result. | — | `../lib/brain-walker.mjs`, `../lib/bus.mjs`, `../lib/codegraph-actions.mjs`, `../lib/file-watcher.mjs`, `../lib/lsp-client.mjs`, `../lib/memory-subscriber.mjs`, `../lib/onboard-wiki.mjs`, `../lib/sqlite-search.mjs`, `../lib/viewer-page.mjs` |
+| `server/bin/wicked-brain-server.mjs` | Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real server instance so the bind semantics (dual-stack IPv4+IPv6) match the eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only conflict and produce a false "free" result. | — | `../lib/brain-walker.mjs`, `../lib/bus.mjs`, `../lib/file-watcher.mjs`, `../lib/lsp-client.mjs`, `../lib/memory-subscriber.mjs`, `../lib/onboard-wiki.mjs`, `../lib/sqlite-search.mjs`, `../lib/viewer-page.mjs` |
 | `server/lib/brain-walker.mjs` | Walk a brain path and surface every authored `.md` file under the content subdirectories (chunks/, wiki/, memory/). Deliberately excludes `_meta/`, `raw/`, `.brain.db`, and any dotfile/dotdir. Paths returned are relative to the brain path and use forward slashes per INV-PATHS-FORWARD. | `purgeBrainContent`, `walkBrainContent` | — |
 | `server/lib/bus.mjs` | wicked-bus integration for wicked-brain-server. | `busAvailable`, `dropBusDeadLetter`, `emitEvent`, `getBusDb`, `isBusAvailable`, `listBusDeadLetters`, `replayBusDeadLetter`, `waitForBus` | — |
 | `server/lib/canonical-registry.mjs` | Canonical registry: maps canonical IDs (e.g. "INV-PATHS-FORWARD") to the single page that owns them. Detects violations of the "one page per ID" rule and broken references. | `buildRegistry`, `findBrokenReferences`, `loadWikiEntries` | `./frontmatter.mjs` |
-| `server/lib/codegraph-actions.mjs` | Build the graph-* action handlers bound to a source repo. A fresh client per call keeps the readonly DB handle short-lived and always reopens after a rebuild. | `makeGraphActions` | `./codegraph-client.mjs`, `./codegraph-extract.mjs`, `./codegraph-index.mjs` |
-| `server/lib/codegraph-client.mjs` | Transitive dependents — "what breaks if I change X". | `CodegraphClient` | `./codegraph-index.mjs` |
-| `server/lib/codegraph-extract.mjs` | codegraph-extract.mjs — extractor registry (builtins + drop-ins). | `discoverDropins`, `runExtractors` | `./codegraph-extractors/bus.mjs`, `./codegraph-extractors/capability.mjs`, `./codegraph-extractors/dispatch.mjs`, `./codegraph-nodes.mjs` |
-| `server/lib/codegraph-index.mjs` | How far the graph has drifted from HEAD. Fail-open: errors report present-but-unknown, never throw. @returns {{present:boolean, stale:boolean\|null, commits_behind:number\|null, indexed_at:string\|null}} | `dbPath`, `runIndex`, `staleness` | `./codegraph-resolver.mjs` |
-| `server/lib/codegraph-nodes.mjs` | codegraph-nodes.mjs — self-noding helpers for injected-edge extractors. | `ensureFileNode`, `ensureVirtualNode` | — |
-| `server/lib/codegraph-resolver.mjs` | Resolve the argv prefix that invokes codegraph, or null. Ladder: WICKED_CODEGRAPH_BIN (set-but-empty = kill switch) -> brain _meta/codegraph.json {bin} -> PATH -> source node_modules/.bin -> `npx`. | `codegraphAvailable`, `resolveCodegraph` | — |
+| `server/lib/coverage.mjs` | @param {import("./estate-client.mjs").EstateClient} estate @param {object} [partialConfig] overrides for config.coverage.* @returns {{ report: object, ok: boolean, unaccounted: string[] }} | `classifyNode`, `computeCoverage` | `./domain-config.mjs` |
 | `server/lib/detect-mode.mjs` | Pure classifier. Takes shallow scan inputs, returns mode verdict. | `classifyRepo`, `defaultWikiRoots`, `detectRepoMode` | — |
+| `server/lib/domain-config.mjs` | Shallow-merge a partial config over the defaults (coverage.* only for v1). | `DEFAULT_CONFIG`, `withConfig` | — |
+| `server/lib/domain-model.mjs` | @param {import("./estate-client.mjs").EstateClient} estate @param {object} [opts] @param {object} [opts.config] kind-set overrides (config.coverage.*) @param {string} [opts.source] repo/service the model was mined from @param {"functional"\|"structural"} [opts.migrationMode] default "functional" @param {number} [opts.minClusterSize] passed to read_clusters (default 2) @returns {{ document: object }} | `buildDomainModel` | `./domain-config.mjs`, `./estate-client.mjs` |
+| `server/lib/domain-store.mjs` | Validate + persist a domain-model document. Idempotent per model_id: an existing model with the same id is replaced. @returns {{ model_id: string, domains: number, requirements: number, rules: number }} | `enforceWriteInvariants`, `persistCoverageHoles`, `persistDomainModel`, `persistVocabulary`, `readCoverageLedger` | `../../schemas/index.mjs`, `./schema-validate.mjs` |
+| `server/lib/estate-client-fake.mjs` | @param {object} fixtures @param {Array} [fixtures.clusters] Community objects (id/members/...). @param {Array} [fixtures.nodes] Node rows (symbol_id/name/kind/file/out_edges/...). @param {object} [fixtures.annotations] Map symbol_id -> [Annotation]. @returns {import("./estate-client.mjs").EstateClient & { writes: object }} | `makeFakeEstateClient`, `sampleFixtures` | `./estate-client.mjs` |
+| `server/lib/estate-client.mjs` | @typedef {object} EstateClient @property {(params?: object) => Array} read_clusters @property {(name: string, opts?: object) => string[]} resolve @property {(opts?: object) => Array} list_nodes @property {(symbolId: string, type?: string) => Array} read_annotations @property {(key: string, value?: string) => string[]} find_by_annotation @property {(symbolId: string) => (object\|null)} source @property {(spec: object) => object} annotate @property {(symbolId: string, requirement: string, validated: boolean) => object} set_requirement | `EstateCliClient`, `appFromFile`, `normalizeNode` | — |
 | `server/lib/file-watcher.mjs` | Recursive fs.watch over brain content with a polling fallback. | `FileWatcher` | — |
 | `server/lib/frontmatter.mjs` | Minimal YAML-subset frontmatter parser. | `extractFrontmatter`, `getField`, `parseFrontmatter`, `parseFrontmatterBlock`, `serializeFrontmatterBlock` | — |
 | `server/lib/gen-contract-api.mjs` | Contract API generator. | `extractActions`, `renderActionsJson`, `renderContractApi` | — |
@@ -45,8 +45,10 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 | `server/lib/mode-config.mjs` | Validate a mode.json body. Returns { ok, errors } — does not throw. Kept in lockstep with mode.schema.json. The schema is the canonical documentation; this is the runtime enforcement. | `MODE_FILE_PATH`, `diffMode`, `readModeFile`, `validateMode`, `writeModeFile` | — |
 | `server/lib/onboard-wiki.mjs` | Onboard-wiki orchestrator. | `formatOnboardResult`, `runOnboardWiki` | `./detect-mode.mjs`, `./mode-config.mjs`, `./stamp-pointer.mjs` |
 | `server/lib/project-id.mjs` | Canonical project-id slug + per-project brain resolution. | `baseName`, `projectId`, `resolvePerProjectBrain`, `slugifyId` | — |
+| `server/lib/schema-validate.mjs` | Validate `data` against `schema`. `root` is the schema document used to resolve local `$ref`s (defaults to `schema`). @returns {string[]} error messages; empty array means valid. | `assertValid`, `validate` | — |
 | `server/lib/sqlite-search.mjs` | Parse a source_hashes entry of the form "{chunk_path}: {hash}". Returns null if the shape doesn't match — malformed entries are skipped rather than blocking the whole verify call. | `SqliteSearch`, `deriveSourceType` | `./frontmatter.mjs`, `./wikilinks.mjs` |
 | `server/lib/stamp-pointer.mjs` | CLAUDE.md / AGENTS.md contributor-wiki pointer stamping. | `buildSection`, `stampWikiPointer` | — |
 | `server/lib/viewer-page.mjs` | Read-only HTML viewer for a wicked-brain instance. | `renderViewerHtml` | — |
+| `server/lib/vocabulary.mjs` | @param {import("./estate-client.mjs").EstateClient} estate @param {object} [opts] @param {object} [opts.config] overrides for config.coverage.* kind-sets @param {number} [opts.minFreq] drop terms recurring fewer than this (default 1) @param {string} [opts.db] recorded in meta.bootstrap_run (provenance only) @returns {{ vocabulary: object }} | `isAbbreviation`, `mineVocabulary`, `tokenize` | `./domain-config.mjs` |
 | `server/lib/wikilinks.mjs` | — | `parseWikilinks` | — |
 

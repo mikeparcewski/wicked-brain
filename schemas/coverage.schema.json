@@ -17,6 +17,7 @@
     "per_app",
     "unaccounted_nodes"
   ],
+  "additionalProperties": false,
   "$defs": {
     "perApp": {
       "type": "object",

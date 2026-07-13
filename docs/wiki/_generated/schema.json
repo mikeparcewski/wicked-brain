@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-07-12",
+  "generated_at": "2026-07-13",
   "source": "server/lib/sqlite-search.mjs",
   "canonical_id": "CONTRACT-SCHEMA",
-  "head_version": 6,
+  "head_version": 7,
   "tables": [
     {
       "name": "documents",
@@ -178,6 +178,416 @@
           "notes": ""
         }
       ]
+    },
+    {
+      "name": "domain_models",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "project_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "brain_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "schema_version",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "migration_mode",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "source",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER NOT NULL",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "domains",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "model_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "domain_key",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "cluster_id",
+          "type": "INTEGER",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "requirements",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "domain_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "req_key",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "title",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "description",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "disposition",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "disposition_reason",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "requirement_components",
+      "columns": [
+        {
+          "name": "requirement_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "kind",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "value",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "rules",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "requirement_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "rule_kind",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "rule_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "statement",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "confidence",
+          "type": "REAL",
+          "notes": ""
+        },
+        {
+          "name": "field",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "error_ref",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "code",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "source_ref",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "rule_provenance",
+      "columns": [
+        {
+          "name": "rule_id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "source",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "ref",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "source_kinds",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "rule_symbol_refs",
+      "columns": [
+        {
+          "name": "rule_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "db_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "symbol_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "validated",
+          "type": "INTEGER DEFAULT 0",
+          "notes": ""
+        },
+        {
+          "name": "cluster_id",
+          "type": "INTEGER",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "entities",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "domain_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "entity_key",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "entity_fields",
+      "columns": [
+        {
+          "name": "entity_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "name",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "type",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "vocabulary_terms",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY",
+          "notes": ""
+        },
+        {
+          "name": "model_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "canonical",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "term_type",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "definition",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "status",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "verification",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "freq",
+          "type": "INTEGER NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "mined_from",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "term_sources",
+      "columns": [
+        {
+          "name": "term_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "kind",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "ref",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "node_kind",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "file",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "freq",
+          "type": "INTEGER",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "coverage_ledger",
+      "columns": [
+        {
+          "name": "model_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "symbol_id",
+          "type": "TEXT NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "resolved",
+          "type": "INTEGER NOT NULL",
+          "notes": ""
+        },
+        {
+          "name": "rule_id",
+          "type": "TEXT",
+          "notes": ""
+        },
+        {
+          "name": "risk_reason",
+          "type": "TEXT",
+          "notes": ""
+        }
+      ]
     }
   ],
   "migrations": [
@@ -231,6 +641,33 @@
       "summary": "add last_verified_at for wiki staleness detection",
       "ops": [
         "ADD COLUMN documents.last_verified_at"
+      ]
+    },
+    {
+      "version": 7,
+      "summary": "domain-model / vocabulary / coverage relational store.",
+      "ops": [
+        "CREATE TABLE domain_models",
+        "CREATE TABLE domains",
+        "CREATE TABLE requirements",
+        "CREATE TABLE requirement_components",
+        "CREATE TABLE rules",
+        "CREATE TABLE rule_provenance",
+        "CREATE TABLE rule_symbol_refs",
+        "CREATE TABLE entities",
+        "CREATE TABLE entity_fields",
+        "CREATE TABLE vocabulary_terms",
+        "CREATE TABLE term_sources",
+        "CREATE TABLE coverage_ledger",
+        "CREATE INDEX idx_domains_model ON domains",
+        "CREATE INDEX idx_requirements_domain ON requirements",
+        "CREATE INDEX idx_reqcomp_req ON requirement_components",
+        "CREATE INDEX idx_rules_req ON rules",
+        "CREATE INDEX idx_rulesym_symbol ON rule_symbol_refs",
+        "CREATE INDEX idx_entities_domain ON entities",
+        "CREATE INDEX idx_entfields_entity ON entity_fields",
+        "CREATE INDEX idx_vocab_model ON vocabulary_terms",
+        "CREATE INDEX idx_coverage_model ON coverage_ledger"
       ]
     }
   ]

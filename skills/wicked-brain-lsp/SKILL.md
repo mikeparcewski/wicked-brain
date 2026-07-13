@@ -14,9 +14,11 @@ description: |
 
 Universal code intelligence for any CLI/IDE via the brain's LSP client layer.
 
-> For whole-repo **relationship** queries — blast radius, lineage, architecture
-> map — use `wicked-brain:graph` (codegraph-backed). LSP here is live,
-> single-symbol intelligence (definitions, references, hover, diagnostics).
+> For whole-repo **relationship** and structure queries — clusters, blast
+> radius, lineage, architecture map — brain reads structure from **wicked-estate**
+> (the single structural source of truth); it no longer ships a parallel code
+> graph. LSP here is live, single-symbol intelligence (definitions, references,
+> hover, diagnostics).
 
 ## Cross-Platform Notes
 
