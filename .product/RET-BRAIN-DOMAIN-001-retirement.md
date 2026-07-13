@@ -29,9 +29,11 @@ absent (currently `pytest.skip` = fails open).
 ## SALVAGE — port spec for the Rust re-home (recover exact code from git history of this branch)
 Invariants + algorithms to port into the Rust engine (`wicked-governance` PR-B / domain-graph builder PR-D):
 
-- **Invariants (fail-closed at write):** domain-store INV-1/2/3 (rule-id uniqueness; confidence numeric;
-  `disposition=="drop" ⇒ disposition_reason`); conformance INV-C1 (`PAT-*⇔pattern`, `POL-*⇔policy`), INV-C2
-  (`confidence ∈ [0,1]`), INV-C3 (unique rule id).
+- **Invariants (fail-closed at write):** domain-store **INV-1** (a requirement with **0 business_rules is
+  REJECTED** — mark `status:"unresolvable"`, never ship a placeholder), **INV-2** (a business_rule's `confidence`
+  must be a number in **[0,1]**, ISS-11), **INV-3** (`disposition:"drop"` WITHOUT a `disposition_reason` is not
+  honored by the coverage gate); conformance **INV-C1** (`PAT-*⇔pattern`, `POL-*⇔policy`), **INV-C2**
+  (`confidence` number in `[0,1]`), **INV-C3** (rule id unique within the bundle).
 - **Coverage predicate:** `coverage = (resolved + risk_flagged) / behavior_bearing == 1.0`, with the
   dead-structural-shell rule (a `module` with zero active out-edges excluded) — `coverage.mjs`.
 - **Domain-model assembly:** `buildDomainModel` = cluster → capability domain (never file-derived for

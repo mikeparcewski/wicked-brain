@@ -436,6 +436,12 @@ export class SqliteSearch {
       currentVersion = 6;
     }
 
+    // Versions 7 and 8 are BURNED: they held the retired domain-model / conformance stores
+    // (RET-BRAIN-DOMAIN-001). A `.brain.db` that already ran them stays at version 7/8 with dead
+    // `domain_*`/`conformance_*` tables (harmless — nothing reads them; migrations only upgrade, never
+    // downgrade). The NEXT migration MUST start at version 9, never reuse 7/8 — an old v7/v8 db would
+    // silently skip a reused number (`currentVersion < 7` is false), leaving its schema unmigrated.
+
     // Persist the current version
     this.#db.exec(`DELETE FROM _schema_version`);
     this.#db.prepare(`INSERT INTO _schema_version (version) VALUES (?)`).run(currentVersion);
