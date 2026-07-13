@@ -1,0 +1,31 @@
+{
+  "name": "@wicked/domain-model-schema",
+  "version": "1.0.0",
+  "description": "Canonical, versioned domain-model / vocabulary / coverage JSON Schemas — the shared spine for the wicked domain-brain effort (estate GROUNDS · brain EQUIPS · garden STEERS · crew GOVERNS). brain owns it; estate/garden/crew import or vendor it.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Mike Parcewski",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mikeparcewski/wicked-brain.git",
+    "directory": "schemas"
+  },
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./domain-model.schema.json": "./domain-model.schema.json",
+    "./vocabulary.schema.json": "./vocabulary.schema.json",
+    "./coverage.schema.json": "./coverage.schema.json",
+    "./VERSION": "./VERSION"
+  },
+  "files": [
+    "domain-model.schema.json",
+    "vocabulary.schema.json",
+    "coverage.schema.json",
+    "VERSION",
+    "index.mjs"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wickedagile.com/schemas/coverage/1.0.0",
+  "title": "wicked coverage report (v1.0.0)",
+  "description": "The resolved-or-flagged coverage ledger — part of the @wicked/domain-model-schema bundle. Formalizes anti-legacy's coverage-report.json (the coverage.py output). Every behavior-bearing estate SymbolId is either RESOLVED (a rule annotation at/above the confidence threshold) or RISK-flagged (on the HITL research queue) — never bare/unaccounted. `coverage` = (resolved + risk_flagged) / behavior_bearing, in [0,1], rounded to 4 dp; this is the rule_coverage value crew's GATE_3 requires to equal 1.0. The report doubles as a gate predicate: the engine exits non-zero and lists the unaccounted SymbolIds when coverage < 1.0. Deterministic: unaccounted_nodes and per_app are sorted by SymbolId / app name.",
+  "type": "object",
+  "required": [
+    "total",
+    "behavior_bearing",
+    "resolved",
+    "risk_flagged",
+    "unaccounted",
+    "coverage",
+    "resolved_rate",
+    "mean_confidence",
+    "resolve_threshold",
+    "per_app",
+    "unaccounted_nodes"
+  ],
+  "$defs": {
+    "perApp": {
+      "type": "object",
+      "required": ["app", "behavior_bearing", "resolved", "risk_flagged", "unaccounted", "coverage"],
+      "additionalProperties": false,
+      "properties": {
+        "app": { "type": "string" },
+        "behavior_bearing": { "type": "integer", "minimum": 0 },
+        "resolved": { "type": "integer", "minimum": 0 },
+        "risk_flagged": { "type": "integer", "minimum": 0 },
+        "unaccounted": { "type": "integer", "minimum": 0 },
+        "coverage": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "unaccountedNode": {
+      "type": "object",
+      "description": "A behavior-bearing node that reached neither RESOLVED nor RISK — the coverage hole. References the estate SymbolId; carries no copy of the node's source.",
+      "required": ["symbol_id"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol_id": { "type": "string", "minLength": 1 },
+        "name": { "type": ["string", "null"] },
+        "kind": { "type": ["string", "null"] },
+        "file": { "type": "string" },
+        "app": { "type": "string" }
+      }
+    }
+  },
+  "properties": {
+    "total": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total nodes in the graph (all kinds)."
+    },
+    "behavior_bearing": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The coverage denominator — behavior-bearing nodes only (config-driven via coverage.behavior_kinds, never hardcoded)."
+    },
+    "resolved": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Behavior-bearing nodes RESOLVED (rule annotation at/above resolve_threshold)."
+    },
+    "risk_flagged": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Behavior-bearing nodes RISK-flagged (on the HITL queue, incl. below-threshold 'resolved')."
+    },
+    "unaccounted": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Behavior-bearing nodes that are still bare (the coverage hole). MUST be 0 for coverage == 1.0."
+    },
+    "coverage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "(resolved + risk_flagged) / behavior_bearing, 4 dp. The rule_coverage value crew's GATE_3 gates on == 1.0. Vacuously 1.0 when there are no behavior-bearing nodes."
+    },
+    "resolved_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "resolved / (resolved + risk_flagged), 4 dp."
+    },
+    "mean_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Mean confidence across settled nodes, 4 dp."
+    },
+    "resolve_threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence threshold at/above which a rule annotation counts as RESOLVED (default 0.75)."
+    },
+    "per_app": {
+      "type": "array",
+      "description": "Per-app breakdown, sorted by app name.",
+      "items": { "$ref": "#/$defs/perApp" }
+    },
+    "unaccounted_nodes": {
+      "type": "array",
+      "description": "The bare behavior-bearing nodes, sorted by SymbolId. Empty iff coverage == 1.0.",
+      "items": { "$ref": "#/$defs/unaccountedNode" }
+    }
+  }
+}
