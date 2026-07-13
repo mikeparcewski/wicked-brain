@@ -505,6 +505,36 @@ export class SqliteSearch {
       currentVersion = 7;
     }
 
+    // Migration 8: prescriptive conformance-rules store (brain#91).
+    // Persists a @wicked/domain-model-schema conformance-rules document — the
+    // PRESCRIPTIVE sibling of the Migration-7 domain-model store. Pattern/policy
+    // rules are normalized (NOT a blob); an estate binding is a symbol_ref
+    // REFERENCE, never a copy. Recall (conformance-store.recallRules) is a
+    // SUPPORTED, UN-GATED consumer surface for wicked-testing (the QE pipeline)
+    // as well as garden/crew. See conformance-store.mjs.
+    if (currentVersion < 8) {
+      this.#db.exec(`
+        CREATE TABLE IF NOT EXISTS conformance_rule_sets (
+          id TEXT PRIMARY KEY, project_id TEXT NOT NULL, brain_id TEXT NOT NULL,
+          schema_version TEXT NOT NULL, source TEXT, created_at INTEGER NOT NULL);
+
+        CREATE TABLE IF NOT EXISTS conformance_rules (
+          id TEXT PRIMARY KEY, set_id TEXT NOT NULL,
+          rule_id TEXT NOT NULL, rule_type TEXT NOT NULL,
+          statement TEXT NOT NULL, severity TEXT NOT NULL,
+          language TEXT, layer TEXT, framework TEXT,
+          symbol_ref TEXT, confidence REAL NOT NULL,
+          compliance_framework TEXT, compliance_control_id TEXT);
+        CREATE INDEX IF NOT EXISTS idx_confrules_set ON conformance_rules(set_id);
+        CREATE INDEX IF NOT EXISTS idx_confrules_facets ON conformance_rules(language, layer, framework, severity);
+
+        CREATE TABLE IF NOT EXISTS conformance_rule_provenance (
+          rule_id TEXT PRIMARY KEY, source TEXT NOT NULL, ref TEXT NOT NULL,
+          source_kinds TEXT NOT NULL);
+      `);
+      currentVersion = 8;
+    }
+
     // Persist the current version
     this.#db.exec(`DELETE FROM _schema_version`);
     this.#db.prepare(`INSERT INTO _schema_version (version) VALUES (?)`).run(currentVersion);

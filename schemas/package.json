@@ -1,7 +1,7 @@
 {
   "name": "@wicked/domain-model-schema",
-  "version": "1.0.0",
-  "description": "Canonical, versioned domain-model / vocabulary / coverage JSON Schemas — the shared spine for the wicked domain-brain effort (estate GROUNDS · brain EQUIPS · garden STEERS · crew GOVERNS). brain owns it; estate/garden/crew import or vendor it.",
+  "version": "1.1.0",
+  "description": "Canonical, versioned domain-model / vocabulary / coverage / conformance-rules JSON Schemas — the shared spine for the wicked domain-brain effort (estate GROUNDS · brain EQUIPS · garden STEERS · crew GOVERNS · wicked-testing ASSERTS). brain owns it; estate/garden/crew/wicked-testing import or vendor it. domain-model/vocabulary/coverage are DESCRIPTIVE (facts mined FROM code); conformance-rules is the PRESCRIPTIVE sibling (pattern/policy rules applied TO code) on the same confidence + provenance spine.",
   "type": "module",
   "license": "MIT",
   "author": "Mike Parcewski",
@@ -16,12 +16,14 @@
     "./domain-model.schema.json": "./domain-model.schema.json",
     "./vocabulary.schema.json": "./vocabulary.schema.json",
     "./coverage.schema.json": "./coverage.schema.json",
+    "./conformance-rules.schema.json": "./conformance-rules.schema.json",
     "./VERSION": "./VERSION"
   },
   "files": [
     "domain-model.schema.json",
     "vocabulary.schema.json",
     "coverage.schema.json",
+    "conformance-rules.schema.json",
     "VERSION",
     "index.mjs"
   ],

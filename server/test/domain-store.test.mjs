@@ -22,10 +22,10 @@ function freshDb() {
   return new Database(path);
 }
 
-test("Migration 7: domain-model tables exist at head version 7", () => {
+test("Migration 7: domain-model tables exist (head version is now 8 after conformance store)", () => {
   const db = freshDb();
   const v = db.prepare(`SELECT version FROM _schema_version LIMIT 1`).get();
-  assert.equal(v.version, 7);
+  assert.equal(v.version, 8);
   const names = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all().map((r) => r.name);
   for (const t of ["domain_models", "domains", "requirements", "requirement_components",
     "rules", "rule_provenance", "rule_symbol_refs", "entities", "entity_fields",
