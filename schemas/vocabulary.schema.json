@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wickedagile.com/schemas/vocabulary/1.0.0",
+  "title": "wicked domain vocabulary (v1.0.0)",
+  "description": "Two-axis domain glossary, part of the @wicked/domain-model-schema bundle. Ported from anti-legacy's vocabulary.schema.json. TWO ORTHOGONAL AXES per term: `status` (proposed|confirmed = is the TERM a real domain item) and `verification` (unverified|untrusted_verified|trusted_verified = is the term's DEFINITION/MEANING proven against CODE LOGIC). Bootstrap emits status=proposed + verification=unverified with a BLANK definition; only a trusted_verified definition may be asserted as fact in a rule statement. A source with kind 'graph_node' carries the FULL estate SymbolId in `ref` — vocabulary REFERENCES estate symbols, never copies them. meta.vocabulary_version tracks term-set evolution independently of the bundle semver.",
+  "type": "object",
+  "required": ["terms", "meta"],
+  "additionalProperties": false,
+  "properties": {
+    "terms": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/term" }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["vocabulary_version", "term_count"],
+      "properties": {
+        "vocabulary_version": {
+          "type": "string",
+          "description": "Term-set evolution version. Independent of the domain-model bundle semver."
+        },
+        "config_ref": { "type": "string" },
+        "generated_by": { "type": "string" },
+        "bootstrap_run": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Run-level metadata for the latest bootstrap (db/ts/min_freq) — lives ONCE here, not per term.",
+          "properties": {
+            "db": { "type": "string" },
+            "ts": { "type": "string" },
+            "min_freq": { "type": "integer" }
+          }
+        },
+        "term_count": { "type": "integer", "minimum": 0 },
+        "confirmed_count": { "type": "integer", "minimum": 0 },
+        "trusted_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "term": {
+      "type": "object",
+      "required": ["canonical", "term_type", "status", "verification", "freq"],
+      "additionalProperties": false,
+      "properties": {
+        "canonical": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Interned term key, unique within terms[]."
+        },
+        "term_type": {
+          "type": "string",
+          "enum": ["entity", "action", "abbreviation", "domain_concept"],
+          "description": "Which miner / usage produced the term."
+        },
+        "definition": {
+          "type": "string",
+          "description": "Plain-language meaning. BLANK when proposed-by-bootstrap until authored. Only assert a trusted_verified definition as fact."
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Other spellings meaning the SAME canonical (mined field-name variants + human additions)."
+        },
+        "pseudonyms_slang": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Informal / tribal / business-side names a human attaches; never bootstrap-coined."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["proposed", "confirmed"],
+          "description": "Lifecycle of whether the TERM is real. Bootstrap emits proposed; a human/agent promotes to confirmed."
+        },
+        "verification": {
+          "type": "string",
+          "enum": ["unverified", "untrusted_verified", "trusted_verified"],
+          "description": "Trust spectrum over the DEFINITION. unverified=mined/claim-only; untrusted_verified=doc/convention-corroborated; trusted_verified=proven against CODE LOGIC or ratified by a human SME."
+        },
+        "freq": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "TRUE recurrence count of the term across the mined kinds. Always present; the per-term evidence index lives in wicked-estate, not here."
+        },
+        "mined_from": {
+          "type": "string",
+          "description": "Which miner proposed the term (estate_behavior_kinds | behavior_kinds | field-token). Absent on purely human-added terms."
+        },
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source" },
+          "description": "Optional inline evidence. EMPTY by default — where-used belongs to wicked-estate. Populated only when config opts in, or by human-attached doc/SME citations."
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "DEPRECATED per-term block (run metadata moved to meta.bootstrap_run); still permitted for backward-compat with older files.",
+          "properties": {
+            "bootstrap_run": { "type": "object", "additionalProperties": true },
+            "mined_from": { "type": "string" }
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["graph_node", "doc", "human"],
+          "description": "graph_node = mined from a code-graph node (CODE LOGIC ground truth); doc = a README/comment CLAIM (unproven); human = SME confirmation."
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "For graph_node: the FULL estate SymbolId. For doc: file#anchor. For human: author@date."
+        },
+        "node_kind": { "type": "string", "description": "Normalized graph kind (graph_node sources)." },
+        "file": { "type": "string", "description": "Source file path (graph_node sources)." },
+        "freq": { "type": "integer", "minimum": 0, "description": "Mined frequency count (graph_node sources)." },
+        "note": { "type": "string", "description": "e.g. 'CLAIM — unconfirmed against code' for a doc source." }
+      }
+    }
+  }
+}
