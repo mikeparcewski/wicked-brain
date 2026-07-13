@@ -5,6 +5,7 @@
   "description": "Canonical, GENERIC, config-driven domain model — the shared spine of the wicked domain-brain effort (estate GROUNDS, brain EQUIPS, garden STEERS, crew GOVERNS). Successor to anti-legacy's requirements-graph.enriched.schema.json with the COBOL/CICS-specific vocabulary genericized: miner kind-sets live in config.coverage.* (NOT hardcoded here), provenance is {source, ref, source_kinds} (not {source_app, program, ...}), and source_kinds uses the generic 'type-def' tier (not COBOL 'data-def'). HARD INVARIANTS preserved from the donor: every requirement carries the full field set; business_rules has minItems 1; every business rule carries a numeric confidence in [0,1] AND a provenance{source, ref, source_kinds}; disposition is keep|modify|drop|new; a 'drop' needs a disposition_reason to be honored by the coverage gate. Rule/Validation/ErrorPath items are OBJECT-ONLY (the transitional string form is not accepted). IDs are RULE-/VAL-/ERR- + 3-to-6-digit zero-padded, unique within a requirement; the canonical global key is legacy_component + '#' + id. A domain fact REFERENCES an estate SymbolId (in legacy_components / provenance.ref) and never embeds a copy of the symbol's code, name-uniqueness, file, or line. Every emitted document MUST carry metadata.schema_version = '1.0.0'; a consumer rejects a schema_version it has no validator for.",
   "type": "object",
   "required": ["domains", "metadata"],
+  "additionalProperties": false,
   "$defs": {
     "provenance": {
       "type": "object",
@@ -111,7 +112,7 @@
         "description": { "type": "string" },
         "legacy_components": {
           "type": "array",
-          "description": "The estate SymbolIds / node names this requirement covers (renamed-compatible synonym: source_components). Non-null, never dropped. Each entry SHOULD resolve to an estate node name or SymbolId — a REFERENCE, not a copy.",
+          "description": "SYNONYM CLARIFICATION: `legacy_components` and `source_components` name the SAME concept — the estate SymbolIds / node names this requirement covers. v1.0.0 keeps the wire key `legacy_components` for zero-churn porting from the anti-legacy donor; `source_components` is the preferred name in prose and future majors. A conformant emitter writes the key `legacy_components`; a consumer that also accepts `source_components` MUST treat it as identical. Non-null, never dropped (may be empty but the key is always present). Each entry SHOULD resolve to an estate node name or SymbolId — a REFERENCE, not a copy of the symbol's code/file/line.",
           "items": { "type": "string" }
         },
         "data_access": {
@@ -197,6 +198,7 @@
     "metadata": {
       "type": "object",
       "required": ["schema_version", "migration_mode"],
+      "additionalProperties": false,
       "properties": {
         "schema_version": {
           "const": "1.0.0",
