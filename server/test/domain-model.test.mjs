@@ -12,6 +12,24 @@ test("buildDomainModel: document validates against domain-model.schema.json", ()
   assert.deepEqual(errs, [], errs.join("\n"));
 });
 
+test("buildDomainModel: a confidence-less annotation is dropped (coverage hole), never fabricated as confidence:0", () => {
+  const fx = sampleFixtures();
+  const badSym = "sym::pay::charge";
+  // Malformed evidence: a business_rule annotation with NO numeric confidence.
+  fx.annotations[badSym] = [
+    { type: "business_rule", key: "business_rule", value: "unmeasured rule", provenance: "brain:extract@1.0.0" },
+  ];
+  const estate = makeFakeEstateClient(fx);
+  const { document } = buildDomainModel(estate);
+  const rules = Object.values(document.domains)
+    .flatMap((d) => Object.values(d.requirements))
+    .flatMap((r) => r.business_rules);
+  assert.ok(
+    !rules.some((r) => r.provenance.ref === badSym),
+    "a confidence-less annotation must be dropped (the node stays a coverage hole), not laundered into a rule",
+  );
+});
+
 test("buildDomainModel: domains derive from clusters and record cluster_id", () => {
   const estate = makeFakeEstateClient(sampleFixtures());
   const { document } = buildDomainModel(estate);

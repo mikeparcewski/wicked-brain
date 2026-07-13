@@ -132,6 +132,11 @@ export function enforceWriteInvariants(document) {
 export function persistCoverageHoles(db, { model_id, report }) {
   const ins = db.prepare(`INSERT INTO coverage_ledger (model_id, symbol_id, resolved, rule_id, risk_reason) VALUES (?,?,?,?,?)`);
   const tx = db.transaction(() => {
+    // Idempotent recompute: clear this model's UNACCOUNTED (resolved=0) rows before re-inserting,
+    // so re-running coverage doesn't duplicate holes and double-count the ledger (coverage is the
+    // GATE_3 predicate — corrupt counts defeat the gate). Scoped to resolved=0 so the resolved=1
+    // rows persistDomainModel wrote stay intact.
+    db.prepare(`DELETE FROM coverage_ledger WHERE model_id = ? AND resolved = 0`).run(model_id);
     for (const n of report.unaccounted_nodes ?? []) {
       ins.run(model_id, n.symbol_id, 0, null, "unaccounted");
     }

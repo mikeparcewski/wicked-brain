@@ -60,8 +60,13 @@ export function buildDomainModel(estate, opts = {}) {
     const requirements = {};
     let reqCounter = 0;
     for (const m of members.filter((n) => behaviorKinds.has(n.kind))) {
-      const ruleAnns = estate.read_annotations(m.symbol_id, "business_rule");
-      if (ruleAnns.length === 0) continue; // no rules ⇒ not a requirement (a coverage hole, not a placeholder)
+      const ruleAnns = estate
+        .read_annotations(m.symbol_id, "business_rule")
+        // Drop confidence-less annotations — evidence must not be fabricated. A node with no
+        // VALID rules stays a genuine coverage hole rather than being laundered into a
+        // "resolved" requirement (which would defeat INV-2 and the coverage gate).
+        .filter((a) => typeof a.confidence === "number");
+      if (ruleAnns.length === 0) continue; // no valid rules ⇒ not a requirement (a coverage hole, not a placeholder)
 
       reqCounter += 1;
       const reqKey = m.requirement || `REQ-${slug.toUpperCase()}-${pad3(reqCounter)}`;
@@ -101,10 +106,15 @@ export function buildDomainModel(estate, opts = {}) {
 
 /** Map an estate business_rule annotation onto a schema Rule object. */
 function toRule(ann, ordinal, symbolId, source) {
+  if (typeof ann.confidence !== "number") {
+    // Never fabricate confidence: a confidence-less annotation is malformed evidence, filtered
+    // upstream (it stays a coverage hole). Fail loud if one slips through rather than laundering it.
+    throw new Error(`toRule: business_rule on ${symbolId} has non-numeric confidence — filter upstream, don't fabricate`);
+  }
   return {
     id: `RULE-${pad3(ordinal)}`,
     statement: ann.value ?? "",
-    confidence: typeof ann.confidence === "number" ? ann.confidence : 0,
+    confidence: ann.confidence,
     provenance: {
       source: source || provenanceSource(ann.provenance) || "estate",
       ref: symbolId,                    // the estate SymbolId reference

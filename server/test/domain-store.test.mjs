@@ -100,3 +100,19 @@ test("persistCoverageHoles + persistVocabulary write the auxiliary stores", () =
   assert.equal(terms.c, vocabulary.terms.length);
   db.close();
 });
+
+test("persistCoverageHoles is idempotent and preserves resolved rows", () => {
+  const db = freshDb();
+  const estate = makeFakeEstateClient(sampleFixtures());
+  const { report } = computeCoverage(estate);
+  // A resolved=1 row a real persistDomainModel would have written.
+  db.prepare(`INSERT INTO coverage_ledger (model_id, symbol_id, resolved, rule_id, risk_reason) VALUES ('m','sym::pay::charge',1,'RULE-001',NULL)`).run();
+  // Recompute twice: an unanchored insert would double-count the ledger (corrupts GATE_3).
+  persistCoverageHoles(db, { model_id: "m", report });
+  persistCoverageHoles(db, { model_id: "m", report });
+  const holes = db.prepare(`SELECT symbol_id FROM coverage_ledger WHERE model_id='m' AND resolved=0`).all();
+  assert.equal(holes.length, report.unaccounted_nodes.length, "recompute must not duplicate unaccounted rows");
+  const resolved = db.prepare(`SELECT COUNT(*) c FROM coverage_ledger WHERE model_id='m' AND resolved=1`).get();
+  assert.equal(resolved.c, 1, "resolved rows must survive a coverage recompute");
+  db.close();
+});
