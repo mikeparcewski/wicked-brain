@@ -106,7 +106,10 @@ export class EstateCliClient {
   }
 
   list_nodes({ kinds } = {}) {
-    const args = ["nodes", "--json"];
+    // `--semantics` enriches each node with requirement/requirement_validated/rule_confidence/
+    // out_edges (from estate's semantics + annotation + edge stores) — the fields the coverage
+    // classifier needs. Without it every node would classify as unaccounted (coverage never 1.0).
+    const args = ["nodes", "--json", "--semantics"];
     if (kinds?.length === 1) args.push("--kind", kinds[0]);
     let nodes = this.#json(args) ?? [];
     if (kinds?.length > 1) nodes = nodes.filter((n) => kinds.includes(n.kind));
@@ -149,15 +152,21 @@ export class EstateCliClient {
   }
 }
 
-/** Coerce a raw estate `nodes --json` row into the interface Node shape. */
+/** Coerce a raw estate `nodes --json` row into the interface Node shape.
+ *
+ * estate emits `kind` and edge kinds as PascalCase enum Debug names (`Function`,
+ * `Module`, `Calls`, `Imports`, …); brain's config kind-sets are lowercase. Lower-case
+ * them HERE — the estate→interface boundary — so a single adapter reconciles the whole
+ * vocabulary and the fixture client (already lowercase) passes through unchanged. */
 export function normalizeNode(n) {
+  const lc = (s) => (s == null ? null : String(s).toLowerCase());
   return {
     symbol_id: n.symbol_id,
     name: n.name ?? null,
-    kind: n.kind ?? null,
+    kind: lc(n.kind),
     file: n.file ?? "",
     app: n.app ?? appFromFile(n.file ?? ""),
-    out_edges: n.out_edges ?? [],
+    out_edges: (n.out_edges ?? []).map((e) => String(e).toLowerCase()),
     requirement: n.requirement ?? null,
     requirement_validated: n.requirement_validated ?? false,
     rule_confidence: n.rule_confidence ?? null,
