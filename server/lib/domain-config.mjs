@@ -17,8 +17,11 @@ export const DEFAULT_CONFIG = Object.freeze({
     structural_kinds: Object.freeze(["field", "variable"]),
     // Estate object-kinds naming entities verbatim (mainframe/IaC only). Empty for a modern repo.
     estate_behavior_kinds: Object.freeze([]),
-    // Edge kinds that make a node "active": a `module` with zero of these is excluded from the denominator.
-    behavior_edge_kinds: Object.freeze(["calls", "uses", "references"]),
+    // Edge kinds that make a node "active": a `module` with zero of these is excluded from the
+    // denominator. Lower-cased estate EdgeKind names (normalizeNode lower-cases estate's PascalCase);
+    // includes `imports` so a module that depends on others counts as live (a module's out-edges are
+    // Imports/Contains, not Calls), plus call/reference/instantiate for functions/methods.
+    behavior_edge_kinds: Object.freeze(["calls", "references", "imports", "instantiates"]),
     // Confidence at/above which a rule annotation counts as RESOLVED.
     resolve_threshold: 0.75,
   }),
