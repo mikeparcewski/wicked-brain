@@ -88,7 +88,7 @@
       "type": "number",
       "minimum": 0,
       "maximum": 1,
-      "description": "Mean confidence across settled nodes, 4 dp."
+      "description": "Mean confidence across RESOLVED nodes carrying a numeric confidence, 4 dp (resolved-only, per coverage.py)."
     },
     "resolve_threshold": {
       "type": "number",
