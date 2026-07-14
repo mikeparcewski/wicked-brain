@@ -174,9 +174,6 @@ The viewer has no auth. It's localhost-only, same-machine trust.
 | `wicked-brain-retag` | Backfill synonym-expanded tags across all chunks for better search recall |
 | `wicked-brain-update` | Check npm for updates and reinstall skills across all detected CLIs |
 | `wicked-brain-lsp` | Universal code intelligence via LSP — hover, go-to-definition, diagnostics, completions |
-| `wicked-brain-domain` | Assemble a domain model — domains + requirements — from estate clusters and the rules bound onto their members |
-| `wicked-brain-vocabulary` | Two-axis domain glossary miner (status × verification) over estate symbol names |
-| `wicked-brain-coverage` | Resolved-or-flagged coverage — the provable terminal / GATE_3 predicate (coverage == 1.0) |
 | `wicked-brain-ui` | Open the read-only browser viewer — Material-styled Search + Wiki tabs over `http://localhost:<port>/` |
 | `wicked-brain-context` | Surface relevant brain knowledge for the current prompt — runs inline on the hot path to enrich what you're working on |
 | `wicked-brain-onboard` | Full project-understanding pipeline — scans the repo, investigates from multiple perspectives, and builds the support wiki |
@@ -188,11 +185,15 @@ The viewer has no auth. It's localhost-only, same-machine trust.
 Brain no longer ships a parallel code graph. Structure — clusters, blast radius,
 lineage, requirement/domain annotations — is read from **wicked-estate**, the
 single structural source of truth (a stable SymbolId identity that survives
-renames, injected edges grep can't see, deterministic Louvain clustering). The
-domain-model / vocabulary / coverage engines (`wicked-brain-domain`,
-`wicked-brain-vocabulary`, `wicked-brain-coverage`) reference estate SymbolIds;
-they never copy a symbol's code, file, or line. See
-[`.product/DES-DOMAIN-BRAIN-CONTRACT.md`](.product/DES-DOMAIN-BRAIN-CONTRACT.md).
+renames, injected edges grep can't see, deterministic Louvain clustering).
+
+The domain-model / vocabulary / coverage **engines have been RETIRED from brain**
+(RET-BRAIN-DOMAIN-001): their SQLite stores + the `wicked-brain-{domain,coverage,
+vocabulary}` skills are gone — the data belongs in estate's graph, and the
+translation engine is re-homed in Rust (`wicked-core domain-graph`, the
+`wicked-governance` conformance/coverage types). The wire contract lives on in
+[`schemas/`](schemas/) (the kept `@wicked/domain-model-schema` bundle). See
+[`.product/RET-BRAIN-DOMAIN-001-retirement.md`](.product/RET-BRAIN-DOMAIN-001-retirement.md).
 
 ## Multi-Brain Federation
 

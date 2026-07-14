@@ -18,6 +18,22 @@ Full corrected design: `wicked-core/.product/DES-OUTGOV-001`. Fork analysis: bra
 - Targeted deletion, NOT `git revert #92` — that PR also deleted the old `@colbymchenry/codegraph`, which
   must stay deleted.
 
+## Retired (follow-up — the SKILL/doc surface)
+The cross-product review of the completed re-home found the original PR accounted only for modules/tests/
+migrations and left the **skill + installer surface** orphaned (each SKILL.md still pointed at a deleted
+`server/lib/*.mjs`, and `install.mjs` ships every `skills/` dir to every CLI). Now also retired:
+- **3 skill dirs**: `skills/wicked-brain-{domain,coverage,vocabulary}` — each referenced deleted modules
+  (`domain-model.mjs` / `domain-store.mjs` / `coverage.mjs` / `vocabulary.mjs` / `domain-config.mjs`),
+  so they were broken and shipped-broken. Their functionality re-homes in Rust: domain-model →
+  `wicked-core domain-graph` (`wicked-governance::build_domain_model`); coverage → the fail-closed
+  `assert_front_half_coverage` gate; the vocabulary miner is a tracked port follow-on.
+- **README** rows + the stale "domain-model / vocabulary / coverage engines" paragraph updated.
+- **Downstream:** `wicked-core/workflows/domain-extraction.json` still names these in `allowed_skills`
+  (analyze→`wicked-brain-vocabulary`, extract/domain-graph→`wicked-brain-domain`, coverage→
+  `wicked-brain-coverage`). Those phases were ALREADY broken (the skills referenced deleted modules); the
+  **M10 workflow retarget** (DES-OUTGOV-001 §10.1, a wicked-core follow-on) must drop/repoint those now-
+  dangling refs onto the native `wicked-core domain-graph` path.
+
 ## KEPT — the wire contract (do not delete)
 `schemas/` bundle (`@wicked/domain-model-schema` @ VERSION 1.1.0): `domain-model`, `vocabulary`,
 `coverage`, `conformance-rules` `.schema.json` + `index.mjs` + `package.json`. Self-contained (loads JSON
