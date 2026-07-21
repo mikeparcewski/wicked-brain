@@ -41,7 +41,7 @@ cd server && node --test
 | Memory promoter | Memory creation, promotion, contradiction detection, recent_memories ordering |
 | Frontmatter parsing | YAML frontmatter extraction, field normalization, malformed frontmatter handling |
 | Backlinks | Backlink graph construction, `backlinks` and `forward_links` action responses |
-| Action dispatch | All 18 `POST /api` actions: correct response shape, error handling for unknown actions |
+| Action dispatch | All documented `POST /api` actions: correct response shape, error handling for unknown actions |
 | Tag frequency | Tag extraction, frequency ranking, `tag_frequency` response |
 | Search misses | Miss logging, `search_misses` response, threshold-based surfacing |
 | Access log | `access_log` recording, `recent_memories` ordering, candidate surfacing |

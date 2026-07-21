@@ -39,13 +39,13 @@ wicked-brain does **not** own: the code graph (estate), domain modeling (estate,
 ### Flow 2 — Index a project
 1. The agent (or user) invokes the `wicked-brain-ingest` skill, providing the project path and a brain name.
 2. The skill calls `POST /api` with `action: index` for each source file or directory.
-3. The server parses frontmatter, extracts chunks, and writes them to the SQLite FTS5 `chunks` table.
-4. Wikilinks are resolved and stored in the `wiki` table. The file watcher monitors for subsequent changes and reindexes automatically.
+3. The server parses frontmatter, extracts chunks, and writes them to the `documents` table; the FTS5 `documents_fts` virtual table indexes the content for ranked search.
+4. Wikilinks are resolved and stored in the `links` table. The file watcher monitors for subsequent changes and reindexes automatically.
 
 ### Flow 3 — Search or query the brain
 1. The agent invokes `wicked-brain-search` or `wicked-brain-query`.
 2. The skill calls `POST /api` with `action: search` (or `federated_search` for cross-brain search).
-3. The server runs an FTS5 ranked query against `chunks`, `memories`, and `wiki`.
+3. The server runs an FTS5 ranked query against the `documents_fts` index, which covers all content (chunks, memories, wiki articles) classified by their path prefix.
 4. Results are returned ranked by relevance; the agent synthesizes an answer or surfaces the excerpts.
 
 ### Flow 4 — Store a memory
@@ -62,6 +62,6 @@ wicked-brain does **not** own: the code graph (estate), domain modeling (estate,
 |---|---|---|
 | SC-001 | Skills install successfully into 2 or more supported CLIs (minimum: Claude Code + one other) | Manual install + skill invocation |
 | SC-002 | All 396 tests pass with zero failures | `cd server && node --test` |
-| SC-003 | Server starts and all 18 API actions respond correctly on macOS, Linux, and Windows | CI matrix (ubuntu + macos + windows) |
+| SC-003 | Server starts and all documented `POST /api` actions respond correctly on macOS, Linux, and Windows | CI matrix (ubuntu + macos + windows); action contract at `docs/wiki/_generated/actions.json` |
 | SC-004 | `search` action returns ranked results in under 2 seconds for a 10,000-chunk index | Manual search benchmark: index a 10,000-chunk fixture, time the `search` action via `POST /api` |
 | SC-005 | Bridge-period integration: when wicked-estate is present, skills surface estate context alongside brain results without double-owning the domain layer | Manual integration test: run estate MCP alongside brain; invoke `wicked-brain-context` and verify estate data appears without duplication |

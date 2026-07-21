@@ -19,7 +19,7 @@ wicked-brain is a two-component system:
 │  wicked-brain-server (npm package)                          │
 │                                                             │
 │  Node.js HTTP server                                        │
-│  POST /api  ──action dispatch──▶  18 actions               │
+│  POST /api  ──action dispatch──▶  actions (see docs/wiki)   │
 │                 │                                           │
 │                 ▼                                           │
 │  sqlite-search.mjs  (FTS5 index + migrations)              │
@@ -63,7 +63,7 @@ Single endpoint: `POST http://localhost:{port}/api`
 
 Request body (JSON): `{ "action": "<action-name>", ...params }`
 
-**18 actions:**
+**Actions (40 in `docs/wiki/_generated/actions.json`; the most-used subset):**
 
 | Action | Description |
 |---|---|
