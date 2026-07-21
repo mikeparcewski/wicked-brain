@@ -84,7 +84,7 @@ Request body (JSON): `{ "action": "<action-name>", "params": { ...params } }`
 | `link_health` | Report on broken or unresolved wikilinks |
 | `tag_frequency` | Return tag usage frequency across indexed content |
 | `search_misses` | Return queries that returned no results (for gap analysis) |
-| `symbols` | Symbol lookup fallback when no LSP server is running |
+| `symbols` | Symbol lookup: prefers LSP workspace symbols; falls back to FTS when LSP is unavailable or errored |
 
 ---
 
@@ -119,11 +119,11 @@ Each skill is a directory `skills/wicked-brain-{operation}/` containing a `SKILL
 
 ## SQLite schema
 
-All state lives in a single `.brain.db` file per project brain.
+`.brain.db` is the SQLite index per project brain. Authored content (chunks, memories, wiki articles) lives on disk under the brain directory and is indexed into `.brain.db`; the index is rebuildable from those files.
 
 | Table | Storage engine | Purpose |
 |---|---|---|
-| `documents` | Standard table | Stores all ingested content (chunks, memories, wiki articles) with metadata and frontmatter. Source type is derived from path prefix (`memory/` → memory, `wiki/` → wiki, otherwise chunk). |
+| `documents` | Standard table | Stores all ingested content (chunks, memories, wiki articles) with metadata and frontmatter. Source type is derived from path prefix (`memory/` or `memories/` → memory, `wiki/` → wiki, otherwise chunk). |
 | `documents_fts` | FTS5 virtual table | Full-text index of all documents for ranked search. Mirrors `documents` content. |
 | `canonical_ownership` | Standard table | Tracks first-claimant ownership of canonical IDs. |
 | `links` | Standard table | Stores extracted wikilinks and relationships (e.g., `contradicts`). |
@@ -143,8 +143,10 @@ Each project gets its own brain directory:
 ~/.wicked-brain/projects/{project-name}/
   brain.json              # Identity, linked brains
   raw/                    # Source files (copies or symlinks)
-  chunks/                 # Source-faithful chunk extractions (path prefix: chunks/)
-  memory/                 # LLM-generated memories (path prefix: memory/)
+  chunks/
+    extracted/            # Source-faithful chunk extractions (path prefix: chunks/)
+    inferred/             # LLM-generated content (path prefix: chunks/)
+  memory/                 # Agent-generated memories (path prefix: memory/ or memories/)
   wiki/                   # Synthesized articles (path prefix: wiki/)
   _meta/log.jsonl         # Event log
   _meta/config.json       # Server port, brain path

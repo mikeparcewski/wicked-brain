@@ -12,7 +12,7 @@ review-required: true
 
 ## What wicked-brain is
 
-wicked-brain is a memory and knowledge store for AI coding agents, currently in a **bridge period**. It provides a lightweight, local-first infrastructure layer that gives AI CLIs (Claude Code, Gemini CLI, Copilot CLI, Cursor, Codex, Antigravity) a persistent, searchable brain — indexed content, stored memories, synthesized wiki articles, and wikilink graphs — backed by SQLite FTS5 with no external infrastructure.
+wicked-brain is a memory and knowledge store for AI coding agents, currently in a **bridge period**. It provides a lightweight, local-first infrastructure layer that gives AI CLIs (Claude Code, Gemini CLI, Copilot CLI, Cursor, Codex, Kiro, Antigravity) a persistent, searchable brain — indexed content, stored memories, synthesized wiki articles, and wikilink graphs — backed by SQLite FTS5 with no external infrastructure.
 
 It ships as two npm packages:
 - `wicked-brain` — the skill set and installer (SKILL.md files + `install.mjs`)

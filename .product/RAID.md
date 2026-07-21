@@ -1,3 +1,13 @@
+---
+name: RAID
+title: "wicked-brain — Risks, Assumptions, Issues, Decisions"
+status: draft
+version: 0.1
+date: 2026-07-21
+author: michael.parcewski@accenture.com
+review-required: true
+---
+
 # RAID — wicked-brain
 
 Risks, Assumptions, Issues, Decisions for the wicked-brain product (v0.18.1, bridge period).

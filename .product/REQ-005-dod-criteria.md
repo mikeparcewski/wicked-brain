@@ -27,7 +27,7 @@ This DoD applies to wicked-brain v0.18.1 as a published, bridge-period npm produ
 
 ### Quality
 
-- [x] All tests pass: 396 tests, zero failures (`cd server && node --test`)
+- [x] All tests pass: zero failures (`cd server && node --test`; count grows as coverage is added)
 - [x] No test framework dependencies — uses `node:test` stdlib only
 - [x] Schema migrations in `sqlite-search.mjs` are numbered and cumulative (migrations 1–6; 7+8 retired)
 - [x] `gen-contract-schema` migration-count test updated to `[1..6]` after domain store retirement
