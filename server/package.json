@@ -36,7 +36,7 @@
     "lint:wiki:strict": "node scripts/lint-wiki.mjs --strict"
   },
   "dependencies": {
-    "better-sqlite3": "^12.0.0",
+    "better-sqlite3": "^13.0.0",
     "wicked-bus": "^2.0.0"
   },
   "engines": {
