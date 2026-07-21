@@ -56,7 +56,7 @@ The following brain capabilities have no direct estate counterpart and are out o
 | File watcher / auto-reindex | Estate's knowledge store is ingestion-driven; no auto-watcher |
 | Wikilink graph traversal | Estate provides `Lineage` and `TraverseGraph`; wikilink-style links are not a first-class concept |
 | Search-miss analysis (`wicked-brain-dlq`) | No estate equivalent; retire this surface when brain retires |
-| Access log (`wicked-brain-status`) | No estate equivalent |
+| Access log (`access_log` action via `npx wicked-brain-call access_log`) | No estate equivalent; `wicked-brain-status` covers stats/search-misses/contradictions, not the access log |
 | Brain UI (`wicked-brain-ui`) | No estate equivalent; use the estate MCP inspector directly |
 
 ---
@@ -74,23 +74,10 @@ The following brain capabilities have no direct estate counterpart and are out o
 
 Brain memories are markdown files stored under `~/.wicked-brain/projects/{project-name}/memory/` (not in `.brain.db` — the SQLite file is a rebuildable search index, not the source of truth for memory content). Back up the `memory/` directory, not the `.brain.db` file.
 
-`wicked-brain-migrate` exists but migrates flat brain layouts to per-project layout — it does not export memories to estate. Until a dedicated estate-export skill ships, export memories by querying the brain server directly:
+`wicked-brain-migrate` exists but migrates flat brain layouts to per-project layout — it does not export memories to estate. Until a dedicated estate-export skill ships, export memories via the cross-platform CLI wrapper (auto-discovers the running server and port):
 
 ```bash
-# Query all memories from brain server (note: params must be wrapped in a "params" key)
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"recent_memories","params":{"limit":1000}}' | python3 -c "
-import json,sys
-memories = json.load(sys.stdin).get('results', [])
-for m in memories:
-    print(json.dumps(m))
-" 2>/dev/null || python -c "
-import json,sys
-memories = json.load(sys.stdin).get('results', [])
-for m in memories:
-    print(json.dumps(m))
-"
+npx wicked-brain-call recent_memories --param limit=1000
 ```
 
 Then for each exported memory, call `memory.capture` via the estate MCP server.
