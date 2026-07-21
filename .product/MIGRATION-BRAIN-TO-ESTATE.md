@@ -72,20 +72,20 @@ The following brain capabilities have no direct estate counterpart and are out o
 
 ### 2. Export brain memories to estate
 
-Brain memories live in `.brain.db` under `~/.wicked-brain/projects/{project-name}/`.
+Brain memories are markdown files stored under `~/.wicked-brain/projects/{project-name}/memory/` (not in `.brain.db` — the SQLite file is a rebuildable search index, not the source of truth for memory content). Back up the `memory/` directory, not the `.brain.db` file.
+
+`wicked-brain-migrate` exists but migrates flat brain layouts to per-project layout — it does not export memories to estate. Until a dedicated estate-export skill ships, export memories by querying the brain server directly:
 
 ```bash
-# Use wicked-brain-migrate (when available) to export memories as JSON
-# Then ingest via memory.capture for each exported item
-```
-
-At the time of writing, `wicked-brain-migrate` is a planned skill (see `skills/wicked-brain-migrate/`). Until it ships, memories can be exported by querying the brain server:
-
-```bash
-# Query all memories from brain server
+# Query all memories from brain server (note: params must be wrapped in a "params" key)
 curl -s -X POST http://localhost:{port}/api \
   -H "Content-Type: application/json" \
-  -d '{"action":"recent_memories","limit":1000}' | python3 -c "
+  -d '{"action":"recent_memories","params":{"limit":1000}}' | python3 -c "
+import json,sys
+memories = json.load(sys.stdin).get('results', [])
+for m in memories:
+    print(json.dumps(m))
+" 2>/dev/null || python -c "
 import json,sys
 memories = json.load(sys.stdin).get('results', [])
 for m in memories:
@@ -93,7 +93,7 @@ for m in memories:
 "
 ```
 
-Then for each memory, call `memory.capture` via the estate MCP server.
+Then for each exported memory, call `memory.capture` via the estate MCP server.
 
 ### 3. Ingest brain chunks/wiki into estate knowledge
 
@@ -141,7 +141,7 @@ Brain skills retire in two waves when estate v1.0 ships:
 
 ## Reference
 
-- wicked-estate README: `wicked-estate/README.md` — full tool catalog, MCP setup, storage paths
+- wicked-estate README: `README.md` in the **wicked-estate repository** — full tool catalog, MCP setup, storage paths
 - wicked-estate memory tools: `memory.capture`, `memory.recall`, `memory.reflect`, `memory.erase`, `memory.learn`, `memory.coverage`
 - wicked-estate knowledge tools: `knowledge.ingest`, `knowledge.write`, `knowledge.relate`, `knowledge.recall`, `knowledge.coverage`, `knowledge.relate_code`, `knowledge.recall_about_code`
 - Brain RAID.md RISK-001 — bridge-period obsolescence risk and mitigation
