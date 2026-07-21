@@ -59,7 +59,8 @@ This DoD applies to wicked-brain v0.18.1 as a published, bridge-period npm produ
 
 - [x] Bridge-period scope documented: brain owns session memory, chunks, wiki, wikilinks; does not own code graph or domain model
 - [x] Estate integration seam present: skills note estate preference when estate MCP is available
-- [ ] Bridge-period migration path documented: clear, published path from brain memory/knowledge to estate for users migrating when estate v1.0 ships
+- [x] Bridge-period migration path documented: clear, published path from brain memory/knowledge to estate for users migrating when estate v1.0 ships
+  - Evidence: `.product/MIGRATION-BRAIN-TO-ESTATE.md` — skill-to-tool mapping, retirement waves, step-by-step migration steps
 
 ---
 
