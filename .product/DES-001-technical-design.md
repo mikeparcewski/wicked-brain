@@ -61,7 +61,7 @@ wicked-brain is a two-component system:
 
 Single endpoint: `POST http://localhost:{port}/api`
 
-Request body (JSON): `{ "action": "<action-name>", ...params }`
+Request body (JSON): `{ "action": "<action-name>", "params": { ...params } }`
 
 **Actions (40 in `docs/wiki/_generated/actions.json`; the most-used subset):**
 
@@ -111,7 +111,7 @@ Request body (JSON): `{ "action": "<action-name>", ...params }`
 Each skill is a directory `skills/wicked-brain-{operation}/` containing a `SKILL.md` file with:
 - YAML frontmatter: `name`, `description` (minimum required fields)
 - Body: instruction prose for the agent, including what API calls to make and how to interpret results
-- "Cross-Platform Notes" section: platform-specific guidance for macOS, Linux, and Windows
+- "Cross-Platform Notes" section: platform-specific guidance for macOS, Linux, and Windows (most skills include this section; skills that make no platform-specific calls may omit it)
 
 **Naming invariant:** `name` in frontmatter == directory basename. Both use the `wicked-brain-` dash prefix. No colons.
 

@@ -35,7 +35,7 @@ cd server && node --test
 |---|---|
 | `sqlite-search` | FTS5 indexing, ranked search, schema migrations (1–6), table creation, chunk CRUD |
 | FTS5 search ranking | Result ordering, BM25 scoring, multi-term queries, prefix matching |
-| Wikilinks | Forward link extraction, backlink resolution, wiki table population, orphan detection |
+| Wikilinks | Forward link extraction, backlink resolution, links table population, orphan detection |
 | File watcher | Auto-reindex on file change, polling fallback path (Linux), debounce behavior |
 | LSP client | Hand-rolled JSON-RPC framing, request/response matching, no-LSP degradation path |
 | Memory promoter | Memory creation, promotion, contradiction detection, recent_memories ordering |
@@ -96,4 +96,4 @@ node install.mjs --path ./temp-test-dir
 |---|---|---|
 | No skill e2e test (agent invocation) | Medium — a broken skill may not be caught until a human uses it | Manual smoke test per release; consider adding a dry-run install + invocation test |
 | No performance benchmark | Low — SC-004 (< 2s search) is not automatically verified | Add a benchmark test for the `search` action against a large fixture index |
-| No LSP server integration test | Low — LSP path is optional and degrades gracefully | Current unit tests cover the no-LSP path; adding a mock LSP server test is tracked |
+| LSP integration test is conditional | Low — LSP path is optional and degrades gracefully | `server/test/lsp-integration.test.mjs` exists but is conditional on `typescript-language-server` being installed; it is skipped in CI environments where the language server is absent. No unconditional integration test. |
