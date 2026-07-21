@@ -61,7 +61,7 @@ wicked-brain does **not** own: the code graph (estate), domain modeling (estate,
 | ID | Criterion | Verification method |
 |---|---|---|
 | SC-001 | Skills install successfully into 2 or more supported CLIs (minimum: Claude Code + one other) | Manual install + skill invocation |
-| SC-002 | All 396 tests pass with zero failures | `cd server && node --test` |
+| SC-002 | All server tests pass with zero failures | `cd server && node --test` exits 0 |
 | SC-003 | Server starts and all documented `POST /api` actions respond correctly on macOS, Linux, and Windows | CI matrix (ubuntu + macos + windows); action contract at `docs/wiki/_generated/actions.json` |
 | SC-004 | `search` action returns ranked results in under 2 seconds for a 10,000-chunk index | Manual search benchmark: index a 10,000-chunk fixture, time the `search` action via `POST /api` |
 | SC-005 | Bridge-period integration: when wicked-estate is present, skills surface estate context alongside brain results without double-owning the domain layer | Manual integration test: run estate MCP alongside brain; invoke `wicked-brain-context` and verify estate data appears without duplication |

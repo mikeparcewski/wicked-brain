@@ -22,7 +22,7 @@ wicked-brain's test strategy has four defined layers: unit/integration tests for
 
 **Runner:** `node --test` (Node.js stdlib `node:test`)
 
-**Current count:** 396 tests, zero failures
+**Current count:** zero failures (count grows as coverage is added; do not treat a specific number as a DoD gate)
 
 **How to run:**
 ```
@@ -84,7 +84,7 @@ node install.mjs --path ./temp-test-dir
 
 **Matrix:** ubuntu-latest · macos-latest · windows-latest (see reusable workflow for Node version; `ci.yml` uses `lts/*`)
 
-**Purpose:** Catch platform-specific failures in `better-sqlite3` native bindings, `fs.watch` behavior differences, and path separator handling. All 396 tests must pass on all three platforms before release.
+**Purpose:** Catch platform-specific failures in `better-sqlite3` native bindings, `fs.watch` behavior differences, and path separator handling. All server tests must pass (`cd server && node --test` exits 0) on all three platforms before release.
 
 **npm publish:** The pipeline also runs `npm publish --provenance` after tests pass. The package version is set from the git tag; `package.json` is not manually versioned.
 
