@@ -32,7 +32,7 @@ wicked-brain does **not** own: the code graph (estate), domain modeling (estate,
 
 ### Flow 1 — Install skills into a CLI
 1. The user runs `node install.mjs` (or `npx wicked-brain install`) in the project root.
-2. `install.mjs` detects which AI CLI config directories are present (Claude Code `~/.claude/`, Gemini CLI, Copilot CLI, Cursor, Codex, Antigravity).
+2. `install.mjs` detects which AI CLI config directories are present (Claude Code `~/.claude/`, Gemini CLI, Copilot CLI, Cursor, Codex, Kiro, Antigravity).
 3. For each detected CLI, it copies the 27 SKILL.md files into the appropriate skills/agents directory.
 4. The CLIs pick up the installed skills on next startup; agents can now invoke `wicked-brain-search`, `wicked-brain-memory`, etc.
 
@@ -50,8 +50,8 @@ wicked-brain does **not** own: the code graph (estate), domain modeling (estate,
 
 ### Flow 4 — Store a memory
 1. The agent invokes `wicked-brain-memory` (store mode) with a key, value, and optional tags.
-2. The skill calls `POST /api` with `action: index` targeting a memory file under `chunks/inferred/`.
-3. The server persists the memory entry; it is immediately searchable and returned by `recent_memories`.
+2. The skill calls `POST /api` with `action: index` targeting a file under the `memory/` path prefix (e.g., `memory/some-memory.md`).
+3. The server classifies files with path prefix `memory/` as memories; the entry is immediately searchable and returned by `recent_memories`.
 4. Memories can be promoted, contradicted, confirmed, or forgotten via the corresponding skill/action pairs.
 
 ---
@@ -63,5 +63,5 @@ wicked-brain does **not** own: the code graph (estate), domain modeling (estate,
 | SC-001 | Skills install successfully into 2 or more supported CLIs (minimum: Claude Code + one other) | Manual install + skill invocation |
 | SC-002 | All 396 tests pass with zero failures | `cd server && node --test` |
 | SC-003 | Server starts and all 18 API actions respond correctly on macOS, Linux, and Windows | CI matrix (ubuntu + macos + windows) |
-| SC-004 | `search` action returns ranked results in under 2 seconds for a 10,000-chunk index | Measured in test or benchmark (to be verified) |
-| SC-005 | Bridge-period integration: when wicked-estate is present, skills surface estate context alongside brain results without double-owning the domain layer | Cross-product integration test (to be verified) |
+| SC-004 | `search` action returns ranked results in under 2 seconds for a 10,000-chunk index | Manual search benchmark: index a 10,000-chunk fixture, time the `search` action via `POST /api` |
+| SC-005 | Bridge-period integration: when wicked-estate is present, skills surface estate context alongside brain results without double-owning the domain layer | Manual integration test: run estate MCP alongside brain; invoke `wicked-brain-context` and verify estate data appears without duplication |

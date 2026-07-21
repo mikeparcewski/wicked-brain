@@ -84,6 +84,7 @@ Request body (JSON): `{ "action": "<action-name>", ...params }`
 | `link_health` | Report on broken or unresolved wikilinks |
 | `tag_frequency` | Return tag usage frequency across indexed content |
 | `search_misses` | Return queries that returned no results (for gap analysis) |
+| `symbols` | Symbol lookup fallback when no LSP server is running |
 
 ---
 
@@ -93,16 +94,17 @@ Request body (JSON): `{ "action": "<action-name>", ...params }`
 
 `install.mjs` — detects which AI CLI config directories are present on the host machine and copies the skill SKILL.md files into the appropriate location for each CLI.
 
-**Detected CLIs and target directories (approximate — to be verified against current install.mjs):**
+**Detected CLIs and target directories (verified against `install.mjs`):**
 
-| CLI | Config dir detection |
+| CLI | Skills target directory |
 |---|---|
-| Claude Code | `~/.claude/` (agents or skills subdirectory) |
-| Gemini CLI | (to be verified) |
-| Copilot CLI | (to be verified) |
-| Cursor | (to be verified) |
-| Codex | (to be verified) |
-| Antigravity | (to be verified) |
+| Claude Code | `~/.claude/skills/` (or `$CLAUDE_CONFIG_DIR/skills/`) |
+| Gemini CLI | `~/.gemini/config/skills/` |
+| Copilot CLI | `~/.copilot/skills/` |
+| Cursor | `~/.cursor/skills/` |
+| Codex | `~/.codex/skills/` |
+| Kiro | `~/.kiro/skills/` |
+| Antigravity | `~/.gemini/config/skills/` |
 
 ### Skill anatomy
 
@@ -121,12 +123,13 @@ All state lives in a single `.brain.db` file per project brain.
 
 | Table | Storage engine | Purpose |
 |---|---|---|
-| `chunks` | FTS5 virtual table | Full-text index of all ingested content (source files, memories, wiki articles). Primary search target. |
-| `memories` | Standard table | Structured memory records with key, value, tags, timestamp, promotion status. |
-| `wiki` | Standard table | Synthesized wiki articles and their wikilink graphs. |
-| `access_log` | Standard table | Records of which documents were surfaced per query session. Powers `recent_memories` and `candidates`. |
-| `tags` | Standard table (or FTS metadata) | Tag associations for chunks and memories; powers `tag_frequency`. |
-| `_migrations` | Standard table | Migration version tracking; ensures cumulative, numbered migrations apply once. |
+| `documents` | Standard table | Stores all ingested content (chunks, memories, wiki articles) with metadata and frontmatter. Source type is derived from path prefix (`memory/` → memory, `wiki/` → wiki, otherwise chunk). |
+| `documents_fts` | FTS5 virtual table | Full-text index of all documents for ranked search. Mirrors `documents` content. |
+| `canonical_ownership` | Standard table | Tracks first-claimant ownership of canonical IDs. |
+| `links` | Standard table | Stores extracted wikilinks and relationships (e.g., `contradicts`). |
+| `access_log` | Standard table | Records document access history per session. Powers `recent_memories` and `candidates`. |
+| `search_misses` | Standard table | Logs queries that returned zero results for gap analysis. |
+| `_schema_version` | Standard table | Tracks the current schema migration version. |
 
 Migrations are numbered 1–6 (migrations 7 and 8 were retired with the domain/conformance stores). New schema changes MUST add a new numbered migration; `CREATE TABLE IF NOT EXISTS` does not add columns to existing tables.
 
@@ -140,9 +143,9 @@ Each project gets its own brain directory:
 ~/.wicked-brain/projects/{project-name}/
   brain.json              # Identity, linked brains
   raw/                    # Source files (copies or symlinks)
-  chunks/extracted/       # Source-faithful chunk extractions
-  chunks/inferred/        # LLM-generated content (memories, summaries)
-  wiki/                   # Synthesized articles
+  chunks/                 # Source-faithful chunk extractions (path prefix: chunks/)
+  memory/                 # LLM-generated memories (path prefix: memory/)
+  wiki/                   # Synthesized articles (path prefix: wiki/)
   _meta/log.jsonl         # Event log
   _meta/config.json       # Server port, brain path
   _meta/server.pid        # Running server PID

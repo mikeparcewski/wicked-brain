@@ -37,7 +37,7 @@ This DoD applies to wicked-brain v0.18.1 as a published, bridge-period npm produ
 
 - [x] 27 skills installed and documented (SKILL.md per skill directory)
 - [x] All skill frontmatter `name:` fields use dash prefix (`wicked-brain-{operation}`) — no colon form
-- [x] `install.mjs` detects Claude Code, Gemini CLI, Copilot CLI, Cursor, Codex, Antigravity
+- [x] `install.mjs` detects Claude Code, Gemini CLI, Copilot CLI, Cursor, Codex, Kiro, Antigravity
 - [x] Each skill includes a "Cross-Platform Notes" section
 - [x] Retired skills removed: `wicked-brain-domain`, `wicked-brain-coverage`, `wicked-brain-vocabulary` (deleted in RET-BRAIN-DOMAIN-001 follow-up)
 

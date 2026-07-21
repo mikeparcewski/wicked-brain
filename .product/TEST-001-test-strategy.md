@@ -61,9 +61,9 @@ cd server && node --test
 
 **Purpose:** Verify that the installer runs without error and that every installed SKILL.md has valid, self-consistent frontmatter.
 
-**How to run (to be verified — manual or scripted):**
+**How to run (redirect to a temp directory — install.mjs has no `--dry-run` flag):**
 ```
-node install.mjs --dry-run   # (if --dry-run flag exists) or inspect output
+node install.mjs --path ./temp-test-dir
 ```
 
 **What is checked:**
@@ -85,9 +85,9 @@ node install.mjs --dry-run   # (if --dry-run flag exists) or inspect output
 **Matrix:**
 | Runner | Node version | What runs |
 |---|---|---|
-| `ubuntu-latest` | (to be verified) | `node --test` |
-| `macos-latest` | (to be verified) | `node --test` |
-| `windows-latest` | (to be verified) | `node --test` |
+| `ubuntu-latest` | `lts/*` | `node --test` |
+| `macos-latest` | `lts/*` | `node --test` |
+| `windows-latest` | `lts/*` | `node --test` |
 
 **Purpose:** Catch platform-specific failures in `better-sqlite3` native bindings, `fs.watch` behavior differences, and path separator handling. All 396 tests must pass on all three platforms before release.
 
