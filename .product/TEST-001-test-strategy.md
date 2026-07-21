@@ -82,7 +82,7 @@ node install.mjs --path ./temp-test-dir
 
 **Trigger:** `v*` tags (release pipeline)
 
-**Matrix:** ubuntu-latest · macos-latest · windows-latest (see reusable workflow for Node version; `ci.yml` uses `lts/*`)
+**Matrix:** Defined in the `mikeparcewski/wicked-ci` reusable workflow (`node-release.yml`); includes ubuntu, macOS, and Windows runners. The local `ci.yml` uses Node `lts/*`.
 
 **Purpose:** Catch platform-specific failures in `better-sqlite3` native bindings, `fs.watch` behavior differences, and path separator handling. All server tests must pass (`cd server && node --test` exits 0) on all three platforms before release.
 
