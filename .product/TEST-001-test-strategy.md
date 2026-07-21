@@ -12,7 +12,7 @@ review-required: true
 
 ## Overview
 
-wicked-brain's test strategy has three layers: unit/integration tests for the server, a skill smoke test for the skill surface, and a cross-platform CI matrix. The test runner is `node:test` (Node.js stdlib) — no test framework dependencies.
+wicked-brain's test strategy has four defined layers: unit/integration tests for the server, a skill smoke test for the skill surface, a cross-platform CI matrix, and a wicked-testing acceptance gate. A fifth layer (manual testing) is described in the coverage-gaps section. The test runner for automated tests is `node:test` (Node.js stdlib) — no test framework dependencies.
 
 ---
 
@@ -78,16 +78,11 @@ node install.mjs --path ./temp-test-dir
 
 ## Layer 3 — Cross-platform CI
 
-**Location:** `.github/workflows/release.yml`
+**Location:** `.github/workflows/release.yml` (delegates to `mikeparcewski/wicked-ci` reusable workflow `node-release.yml`; the OS/Node matrix is defined there, not inline in this repo)
 
 **Trigger:** `v*` tags (release pipeline)
 
-**Matrix:**
-| Runner | Node version | What runs |
-|---|---|---|
-| `ubuntu-latest` | `lts/*` | `node --test` |
-| `macos-latest` | `lts/*` | `node --test` |
-| `windows-latest` | `lts/*` | `node --test` |
+**Matrix:** ubuntu-latest · macos-latest · windows-latest (see reusable workflow for Node version; `ci.yml` uses `lts/*`)
 
 **Purpose:** Catch platform-specific failures in `better-sqlite3` native bindings, `fs.watch` behavior differences, and path separator handling. All 396 tests must pass on all three platforms before release.
 

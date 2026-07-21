@@ -31,7 +31,7 @@ wicked-brain does **not** own: the code graph (estate), domain modeling (estate,
 ## Core user flows
 
 ### Flow 1 — Install skills into a CLI
-1. The user runs `node install.mjs` (or `npx wicked-brain install`) in the project root.
+1. The user runs `node install.mjs` (or `npx wicked-brain`) in the project root. (`wicked-brain` bin maps directly to `install.mjs`; there is no `install` subcommand.)
 2. `install.mjs` detects which AI CLI config directories are present (Claude Code `~/.claude/`, Gemini CLI, Copilot CLI, Cursor, Codex, Kiro, Antigravity).
 3. For each detected CLI, it copies the 27 SKILL.md files into the appropriate skills/agents directory.
 4. The CLIs pick up the installed skills on next startup; agents can now invoke `wicked-brain-search`, `wicked-brain-memory`, etc.

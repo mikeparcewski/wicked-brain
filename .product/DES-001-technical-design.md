@@ -46,7 +46,7 @@ wicked-brain is a two-component system:
 
 ### Entry point
 
-`server/bin/wicked-brain-server` — starts the HTTP server on a configured port, opens the SQLite database for the specified project brain, starts the file watcher.
+`server/bin/wicked-brain-server.mjs` — starts the HTTP server on a configured port, opens the SQLite database for the specified project brain, starts the file watcher.
 
 ### Key modules
 
