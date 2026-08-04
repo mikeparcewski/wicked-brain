@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://wickedagile.com/schemas/coverage/1.0.0",
   "title": "wicked coverage report (v1.0.0)",
-  "description": "The resolved-or-flagged coverage ledger — part of the @wicked/domain-model-schema bundle. Formalizes anti-legacy's coverage-report.json (the coverage.py output). Every behavior-bearing estate SymbolId is either RESOLVED (a rule annotation at/above the confidence threshold) or RISK-flagged (on the HITL research queue) — never bare/unaccounted. `coverage` = (resolved + risk_flagged) / behavior_bearing, in [0,1], rounded to 4 dp; this is the rule_coverage value crew's GATE_3 requires to equal 1.0. The report doubles as a gate predicate: the engine exits non-zero and lists the unaccounted SymbolIds when coverage < 1.0. Deterministic: unaccounted_nodes and per_app are sorted by SymbolId / app name.",
+  "description": "The resolved-or-flagged coverage ledger \u2014 part of the @wicked/domain-model-schema bundle. Formalizes anti-legacy's coverage-report.json (the coverage.py output). Every behavior-bearing estate SymbolId is either RESOLVED (a rule annotation at/above the confidence threshold) or RISK-flagged (on the HITL research queue) \u2014 never bare/unaccounted. `coverage` = (resolved + risk_flagged) / behavior_bearing, in [0,1], rounded to 4 dp; this is the rule_coverage value crew's GATE_3 requires to equal 1.0. The report doubles as a gate predicate: the engine exits non-zero and lists the unaccounted SymbolIds when coverage < 1.0. Deterministic: unaccounted_nodes and per_app are sorted by SymbolId / app name.",
   "type": "object",
   "required": [
     "total",
@@ -21,28 +21,72 @@
   "$defs": {
     "perApp": {
       "type": "object",
-      "required": ["app", "behavior_bearing", "resolved", "risk_flagged", "unaccounted", "coverage"],
+      "required": [
+        "app",
+        "behavior_bearing",
+        "resolved",
+        "risk_flagged",
+        "unaccounted",
+        "coverage"
+      ],
       "additionalProperties": false,
       "properties": {
-        "app": { "type": "string" },
-        "behavior_bearing": { "type": "integer", "minimum": 0 },
-        "resolved": { "type": "integer", "minimum": 0 },
-        "risk_flagged": { "type": "integer", "minimum": 0 },
-        "unaccounted": { "type": "integer", "minimum": 0 },
-        "coverage": { "type": "number", "minimum": 0, "maximum": 1 }
+        "app": {
+          "type": "string"
+        },
+        "behavior_bearing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "risk_flagged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unaccounted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
     },
     "unaccountedNode": {
       "type": "object",
-      "description": "A behavior-bearing node that reached neither RESOLVED nor RISK — the coverage hole. References the estate SymbolId; carries no copy of the node's source.",
-      "required": ["symbol_id"],
+      "description": "A behavior-bearing node that reached neither RESOLVED nor RISK \u2014 the coverage hole. References the estate SymbolId; carries no copy of the node's source.",
+      "required": [
+        "symbol_id"
+      ],
       "additionalProperties": false,
       "properties": {
-        "symbol_id": { "type": "string", "minLength": 1 },
-        "name": { "type": ["string", "null"] },
-        "kind": { "type": ["string", "null"] },
-        "file": { "type": "string" },
-        "app": { "type": "string" }
+        "symbol_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "app": {
+          "type": "string"
+        }
       }
     }
   },
@@ -55,7 +99,7 @@
     "behavior_bearing": {
       "type": "integer",
       "minimum": 0,
-      "description": "The coverage denominator — behavior-bearing nodes only (config-driven via coverage.behavior_kinds, never hardcoded)."
+      "description": "The coverage denominator \u2014 behavior-bearing nodes only (config-driven via coverage.behavior_kinds, never hardcoded)."
     },
     "resolved": {
       "type": "integer",
@@ -99,12 +143,50 @@
     "per_app": {
       "type": "array",
       "description": "Per-app breakdown, sorted by app name.",
-      "items": { "$ref": "#/$defs/perApp" }
+      "items": {
+        "$ref": "#/$defs/perApp"
+      }
     },
     "unaccounted_nodes": {
       "type": "array",
       "description": "The bare behavior-bearing nodes, sorted by SymbolId. Empty iff coverage == 1.0.",
-      "items": { "$ref": "#/$defs/unaccountedNode" }
+      "items": {
+        "$ref": "#/$defs/unaccountedNode"
+      }
+    },
+    "requirement_reuse": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Concentration of `requirement` strings across the nodes claiming them. Reported, never gated: coverage==1.0 says every behavior-bearing node is accounted for, not that the accounting means anything. See wicked-core#131 \u2014 46 distinct strings were written as the requirement of 34,897 nodes and every gate passed. ABSENT when no node carries a requirement, so a present object is always fully populated.",
+      "properties": {
+        "nodes_with_requirement": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Behavior-bearing nodes carrying a non-blank `requirement`."
+        },
+        "distinct_requirements": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Distinct non-blank `requirement` strings among them."
+        },
+        "max_nodes_per_requirement": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Nodes sharing the single most-reused `requirement` string."
+        },
+        "most_reused_requirement": {
+          "type": "string",
+          "description": "That string, truncated to 120 characters INCLUDING a trailing ellipsis.",
+          "maxLength": 120,
+          "minLength": 1
+        }
+      },
+      "required": [
+        "nodes_with_requirement",
+        "distinct_requirements",
+        "max_nodes_per_requirement",
+        "most_reused_requirement"
+      ]
     }
   }
 }
