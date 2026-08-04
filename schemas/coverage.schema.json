@@ -157,7 +157,7 @@
     "requirement_reuse": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Concentration of `requirement` strings across the nodes claiming them. Reported, never gated: coverage==1.0 says every behavior-bearing node is accounted for, not that the accounting means anything. See wicked-core#131 \u2014 46 distinct strings were written as the requirement of 34,897 nodes and every gate passed.",
+      "description": "Concentration of `requirement` strings across the nodes claiming them. Reported, never gated: coverage==1.0 says every behavior-bearing node is accounted for, not that the accounting means anything. See wicked-core#131 \u2014 46 distinct strings were written as the requirement of 34,897 nodes and every gate passed. ABSENT when no node carries a requirement, so a present object is always fully populated.",
       "properties": {
         "nodes_with_requirement": {
           "type": "integer",
@@ -176,13 +176,16 @@
         },
         "most_reused_requirement": {
           "type": "string",
-          "description": "That string, truncated to 120 characters."
+          "description": "That string, truncated to 120 characters INCLUDING a trailing ellipsis.",
+          "maxLength": 120,
+          "minLength": 1
         }
       },
       "required": [
         "nodes_with_requirement",
         "distinct_requirements",
-        "max_nodes_per_requirement"
+        "max_nodes_per_requirement",
+        "most_reused_requirement"
       ]
     }
   }
