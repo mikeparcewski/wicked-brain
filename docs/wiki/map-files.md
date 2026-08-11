@@ -3,7 +3,7 @@ status: published
 canonical_for: [MAP-FILES]
 references: []
 owner: core
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-11
 generated: true
 source_roots: [server/lib, server/bin]
 ---
@@ -18,11 +18,14 @@ Generated walk of `server/lib`, `server/bin`. Do not hand-edit — regenerate wi
 |---|---|---|---|
 | `server/bin/onboard-wiki.mjs` | wicked-brain-onboard-wiki | — | `../lib/onboard-wiki.mjs` |
 | `server/bin/wicked-brain-call.mjs` | — | — | `../lib/project-id.mjs` |
+| `server/bin/wicked-brain-estate.mjs` | — | — | `../lib/estate-export.mjs`, `../lib/estate-import.mjs`, `../lib/project-id.mjs` |
 | `server/bin/wicked-brain-server.mjs` | Listen on `startPort`, probing upward on EADDRINUSE. Probes using the real server instance so the bind semantics (dual-stack IPv4+IPv6) match the eventual listener — a separate 127.0.0.1 probe would miss an IPv6-only conflict and produce a false "free" result. | — | `../lib/brain-walker.mjs`, `../lib/bus.mjs`, `../lib/file-watcher.mjs`, `../lib/lsp-client.mjs`, `../lib/memory-subscriber.mjs`, `../lib/onboard-wiki.mjs`, `../lib/sqlite-search.mjs`, `../lib/viewer-page.mjs` |
 | `server/lib/brain-walker.mjs` | Walk a brain path and surface every authored `.md` file under the content subdirectories (chunks/, wiki/, memory/). Deliberately excludes `_meta/`, `raw/`, `.brain.db`, and any dotfile/dotdir. Paths returned are relative to the brain path and use forward slashes per INV-PATHS-FORWARD. | `purgeBrainContent`, `walkBrainContent` | — |
 | `server/lib/bus.mjs` | wicked-bus integration for wicked-brain-server. | `busAvailable`, `dropBusDeadLetter`, `emitEvent`, `getBusDb`, `isBusAvailable`, `listBusDeadLetters`, `replayBusDeadLetter`, `waitForBus` | — |
 | `server/lib/canonical-registry.mjs` | Canonical registry: maps canonical IDs (e.g. "INV-PATHS-FORWARD") to the single page that owns them. Detects violations of the "one page per ID" rule and broken references. | `buildRegistry`, `findBrokenReferences`, `loadWikiEntries` | `./frontmatter.mjs` |
 | `server/lib/detect-mode.mjs` | Pure classifier. Takes shallow scan inputs, returns mode verdict. | `classifyRepo`, `defaultWikiRoots`, `detectRepoMode` | — |
+| `server/lib/estate-export.mjs` | Brain → estate consolidation, stage S1b: the EXPORT half. | `BRAIN_DEFAULT_CONFIDENCE`, `BUNDLE_FORMAT`, `buildTelemetry`, `exportBundle`, `readBrainDb`, `readBrainId` | `./sqlite-search.mjs` |
+| `server/lib/estate-import.mjs` | Brain → estate consolidation, stage S1b: the IMPORT half. | `DEFAULT_REL`, `KIND_BY_BRAIN_TYPE`, `MIGRATION_PROVENANCE`, `McpClient`, `aggregateLinks`, `buildVerificationReport`, `importContent`, `importRelations`, `knowledgeWriteArgs`, `loadBundle`, `loadIdMap`, `memoryCaptureArgs`, `parseTelemetryOutput`, `remapTelemetry`, `resolveLinks`, `runImport`, `runTelemetryCli`, `verifyBundle` | `./frontmatter.mjs` |
 | `server/lib/file-watcher.mjs` | Recursive fs.watch over brain content with a polling fallback. | `FileWatcher` | — |
 | `server/lib/frontmatter.mjs` | Minimal YAML-subset frontmatter parser. | `extractFrontmatter`, `getField`, `parseFrontmatter`, `parseFrontmatterBlock`, `serializeFrontmatterBlock` | — |
 | `server/lib/gen-contract-api.mjs` | Contract API generator. | `extractActions`, `renderActionsJson`, `renderContractApi` | — |
