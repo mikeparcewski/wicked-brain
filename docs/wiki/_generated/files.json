@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-07-14",
+  "generated_at": "2026-08-11",
   "source_roots": [
     "server/lib",
     "server/bin"
   ],
   "canonical_id": "MAP-FILES",
-  "count": 27,
+  "count": 30,
   "files": [
     {
       "path": "server/bin/onboard-wiki.mjs",
@@ -20,6 +20,16 @@
       "purpose": "",
       "exports": [],
       "imports": [
+        "../lib/project-id.mjs"
+      ]
+    },
+    {
+      "path": "server/bin/wicked-brain-estate.mjs",
+      "purpose": "",
+      "exports": [],
+      "imports": [
+        "../lib/estate-export.mjs",
+        "../lib/estate-import.mjs",
         "../lib/project-id.mjs"
       ]
     },
@@ -83,6 +93,48 @@
         "detectRepoMode"
       ],
       "imports": []
+    },
+    {
+      "path": "server/lib/estate-export.mjs",
+      "purpose": "Brain → estate consolidation, stage S1b: the EXPORT half.",
+      "exports": [
+        "BRAIN_DEFAULT_CONFIDENCE",
+        "BUNDLE_FORMAT",
+        "buildTelemetry",
+        "exportBundle",
+        "readBrainDb",
+        "readBrainId"
+      ],
+      "imports": [
+        "./sqlite-search.mjs"
+      ]
+    },
+    {
+      "path": "server/lib/estate-import.mjs",
+      "purpose": "Brain → estate consolidation, stage S1b: the IMPORT half.",
+      "exports": [
+        "DEFAULT_REL",
+        "KIND_BY_BRAIN_TYPE",
+        "MIGRATION_PROVENANCE",
+        "McpClient",
+        "aggregateLinks",
+        "buildVerificationReport",
+        "importContent",
+        "importRelations",
+        "knowledgeWriteArgs",
+        "loadBundle",
+        "loadIdMap",
+        "memoryCaptureArgs",
+        "parseTelemetryOutput",
+        "remapTelemetry",
+        "resolveLinks",
+        "runImport",
+        "runTelemetryCli",
+        "verifyBundle"
+      ],
+      "imports": [
+        "./frontmatter.mjs"
+      ]
     },
     {
       "path": "server/lib/file-watcher.mjs",

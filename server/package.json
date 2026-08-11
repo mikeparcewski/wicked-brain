@@ -20,7 +20,8 @@
   "bin": {
     "wicked-brain-server": "./bin/wicked-brain-server.mjs",
     "wicked-brain-onboard-wiki": "./bin/onboard-wiki.mjs",
-    "wicked-brain-call": "./bin/wicked-brain-call.mjs"
+    "wicked-brain-call": "./bin/wicked-brain-call.mjs",
+    "wicked-brain-estate": "./bin/wicked-brain-estate.mjs"
   },
   "files": [
     "bin/",
