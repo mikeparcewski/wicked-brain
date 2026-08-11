@@ -137,7 +137,11 @@ export function buildTelemetry(accessLog, searchMisses) {
   return {
     access_log: accessLog.map((r) => ({
       item_id: String(r.doc_id),
-      session_id: String(r.session_id),
+      // Brain declares session_id NOT NULL and estate's AccessRecord requires
+      // a string — but if out-of-contract data ever carries a NULL, preserve
+      // it as JSON null so the import fails LOUDLY (serde error) instead of
+      // silently landing a fabricated "null" session.
+      session_id: r.session_id == null ? null : String(r.session_id),
       accessed_at: Number(r.accessed_at),
     })),
     search_misses: searchMisses.map((r) => ({

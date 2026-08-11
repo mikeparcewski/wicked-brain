@@ -102,6 +102,15 @@ test("buildTelemetry produces the exact import-telemetry file shape (epoch milli
   assert.equal(nullSession.searched_at, 1700000400000);
 });
 
+test("buildTelemetry preserves an out-of-contract NULL access_log session_id as null, never the string 'null'", () => {
+  // Brain's access_log.session_id is NOT NULL by schema, but if out-of-contract
+  // data ever carries a NULL it must stay JSON null (import then fails loudly)
+  // rather than being coerced to the literal string "null" (silent corruption).
+  const t = buildTelemetry([{ doc_id: "d1", session_id: null, accessed_at: 5 }], []);
+  assert.equal(t.access_log[0].session_id, null);
+  assert.notEqual(t.access_log[0].session_id, "null");
+});
+
 test("exportBundle writes manifest + jsonl files with source-of-truth counts", () => {
   const { dir, brainPath } = freshBrain();
   const bundleDir = join(dir, "bundle");
