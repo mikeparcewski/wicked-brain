@@ -19,6 +19,7 @@ import {
   remapTelemetry,
   parseTelemetryOutput,
   memoryCaptureArgs,
+  memoryScope,
   knowledgeWriteArgs,
   MIGRATION_PROVENANCE,
   DEFAULT_REL,
@@ -134,7 +135,10 @@ test("full import: id-map, relations with explicit tuned values, unresolved mani
   assert.equal(capture.args.kind, "fact"); // brain type: decision
   assert.equal(capture.args.tier, "semantic");
   assert.match(capture.args.content, /type: decision/, "frontmatter must survive in content");
-  assert.equal(capture.args.scope, `brain/${FIXTURE_BRAIN_ID}/${MEMORY_DOC}`);
+  assert.equal(
+    capture.args.scope,
+    `brain:${FIXTURE_BRAIN_ID}/doc:${encodeURIComponent(MEMORY_DOC)}`,
+  );
 
   // knowledge.write carried per-doc-unique provenance.
   const writes = calls.filter((c) => c.tool === "knowledge.write");
@@ -280,6 +284,61 @@ test("memoryCaptureArgs maps brain type/tier onto estate's closed vocabulary", (
   );
   assert.equal(bare.kind, "episode");
   assert.equal(bare.tier, "episodic");
+});
+
+// Mirror of estate's `Scope::parse` (wicked-estate-memory-core/src/scope.rs):
+// slash-separated segments; a segment without a colon, or with an empty kind
+// or id, is DISCARDED. Root scope is the empty path. Any silent discard here
+// means the memory lands un-erasable at root — the exact bug this guards.
+function estateScopeParse(path) {
+  return path
+    .split("/")
+    .filter((s) => s.length > 0)
+    .flatMap((s) => {
+      const i = s.indexOf(":");
+      if (i <= 0 || i === s.length - 1) return []; // colonless / empty kind / empty id → dropped
+      return [{ kind: s.slice(0, i), id: s.slice(i + 1) }];
+    });
+}
+
+const estateScopePath = (segs) => segs.map((s) => `${s.kind}:${s.id}`).join("/");
+
+test("memory scope round-trips estate's kind:id grammar without loss", () => {
+  // Real-world shape: memory doc ids are brain-relative paths WITH slashes.
+  const doc = {
+    id: "memories/working/mem-021f9b06-e80b-414a-bba9-8cfedf2835b5.md",
+    path: "memories/working/mem-021f9b06-e80b-414a-bba9-8cfedf2835b5.md",
+    content: "x",
+    source_type: "memory",
+  };
+  const scope = memoryScope(doc, "wicked-garden");
+
+  // Parses to exactly two segments — nothing silently discarded.
+  const segs = estateScopeParse(scope);
+  assert.equal(segs.length, 2, `estate must parse 2 segments from '${scope}'`);
+  assert.deepEqual(
+    segs.map((s) => s.kind),
+    ["brain", "doc"],
+  );
+
+  // Round-trip: what estate stores (canonical path) equals what we sent.
+  assert.equal(estateScopePath(segs), scope, "scope must survive estate's parse→as_path round-trip");
+  assert.notEqual(estateScopePath(segs), "", "scope must not collapse to root");
+
+  // The erasability affordance: `memory.erase scope_prefix "brain:<brain-id>"`
+  // (estate's path_in_prefix: exact match or '<prefix>/' descendant).
+  const prefix = "brain:wicked-garden";
+  assert.ok(
+    scope === prefix || scope.startsWith(`${prefix}/`),
+    `erase prefix '${prefix}' must match stored scope '${scope}'`,
+  );
+
+  // The doc id's slashes must NOT leak as segment separators.
+  assert.ok(!scope.slice(scope.indexOf("/doc:")).slice(1).includes("/"),
+    "encoded doc id must not contain raw '/'");
+
+  // memoryCaptureArgs sends exactly this scope on the wire.
+  assert.equal(memoryCaptureArgs(doc, "wicked-garden").scope, scope);
 });
 
 test("knowledgeWriteArgs routes wiki to concept and chunks to chunk", () => {

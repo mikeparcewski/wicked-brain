@@ -127,8 +127,27 @@ test(
     // Memory landed in the memory store.
     const mdb = new Database(memoryDb, { readonly: true, fileMustExist: true });
     const memNodes = mdb.prepare(`SELECT COUNT(*) AS c FROM nodes`).get().c;
+    // Scope attribution: estate's Scope::parse discards colonless segments, so
+    // a wrong grammar lands memories at root scope '' — un-erasable via the
+    // documented `memory.erase scope_prefix "brain:<brain-id>"` affordance.
+    // Memory-domain scope is persisted in the node's metadata (Memory::to_node
+    // → data JSON, the value erase/coverage/recall read back via from_node),
+    // NOT the nodes.scope column (graph-domain, stays '' for memory nodes).
+    // Assert the STORED post-parse scope is the brain prefix, not root.
+    const erasePrefix = `brain:${encodeURIComponent(manifest.brain_id)}`;
+    const memScopes = mdb
+      .prepare(`SELECT json_extract(data, '$.metadata.scope') AS s FROM nodes`)
+      .all()
+      .map((r) => r.s);
     mdb.close();
     assert.ok(memNodes >= 1, "captured memory must exist in the memory store");
+    for (const s of memScopes) {
+      assert.notEqual(s, "", "memory scope must not collapse to root (silent segment discard)");
+      assert.ok(
+        s === erasePrefix || s.startsWith(`${erasePrefix}/`),
+        `stored scope '${s}' must sit under the erase prefix '${erasePrefix}'`,
+      );
+    }
 
     // ── second import: idempotent ──
     const report2 = await runImport(opts);

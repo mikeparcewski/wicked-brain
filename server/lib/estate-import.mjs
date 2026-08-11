@@ -317,11 +317,28 @@ function docFrontmatter(doc) {
 }
 
 /**
+ * Estate memory scope for one imported brain document.
+ *
+ * Estate's scope grammar (`Scope::parse`, wicked-estate-memory-core) is
+ * slash-separated `kind:id` segments — `org:acme/unit:pay`. Segments WITHOUT
+ * a colon are discarded by that parser, so the earlier `brain/<id>/<doc>`
+ * shape (zero colons) silently landed every memory at root scope `""` and
+ * made the documented erase prefix match nothing. The shape is therefore
+ * `brain:<brain-id>/doc:<doc-id>`, with both ids percent-encoded because doc
+ * ids are brain-relative paths containing `/` (the grammar's segment
+ * separator; a raw slash would split the id into colonless segments).
+ */
+export function memoryScope(doc, brainId) {
+  return `brain:${encodeURIComponent(brainId)}/doc:${encodeURIComponent(doc.id)}`;
+}
+
+/**
  * `memory.capture` arguments for a brain memory document. The FULL markdown
  * (frontmatter included) travels as `content` — the brain's original
  * type/tier/tags/importance survive verbatim even though estate's kind/tier
- * vocabulary differs. `scope` embeds the brain doc id so (a) every imported
- * memory is erasable via the `brain/<brain-id>` prefix and (b) two identical
+ * vocabulary differs. `scope` (see {@link memoryScope}) embeds the brain doc
+ * id so (a) every imported memory is erasable in estate via
+ * `memory.erase scope_prefix "brain:<brain-id>"` and (b) two identical
  * memories at different paths stay distinct (the MCP server caches tools/call
  * responses by exact arguments — identical args would silently collapse).
  */
@@ -333,7 +350,7 @@ export function memoryCaptureArgs(doc, brainId) {
     content: doc.content ?? "",
     kind: KIND_BY_BRAIN_TYPE[brainType] ?? DEFAULT_KIND,
     tier: ESTATE_TIERS.has(brainTier) ? brainTier : DEFAULT_TIER,
-    scope: `brain/${brainId}/${doc.id}`,
+    scope: memoryScope(doc, brainId),
   };
 }
 
