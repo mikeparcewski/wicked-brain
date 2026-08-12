@@ -137,7 +137,7 @@ test("full import: id-map, relations with explicit tuned values, unresolved mani
   assert.match(capture.args.content, /type: decision/, "frontmatter must survive in content");
   assert.equal(
     capture.args.scope,
-    `brain:${FIXTURE_BRAIN_ID}/doc:${encodeURIComponent(MEMORY_DOC)}`,
+    `brain:${encodeURIComponent(FIXTURE_BRAIN_ID)}/doc:${encodeURIComponent(MEMORY_DOC)}`,
   );
 
   // knowledge.write carried per-doc-unique provenance.
