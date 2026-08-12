@@ -2,7 +2,7 @@
   "name": "wicked-brain",
   "version": "0.20.0",
   "type": "module",
-  "description": "RETIRED: consolidated into wicked-estate (memory/knowledge/graph) \u2014 see wicked-garden's mem domain. ~/.wicked-brain stays on disk as a frozen archive.",
+  "description": "RETIRED: consolidated into wicked-estate (memory/knowledge/graph) — see wicked-garden's mem domain. ~/.wicked-brain stays on disk as a frozen archive.",
   "keywords": [
     "ai",
     "brain",
