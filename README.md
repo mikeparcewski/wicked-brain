@@ -26,15 +26,16 @@ Works with **Claude Code**, **Gemini CLI**, **Copilot CLI**, **Cursor**, **Codex
 >   knowledge chunk carries its `wicked-brain://…` source attribution. The Phase 5 exit gate
 >   verified retrieval at/above brain parity on every query class before this retirement.
 > - **Your data directory is untouched.** `~/.wicked-brain/**` (markdown chunks, wiki,
->   memories, `.brain.db` indexes) stays on disk as a frozen archive — nothing is deleted, and
->   nothing writes to it anymore.
+>   memories, `.brain.db` indexes) stays on disk as a frozen archive — the retirement deletes
+>   nothing, and neither wicked-estate, wicked-garden, nor the migration ever writes to it.
+>   (Only running this package's own retired server against it would.)
 > - **Accepted losses** (documented at the exit gate, deliberately not ported):
 >   the wiki compiler + browser viewer (`wicked-brain-ui`), the LSP skills
 >   (`wicked-brain-lsp` / code intelligence — superseded by estate's code graph),
 >   the search synonym map, and brain's own DLQ subscriber instance (the auto-memorize
 >   consumer is now run by wicked-garden against wicked-bus's native DLQ).
 > - The npm package is deprecated; this final release exists to carry this notice.
->   The repository is archived read-only.
+>   With this release the repository is archived read-only.
 >
 > **Migrate:** install wicked-estate (binaries `wicked-estate` + `wicked-estate-mcp`) and
 > wicked-garden, then use the `wicked-garden-mem` / `wicked-garden-search` skills. If you still
