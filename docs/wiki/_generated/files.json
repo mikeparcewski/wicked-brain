@@ -125,6 +125,7 @@
         "loadBundle",
         "loadIdMap",
         "memoryCaptureArgs",
+        "memoryScope",
         "parseTelemetryOutput",
         "remapTelemetry",
         "resolveLinks",
