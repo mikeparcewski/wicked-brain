@@ -12,13 +12,42 @@ wicked-brain gives your AI coding CLI a persistent, searchable knowledge base bu
 
 Works with **Claude Code**, **Gemini CLI**, **Copilot CLI**, **Cursor**, **Codex**, **Kiro**, and **Antigravity**.
 
-> **Status:** v0.18.1, published to npm as [`wicked-brain`](https://www.npmjs.com/package/wicked-brain).
-> Actively developed (JS). This is a **bridge-period adapter** — its memory and knowledge role is
-> destined to fold into [wicked-estate](https://github.com/mikeparcewski/wicked-estate).
+> ## 🪦 RETIRED (2026-08) — consolidated into wicked-estate
 >
-> **The differentiator:** a RAG alternative that stores knowledge as human-readable markdown with
-> explicit, confidence-scored `[[backlinks]]` instead of opaque embeddings — every claim traces to a
-> source file, and the agent (not a vector index) does the reasoning.
+> **wicked-brain is retired.** Its memory, knowledge, and search roles now live in
+> [wicked-estate](https://github.com/mikeparcewski/wicked-estate) (the Rust engine: `memory.*` /
+> `knowledge.*` MCP tools), with [wicked-garden](https://github.com/mikeparcewski/wicked-garden)'s
+> **`mem`** and **`search`** skill domains as the agent surface (`wicked-garden-mem`
+> store/recall/answer/ingest/capture · `wicked-garden-search` blast-radius/lineage/hotspots/answer).
+>
+> - **The migration was zero-loss.** The brain→estate export/import tool (the S1b import
+>   contract, PRs #112/#113) copied every chunk, wiki article, and memory into estate's stores;
+>   migrated memories keep their provenance under `brain:<project>/doc:<id>` scopes and every
+>   knowledge chunk carries its `wicked-brain://…` source attribution. The Phase 5 exit gate
+>   verified retrieval at/above brain parity on every query class before this retirement.
+> - **Your data directory is untouched.** `~/.wicked-brain/**` (markdown chunks, wiki,
+>   memories, `.brain.db` indexes) stays on disk as a frozen archive — the retirement deletes
+>   nothing, and neither wicked-estate, wicked-garden, nor the migration ever writes to it.
+>   (Only running this package's own retired server against it would.)
+> - **Accepted losses** (documented at the exit gate, deliberately not ported):
+>   the wiki compiler + browser viewer (`wicked-brain-ui`), the LSP skills
+>   (`wicked-brain-lsp` / code intelligence — superseded by estate's code graph),
+>   the search synonym map, and brain's own DLQ subscriber instance (the auto-memorize
+>   consumer is now run by wicked-garden against wicked-bus's native DLQ).
+> - The npm package is deprecated; this final release exists to carry this notice.
+>   With this release the repository is archived read-only.
+>
+> **Migrate:** install wicked-estate (binaries `wicked-estate` + `wicked-estate-mcp`) and
+> wicked-garden, then use the `wicked-garden-mem` / `wicked-garden-search` skills. If you still
+> have an un-migrated brain, the export/import tool ships in this repo (`server/bin`, stage S1b).
+
+---
+
+*The original README follows, for the archive.*
+
+> **The differentiator (historical):** a RAG alternative that stored knowledge as human-readable
+> markdown with explicit, confidence-scored `[[backlinks]]` instead of opaque embeddings — every
+> claim traced to a source file, and the agent (not a vector index) did the reasoning.
 
 wicked-brain is the **bridge-period memory** of the [wicked-* foundation](https://wickedagile.com):
 a local-first stack for AI coding agents anchored by
